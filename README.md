@@ -139,15 +139,20 @@ is blocked).
 
 ## Nopoly
 
-Red against Blue on an 8x8 chess board. Eight pieces a side, sixteen in all.
+Red against Blue on an 8x8 chess board. Nine pieces a side, eighteen in all.
 
-| Piece      | Each side has | Moves                                                    |
-| ---------- | ------------- | -------------------------------------------------------- |
-| **Farmer** | 6             | One square up, down, left or right.                        |
-| **Golem**  | 2             | Up to two squares in any of the eight directions.          |
+| Piece      | Each side has | Moves                                                       |
+| ---------- | ------------- | ----------------------------------------------------------- |
+| **Farmer** | 6             | One square up, down, left or right.                           |
+| **Golem**  | 2             | Up to two squares in any of the eight directions.             |
+| **Dragon** | 1             | Six squares forward, three back, two sideways, four diagonal. |
 
-Golems start on the back rank at c and f; the farmers fill b–g on the rank in
-front of them. Red moves first.
+The dragon starts on d of the back rank with a golem either side at c and f;
+the farmers fill b–g on the rank in front. Red moves first.
+
+**Forward means away from your own back rank** — Red advances up the board and
+Blue advances down it — so the dragon's asymmetry cuts the same way for both
+players, and the two armies are exact reflections of each other.
 
 - **Nothing jumps.** Any piece in the path blocks it, friend or enemy.
 - **Landing on an enemy captures it.** There is no separate capture move.
@@ -155,7 +160,8 @@ front of them. Red moves first.
   the match is called for the bigger army — or drawn if the armies are even.
 
 Play the computer at three depths (Easy looks one move ahead, Normal three,
-Hard four) or hand the same screen to a second player. Click a piece and then a
+Hard four — each capped by a time budget, so a crowded position costs a
+shallower search rather than a frozen screen) or hand the same screen to a second player. Click a piece and then a
 highlighted square, or drive it with the arrow keys and Enter.
 
 ## Making it yours
@@ -258,7 +264,8 @@ used), the battle engine (turn order, cooldowns, limited uses, status effects,
 knockouts, the turn cap, seeded replay determinism), the AI (legal actions,
 taking a knockout, sensible replacements) and the drawing code — every fighter
 is rendered through a fake canvas that rejects non-finite coordinates. For
-Nopoly: the opening position (sixteen pieces, mirrored), how each piece moves,
+Nopoly: the opening position (eighteen pieces, reflected), how each piece moves
+including the dragon's asymmetry from both sides,
 that nothing jumps, captures, immutability of a position after a move, illegal
 moves being refused, every way a match can end, and an AI that only plays legal
 moves and takes a free golem. No browser needed.

@@ -1,11 +1,16 @@
 /**
  * Nopoly rules. Pure logic - no canvas, no DOM, no randomness.
  *
- * An 8x8 chess board, Red against Blue, eight pieces each:
+ * An 8x8 chess board, Red against Blue, nine pieces each:
  *   6 Farmers - one square up, down, left or right.
  *   2 Golems  - up to two squares in any of the eight directions.
- * Sixteen pieces on the board at the start. Landing on an enemy captures it;
+ *   1 Dragon  - six squares forward, three back, two to either side and four
+ *               along any diagonal.
+ * Eighteen pieces on the board at the start. Landing on an enemy captures it;
  * nothing jumps over anything.
+ *
+ * "Forward" is away from your own back rank, so the two armies are mirror
+ * images: Red advances up the board, Blue advances down it.
  *
  * State is treated as immutable: `applyMove` returns a new state, which keeps
  * the search in `ai.js` and the move history honest.
@@ -15,21 +20,38 @@ export const BOARD_SIZE = 8;
 export const SQUARES = BOARD_SIZE * BOARD_SIZE;
 
 export const SIDES = {
-  red: { id: 'red', name: 'Red', color: '#e2564a', light: '#ff8a7d', dark: '#8f2016', home: 'bottom' },
-  blue: { id: 'blue', name: 'Blue', color: '#4a8fe2', light: '#8ec2ff', dark: '#16508f', home: 'top' },
+  // `forward` is the row step that takes a piece away from its own back rank.
+  red: { id: 'red', name: 'Red', color: '#e2564a', light: '#ff8a7d', dark: '#8f2016', home: 'bottom', forward: -1 },
+  blue: { id: 'blue', name: 'Blue', color: '#4a8fe2', light: '#8ec2ff', dark: '#16508f', home: 'top', forward: 1 },
 };
 export const SIDE_IDS = ['red', 'blue'];
 
-const ORTHOGONAL = [[0, -1], [0, 1], [-1, 0], [1, 0]];
-const DIAGONAL = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+/**
+ * Move vectors are written from the owner's point of view: dy -1 is forward,
+ * dy +1 is backward. `movesFrom` flips them for whichever side owns the piece,
+ * which is what keeps an asymmetric piece like the Dragon fair.
+ */
+const step = (dx, dy, steps) => ({ dx, dy, steps });
+
+const ORTHOGONAL_1 = [step(0, -1, 1), step(0, 1, 1), step(-1, 0, 1), step(1, 0, 1)];
+const ALL_DIRECTIONS_2 = [
+  step(0, -1, 2), step(0, 1, 2), step(-1, 0, 2), step(1, 0, 2),
+  step(-1, -1, 2), step(1, -1, 2), step(-1, 1, 2), step(1, 1, 2),
+];
+const DRAGON_FLIGHT = [
+  step(0, -1, 6),                                   // six squares forward
+  step(0, 1, 3),                                    // three back
+  step(-1, 0, 2), step(1, 0, 2),                    // two to either side
+  step(-1, -1, 4), step(1, -1, 4),                  // four along each diagonal
+  step(-1, 1, 4), step(1, 1, 4),
+];
 
 export const PIECES = {
   farmer: {
     id: 'farmer',
     name: 'Farmer',
     count: 6,
-    steps: 1,
-    directions: ORTHOGONAL,
+    vectors: ORTHOGONAL_1,
     value: 100,
     blurb: 'One square up, down, left or right.',
   },
@@ -37,10 +59,17 @@ export const PIECES = {
     id: 'golem',
     name: 'Golem',
     count: 2,
-    steps: 2,
-    directions: [...ORTHOGONAL, ...DIAGONAL],
+    vectors: ALL_DIRECTIONS_2,
     value: 380,
     blurb: 'Up to two squares in any direction, including diagonals.',
+  },
+  dragon: {
+    id: 'dragon',
+    name: 'Dragon',
+    count: 1,
+    vectors: DRAGON_FLIGHT,
+    value: 900,
+    blurb: 'Six squares forward, three back, two sideways, four on the diagonals.',
   },
 };
 
@@ -60,8 +89,9 @@ export function squareName(index) {
 export const opponentOf = (side) => (side === 'red' ? 'blue' : 'red');
 
 /**
- * The opening position: golems on the back rank at c and f, farmers filling
- * b-g on the rank in front of them. Blue at the top, Red at the bottom.
+ * The opening position: the dragon on d of the back rank with the golems either
+ * side at c and f, and farmers filling b-g on the rank in front. Blue at the
+ * top, Red at the bottom - each army the other one reflected.
  */
 export function createBoard() {
   const board = new Array(SQUARES).fill(null);
@@ -74,6 +104,8 @@ export function createBoard() {
     place('blue', 'golem', col, 0);
     place('red', 'golem', col, BOARD_SIZE - 1);
   }
+  place('blue', 'dragon', 3, 0);
+  place('red', 'dragon', 3, BOARD_SIZE - 1);
   for (let col = 1; col <= 6; col += 1) {
     place('blue', 'farmer', col, 1);
     place('red', 'farmer', col, BOARD_SIZE - 2);
@@ -112,15 +144,17 @@ export function materialOf(state, side) {
 export function movesFrom(state, index) {
   const piece = state.board[index];
   if (!piece) return [];
-  const { steps, directions } = PIECES[piece.type];
+  const orient = SIDES[piece.side].forward; // -1 for Red, +1 for Blue
   const col = colOf(index);
   const row = rowOf(index);
   const moves = [];
 
-  for (const [dx, dy] of directions) {
-    for (let step = 1; step <= steps; step += 1) {
-      const nextCol = col + dx * step;
-      const nextRow = row + dy * step;
+  for (const vector of PIECES[piece.type].vectors) {
+    const dx = vector.dx;
+    const dy = vector.dy * -orient; // vector dy -1 means "forward" for the owner
+    for (let distance = 1; distance <= vector.steps; distance += 1) {
+      const nextCol = col + dx * distance;
+      const nextRow = row + dy * distance;
       if (!onBoard(nextCol, nextRow)) break;
       const target = indexOf(nextCol, nextRow);
       const occupant = state.board[target];

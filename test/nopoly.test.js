@@ -33,24 +33,27 @@ const at = (name) => {
   return indexOf(col, row);
 };
 
-test('the opening position is sixteen pieces, eight a side', () => {
+test('the opening position is eighteen pieces, nine a side', () => {
   const state = createGame();
-  assert.equal(state.board.filter(Boolean).length, 16);
+  assert.equal(state.board.filter(Boolean).length, 18);
   for (const side of ['red', 'blue']) {
     const pieces = piecesOf(state, side);
-    assert.equal(pieces.length, 8, `${side} fields eight pieces`);
+    assert.equal(pieces.length, 9, `${side} fields nine pieces`);
     assert.equal(pieces.filter((p) => p.type === 'farmer').length, 6, `${side} has six farmers`);
     assert.equal(pieces.filter((p) => p.type === 'golem').length, 2, `${side} has two golems`);
+    assert.equal(pieces.filter((p) => p.type === 'dragon').length, 1, `${side} has one dragon`);
   }
   assert.equal(state.turn, 'red', 'Red moves first');
   assert.equal(state.over, false);
 });
 
-test('the two sides start as mirror images', () => {
+test('each army is the other one reflected across the middle', () => {
   const state = createGame();
   for (let index = 0; index < BOARD_SIZE * BOARD_SIZE; index += 1) {
     const piece = state.board[index];
-    const mirror = state.board[(BOARD_SIZE * BOARD_SIZE - 1) - index];
+    const col = index % BOARD_SIZE;
+    const row = Math.floor(index / BOARD_SIZE);
+    const mirror = state.board[(BOARD_SIZE - 1 - row) * BOARD_SIZE + col];
     if (!piece) {
       assert.equal(mirror, null, `${squareName(index)} mirrors an empty square`);
       continue;
@@ -108,6 +111,60 @@ test('a golem can capture two squares away when the path is clear', () => {
   const move = movesFrom(state, at('d4')).find((option) => squareName(option.to) === 'f6');
   assert.ok(move, 'the diagonal reaches two squares');
   assert.equal(move.captured, 'golem');
+});
+
+test('a dragon flies six forward, three back, two sideways and four diagonally', () => {
+  const state = position([[at('d4'), 'red', 'dragon']]);
+  const reached = movesFrom(state, at('d4')).map((move) => squareName(move.to));
+  const has = (square) => reached.includes(square);
+
+  // Forward for Red is up the board; d4 + 6 runs off the top, so d8 is the cap.
+  for (const square of ['d5', 'd6', 'd7', 'd8']) assert.ok(has(square), `forward to ${square}`);
+  for (const square of ['d3', 'd2', 'd1']) assert.ok(has(square), `back to ${square}`);
+  for (const square of ['c4', 'b4', 'e4', 'f4']) assert.ok(has(square), `sideways to ${square}`);
+  assert.ok(!has('a4') && !has('g4'), 'three squares sideways is too far');
+  for (const square of ['e5', 'f6', 'g7', 'h8']) assert.ok(has(square), `diagonal to ${square}`);
+  assert.equal(reached.length, 24, 'twenty-four squares from d4');
+});
+
+test('a dragon on an open board reaches six squares forward', () => {
+  const state = position([[at('d2'), 'red', 'dragon']]);
+  const forward = movesFrom(state, at('d2'))
+    .map((move) => squareName(move.to))
+    .filter((square) => square[0] === 'd');
+  assert.deepEqual(forward.sort(), ['d1', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8'].sort(),
+    'six squares up and one back before the edge');
+});
+
+test("forward is relative: Blue's dragon flies the other way", () => {
+  const state = position([[at('d7'), 'blue', 'dragon']], 'blue');
+  const files = movesFrom(state, at('d7'))
+    .map((move) => squareName(move.to))
+    .filter((square) => square[0] === 'd')
+    .sort();
+  // Blue advances down the board: six forward (d6..d1), three back (d8 only).
+  assert.deepEqual(files, ['d1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd8']);
+});
+
+test('a dragon is blocked like everything else', () => {
+  const state = position([
+    [at('d4'), 'red', 'dragon'],
+    [at('d6'), 'blue', 'farmer'],
+    [at('f6'), 'red', 'farmer'],
+  ]);
+  const moves = movesFrom(state, at('d4'));
+  const reached = moves.map((move) => squareName(move.to));
+  assert.ok(moves.some((move) => squareName(move.to) === 'd6' && move.captured === 'farmer'));
+  assert.ok(!reached.includes('d7') && !reached.includes('d8'), 'stops at what it captures');
+  assert.ok(!reached.includes('f6'), 'cannot land on a friend');
+  assert.ok(!reached.includes('g7') && !reached.includes('h8'), 'and cannot fly past one');
+});
+
+test('the dragon starts boxed in behind its own back rank', () => {
+  const state = createGame();
+  const dragon = piecesOf(state, 'red').find((piece) => piece.type === 'dragon');
+  assert.equal(squareName(dragon.index), 'd1');
+  assert.deepEqual(movesFrom(state, dragon.index).map((m) => squareName(m.to)), ['e1']);
 });
 
 test('applying a move leaves the previous position untouched', () => {
@@ -193,10 +250,14 @@ test('moves read as plain English', () => {
   );
 });
 
-test('a golem is worth more than a farmer, and material adds up', () => {
+test('pieces are priced in order, and material adds up', () => {
+  assert.ok(PIECES.dragon.value > PIECES.golem.value);
   assert.ok(PIECES.golem.value > PIECES.farmer.value);
   const state = createGame();
-  assert.equal(materialOf(state, 'red'), 6 * PIECES.farmer.value + 2 * PIECES.golem.value);
+  assert.equal(
+    materialOf(state, 'red'),
+    6 * PIECES.farmer.value + 2 * PIECES.golem.value + PIECES.dragon.value
+  );
   assert.equal(materialOf(state, 'red'), materialOf(state, 'blue'), 'the sides start even');
 });
 
@@ -236,6 +297,18 @@ test('the computer takes a free golem', () => {
   const move = chooseMove(state, 'normal', () => 0.5);
   assert.equal(squareName(move.from), 'd4');
   assert.equal(squareName(move.to), 'f6');
+});
+
+test('offered both, the computer takes the dragon', () => {
+  const state = position([
+    [at('d4'), 'red', 'golem'],
+    [at('d6'), 'blue', 'dragon'],
+    [at('f6'), 'blue', 'golem'],
+    [at('h1'), 'red', 'farmer'],
+    [at('a1'), 'blue', 'farmer'],
+  ]);
+  const move = chooseMove(state, 'normal', () => 0.5);
+  assert.equal(squareName(move.to), 'd6', 'the dragon is the bigger prize');
 });
 
 test('a game between two computers always finishes', () => {

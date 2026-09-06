@@ -3,7 +3,8 @@ import { BOARD_SIZE, PIECES, SIDES, colOf, rowOf } from './rules.js';
 
 /**
  * Board and piece drawing. Pieces are drawn from code - a farmer under a straw
- * hat, a golem cut from stone - tinted by the side that owns them.
+ * hat, a golem cut from stone, a dragon on the wing - tinted by the side that
+ * owns them.
  */
 
 export const BOARD = { x: 54, y: 54, square: 54 };
@@ -143,7 +144,8 @@ export function drawPiece(ctx, piece, x, y, scale = 1, alpha = 1) {
   ctx.lineWidth = 2.5;
   ctx.strokeStyle = 'rgba(14, 16, 32, 0.9)';
   if (piece.type === 'farmer') drawFarmer(ctx, side);
-  else drawGolem(ctx, side);
+  else if (piece.type === 'golem') drawGolem(ctx, side);
+  else drawDragon(ctx, side);
   ctx.restore();
 }
 
@@ -239,6 +241,69 @@ function drawGolem(ctx, side) {
   ctx.lineTo(0, 5);
   ctx.lineTo(-3, 12);
   ctx.stroke();
+}
+
+function drawDragon(ctx, side) {
+  // Wings first, so the body sits in front of them
+  ctx.fillStyle = side.light;
+  for (const dir of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(dir * 3, -4);
+    ctx.quadraticCurveTo(dir * 20, -22, dir * 21, -6);
+    ctx.quadraticCurveTo(dir * 15, -8, dir * 13, 1);
+    ctx.quadraticCurveTo(dir * 10, -4, dir * 3, -4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // Tail
+  ctx.strokeStyle = 'rgba(14, 16, 32, 0.9)';
+  ctx.fillStyle = side.dark;
+  ctx.beginPath();
+  ctx.moveTo(-2, 8);
+  ctx.quadraticCurveTo(-13, 14, -15, 5);
+  ctx.quadraticCurveTo(-9, 12, -3, 12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Body and neck
+  ctx.beginPath();
+  ctx.moveTo(-6, 17);
+  ctx.quadraticCurveTo(-9, 2, -1, -3);
+  ctx.quadraticCurveTo(6, -7, 5, -14);
+  ctx.lineTo(11, -14);
+  ctx.quadraticCurveTo(12, -3, 5, 3);
+  ctx.quadraticCurveTo(8, 10, 8, 17);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Head
+  ctx.beginPath();
+  ctx.moveTo(3, -15);
+  ctx.quadraticCurveTo(4, -23, 12, -22);
+  ctx.lineTo(19, -19);
+  ctx.lineTo(12, -16);
+  ctx.quadraticCurveTo(11, -12, 4, -13);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Horn and eye
+  ctx.fillStyle = '#f0cf87';
+  ctx.beginPath();
+  ctx.moveTo(5, -21);
+  ctx.lineTo(1, -28);
+  ctx.lineTo(9, -23);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#fff3c4';
+  ctx.beginPath();
+  ctx.arc(9, -19.5, 1.6, 0, TAU);
+  ctx.fill();
 }
 
 /** Piece portrait for the DOM panels (captured lists, rules key). */

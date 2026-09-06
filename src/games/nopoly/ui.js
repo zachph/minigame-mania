@@ -161,7 +161,7 @@ export class BoardPanel {
       card.append(head);
 
       const row = el('div', 'np-army-pieces');
-      for (const type of ['golem', 'farmer']) {
+      for (const type of ['dragon', 'golem', 'farmer']) {
         const total = PIECES[type].count;
         const lost = state.captured[sideId].filter((entry) => entry === type).length;
         for (let i = 0; i < total; i += 1) {
