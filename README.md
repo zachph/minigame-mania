@@ -1,7 +1,7 @@
 # Minigame Mania
 
-A browser collection of small arcade games. No build step, no dependencies —
-plain ES modules, a canvas and a `<script type="module">`.
+A browser collection of small games. No build step, no dependencies — plain ES
+modules, a canvas and a `<script type="module">`.
 
 **First minigame: Catchmon.**
 
@@ -19,33 +19,67 @@ Any static file server does the job — `npx http-server`, `php -S`, etc.
 
 ## Catchmon
 
-Sixty seconds, one meadow full of wild mons, twenty-four balls.
+A turn-based 3-on-3 type battle. The rival team is drafted and shown to you
+first; you pick three fighters from a roster of thirty to answer it, then fight.
 
-- **Aim** with the mouse, or the arrow keys / WASD.
-- **Hold** to charge a focused throw, **release** to throw. `Space` works too.
-- Land the ball **dead centre** on a mon for the best odds — a graze usually
-  fails.
-- A landing **spooks** every mon nearby, and a fleeing mon is harder to catch.
-- Every catch **refunds a ball** and grows the **streak multiplier** (up to x3).
-  A miss or an escape resets the streak.
-- The round ends when the clock runs out — or early if you run out of balls.
+### The six types
 
-Catch odds come from the species' base rate, how centred the throw was, how far
-it was charged and whether the mon was fleeing (`catchChance()` in
-`src/games/catchmon/game.js`). Rarer species score more, move faster, are harder
-to catch, and show up more often late in a round.
+The chart is a cycle. Every type is **strong against the next two** and
+**resisted by the previous two**, which leaves exactly one neutral matchup. No
+type is better than another.
 
-| Species  | Rarity | Points |
-| -------- | ------ | ------ |
-| Sproutle | ★      | 100    |
-| Emberkit | ★★     | 190    |
-| Dripso   | ★★     | 210    |
-| Zapling  | ★★★    | 340    |
-| Umbrix   | ★★★★   | 560    |
-| Prismon  | ★★★★★  | 1200   |
+```
+Ember → Verdant → Terra → Storm → Tide → Shade → (back to Ember)
+```
 
-High scores and the species you have caught are kept in `localStorage` (and
-fall back to memory when site data is blocked).
+So Ember beats Verdant and Terra, is resisted by Tide and Shade, and is neutral
+with Storm. Super effective is x1.5, resisted is x0.66, and using a move of your
+own type adds x1.25.
+
+### The roster
+
+Thirty fighters, five per type — **final evolutions only**. Each names the form
+it evolved from as flavour, but no earlier stage is playable.
+
+Every type fields one of each role, and every fighter spends exactly the same
+340 stat points:
+
+| Role     | Shape of it                                    | HP  | ATK | DEF | SPD |
+| -------- | ---------------------------------------------- | --- | --- | --- | --- |
+| Vanguard | Heavy hitter with the bulk to trade blows      | 128 | 84  | 68  | 60  |
+| Striker  | Glass cannon: hits hardest, folds fastest      | 100 | 98  | 50  | 92  |
+| Bulwark  | Slow wall that outlasts what it is fighting    | 144 | 58  | 92  | 46  |
+| Runner   | Moves first, chips away, refuses to sit still  | 102 | 76  | 56  | 106 |
+| Keystone | No weak stat and an answer for most turns      | 118 | 74  | 72  | 76  |
+
+| Type    | Vanguard   | Striker    | Bulwark   | Runner    | Keystone  |
+| ------- | ---------- | ---------- | --------- | --------- | --------- |
+| Ember   | Pyrothane  | Cindralisk | Magmoth   | Ashenmane | Kilnhorn  |
+| Verdant | Thornmaw   | Bloomquill | Mosslok   | Saplynx   | Verdrake  |
+| Terra   | Craghide   | Quarrion   | Boulderox | Duneclaw  | Geodon    |
+| Storm   | Arcstag    | Voltaris   | Coilyx    | Galevane  | Thundrake |
+| Tide    | Tidalon    | Maelstrix  | Frostfin  | Coralynx  | Abyssarch |
+| Shade   | Nyxmaw     | Hexaraven  | Umbrathis | Duskgeist | Eclipsar  |
+
+### A turn
+
+Both sides commit an action, then it resolves: switches go first, then moves by
+priority, then by speed. Everyone knows four moves — three drawn from their own
+type plus a neutral one.
+
+- **Heavy moves recharge.** Big hits sit on a cooldown for a couple of turns.
+- **Sustain is limited.** Mend and Second Wind work twice a battle, Shield three
+  times, so stalling is not a plan.
+- **Status matters.** Ember burns (chip damage, weaker attacks), Tide chills
+  (halved speed), Storm stuns (may cost a turn), Verdant roots (cannot switch
+  out), Terra shreds defence and Shade hexes attack.
+- **Stat stages** run from -3 to +3 at x1.25 a step, and reset when a fighter
+  switches out.
+- Battles are capped at 40 turns; if the cap is hit, the healthier team wins.
+
+Score rewards winning fast and healthy. Your score, and which fighters you have
+battled with, are kept in `localStorage` (falling back to memory when site data
+is blocked).
 
 ## Layout
 
@@ -62,11 +96,16 @@ src/
     utils.js           maths and canvas helpers
   games/catchmon/
     index.js           registration + how-to-play copy
-    game.js            round logic, mon behaviour, scoring
-    render.js          all the drawing
-    species.js         the roster
-    constants.js       field bounds and tuning knobs
-test/                  node:test suites (logic, a simulated round, a render smoke test)
+    types.js           the six types and the effectiveness cycle
+    moves.js           44 moves: six archetypes per type plus neutrals
+    roster.js          the thirty final evolutions
+    battle.js          the engine: turns, damage, status, knockouts (pure logic)
+    ai.js              the rival: drafting and turn decisions
+    art.js             procedural fighter art (five body plans x six crests)
+    scene.js           arena, HP panels, popups
+    ui.js              DOM team-select screen and battle commands
+    game.js            phases, event playback, scoring
+test/                  node:test suites
 ```
 
 ## Adding a minigame
@@ -90,8 +129,9 @@ registerGame({
   scaling and HiDPI).
 - `destroy?()` — release anything held.
 
-`context` carries `{ width, height, highScore, finish(result) }`. Call
-`finish({ score, title, collected, emptyText })` to end the round; the shell
+`context` carries `{ width, height, highScore, ui, finish(result) }`, where `ui`
+is a DOM layer over the canvas the game may fill with its own controls. Call
+`finish({ score, title, detailTitle, collected })` to end the round; the shell
 stores the high score and shows the results screen.
 
 ## Tests
@@ -100,6 +140,10 @@ stores the high score and shows the results screen.
 npm test    # node --test
 ```
 
-The suite covers the shared helpers, Catchmon's scoring and catch-chance rules,
-and drives a full simulated round (spawning, throwing, catching, the round-end
-conditions) with a fake input and a fake canvas context — no browser needed.
+45 cases covering the type chart (symmetry, two strengths and two weaknesses
+each), the roster (thirty final evolutions, equal stat budgets, every move
+used), the battle engine (turn order, cooldowns, limited uses, status effects,
+knockouts, the turn cap, seeded replay determinism), the AI (legal actions,
+taking a knockout, sensible replacements) and the drawing code — every fighter
+is rendered through a fake canvas that rejects non-finite coordinates. No
+browser needed.

@@ -14,8 +14,9 @@ const MAX_FRAME_TIME = 1 / 20; // never step more than 50ms at once
  *   render(ctx)        - draw into a 960x540 logical space
  *   destroy?()         - release anything it holds
  *
- * The context it receives carries `{ width, height, highScore, finish(result) }`.
- * `finish` ends the round with `{ score, title?, subtitle?, collected? }`.
+ * The context it receives carries `{ width, height, highScore, ui, finish(result) }`,
+ * where `ui` is a DOM layer over the canvas the game may fill with controls.
+ * `finish` ends the round with `{ score, title?, detailTitle?, collected?, emptyText? }`.
  */
 export class Shell {
   constructor() {
@@ -27,6 +28,7 @@ export class Shell {
       menuScreen: document.getElementById('screen-menu'),
       playScreen: document.getElementById('screen-play'),
       grid: document.getElementById('game-grid'),
+      ui: document.getElementById('stage-ui'),
       topbarRight: document.getElementById('topbar-right'),
       howto: document.getElementById('overlay-howto'),
       howtoTitle: document.getElementById('howto-title'),
@@ -166,6 +168,7 @@ export class Shell {
       width: VIEWPORT.width,
       height: VIEWPORT.height,
       highScore: getHighScore(this.gameDef.id),
+      ui: this.el.ui,
       finish: (result) => this.finish(result),
     });
 
@@ -180,11 +183,13 @@ export class Shell {
     this.state = 'paused';
     this.input.reset();
     this._stopLoop();
+    this.el.ui.classList.add('is-inert');
     this.el.pause.hidden = false;
   }
 
   resume() {
     if (this.state !== 'paused') return;
+    this.el.ui.classList.remove('is-inert');
     this.el.pause.hidden = true;
     this.state = 'playing';
     this.lastTime = performance.now();
@@ -207,14 +212,21 @@ export class Shell {
         : 'No record yet - this one is yours to beat.';
     this.el.resultsBest.classList.toggle('is-record', isRecord);
 
-    this._renderCollected(result.collected, result.emptyText);
+    this.el.ui.classList.add('is-inert');
+    this._renderCollected(result.collected, result.emptyText, result.detailTitle);
     this.el.results.hidden = false;
     this._renderTopbar();
   }
 
-  _renderCollected(rows, emptyText) {
+  _renderCollected(rows, emptyText, detailTitle) {
     const detail = this.el.resultsDetail;
     detail.replaceChildren();
+    if (detailTitle) {
+      const heading = document.createElement('p');
+      heading.className = 'results-detail-title';
+      heading.textContent = detailTitle;
+      detail.append(heading);
+    }
     if (!rows || rows.length === 0) {
       if (emptyText) {
         const p = document.createElement('p');
@@ -238,7 +250,7 @@ export class Shell {
 
       const count = document.createElement('span');
       count.className = 'dex-count';
-      count.textContent = `x${row.count}`;
+      count.textContent = row.label ?? `x${row.count}`;
 
       line.append(dot, name, count);
       if (row.isNew) {
@@ -274,6 +286,7 @@ export class Shell {
   }
 
   _hideOverlays() {
+    this.el.ui.classList.remove('is-inert');
     this.el.howto.hidden = true;
     this.el.pause.hidden = true;
     this.el.results.hidden = true;
@@ -316,5 +329,6 @@ export class Shell {
   _destroyGame() {
     this.game?.destroy?.();
     this.game = null;
+    this.el.ui.replaceChildren();
   }
 }
