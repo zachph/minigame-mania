@@ -358,17 +358,18 @@ function drawCrest(ctx, character, palette, x, y, scale, time, seed) {
       ctx.stroke();
       break;
     }
-    case 'bolt': {
-      ctx.beginPath();
-      ctx.moveTo(-4, -26);
-      ctx.lineTo(10, -8);
-      ctx.lineTo(1, -6);
-      ctx.lineTo(9, 8);
-      ctx.lineTo(-9, -6);
-      ctx.lineTo(-1, -8);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+    case 'swirl': {
+      ctx.save();
+      ctx.rotate(Math.sin(time * 2.2 + seed * 5) * 0.2);
+      ctx.strokeStyle = type.color;
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      for (const [offset, radius] of [[-14, 9], [0, 12], [12, 7]]) {
+        ctx.beginPath();
+        ctx.arc(0, offset - 6, radius, Math.PI * 0.15, Math.PI * 1.55);
+        ctx.stroke();
+      }
+      ctx.restore();
       break;
     }
     case 'drop': {

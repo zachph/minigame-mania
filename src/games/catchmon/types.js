@@ -5,15 +5,19 @@
  * the previous two, which leaves exactly one neutral matchup (the type
  * opposite it). No type is strictly better than another.
  *
- *   Ember -> Verdant -> Terra -> Storm -> Tide -> Shade -> (Ember)
+ *   Fire -> Grass -> Rock -> Wind -> Water -> Dark -> (Fire)
+ *
+ * So Fire beats Grass and Rock, is resisted by Water and Dark, and is neutral
+ * against Wind. Reordering this array reshapes the whole chart, and nothing
+ * else needs to change.
  */
 export const TYPES = [
-  { id: 'ember', name: 'Ember', color: '#ff8552', accent: '#a32d05', glyph: 'flame' },
-  { id: 'verdant', name: 'Verdant', color: '#63d17f', accent: '#1f7a3a', glyph: 'leaf' },
-  { id: 'terra', name: 'Terra', color: '#d0a163', accent: '#7a5220', glyph: 'rock' },
-  { id: 'storm', name: 'Storm', color: '#ffd84d', accent: '#a67c00', glyph: 'bolt' },
-  { id: 'tide', name: 'Tide', color: '#57bdf7', accent: '#12608f', glyph: 'drop' },
-  { id: 'shade', name: 'Shade', color: '#ab7ce6', accent: '#4b2a7a', glyph: 'moon' },
+  { id: 'fire', name: 'Fire', color: '#ff8552', accent: '#a32d05', glyph: 'flame' },
+  { id: 'grass', name: 'Grass', color: '#63d17f', accent: '#1f7a3a', glyph: 'leaf' },
+  { id: 'rock', name: 'Rock', color: '#d0a163', accent: '#7a5220', glyph: 'rock' },
+  { id: 'wind', name: 'Wind', color: '#b9c6e8', accent: '#4f5f8c', glyph: 'swirl' },
+  { id: 'water', name: 'Water', color: '#4aa8f0', accent: '#12608f', glyph: 'drop' },
+  { id: 'dark', name: 'Dark', color: '#ab7ce6', accent: '#4b2a7a', glyph: 'moon' },
 ];
 
 export const TYPE_IDS = TYPES.map((type) => type.id);

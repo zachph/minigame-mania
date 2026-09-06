@@ -24,7 +24,7 @@ const ARCHETYPES = [
 
 /** Per-type names, plus what that type's status move does. */
 const TYPE_MOVES = {
-  ember: {
+  fire: {
     quick: 'Ember Jab',
     standard: 'Flame Lash',
     heavy: 'Inferno Core',
@@ -34,7 +34,7 @@ const TYPE_MOVES = {
     statusEffect: { status: 'burn', chance: 100, target: 'foe' },
     statusBlurb: 'Burns the foe: chip damage each turn and weaker attacks.',
   },
-  verdant: {
+  grass: {
     quick: 'Vine Flick',
     standard: 'Thorn Strike',
     heavy: 'Forest Judgment',
@@ -44,7 +44,7 @@ const TYPE_MOVES = {
     statusEffect: { status: 'root', chance: 100, target: 'foe' },
     statusBlurb: 'Roots the foe in place so it cannot be switched out.',
   },
-  terra: {
+  rock: {
     quick: 'Pebble Toss',
     standard: 'Stone Fist',
     heavy: 'Tectonic Slam',
@@ -54,17 +54,17 @@ const TYPE_MOVES = {
     statusEffect: { stat: 'def', stages: -2, chance: 100, target: 'foe' },
     statusBlurb: "Scours away the foe's defence.",
   },
-  storm: {
-    quick: 'Spark Snap',
-    standard: 'Thunder Claw',
+  wind: {
+    quick: 'Gust Jab',
+    standard: 'Cyclone Claw',
     heavy: 'Tempest Nova',
-    status: 'Static Web',
-    drain: 'Volt Siphon',
-    volley: 'Chain Volley',
+    status: 'Vacuum Snare',
+    drain: 'Updraft Siphon',
+    volley: 'Gale Volley',
     statusEffect: { status: 'stun', chance: 100, target: 'foe' },
-    statusBlurb: 'Stuns the foe, which may cost it a turn.',
+    statusBlurb: 'Leaves the foe reeling, which may cost it a turn.',
   },
-  tide: {
+  water: {
     quick: 'Bubble Snap',
     standard: 'Tidal Slash',
     heavy: 'Abyssal Surge',
@@ -74,7 +74,7 @@ const TYPE_MOVES = {
     statusEffect: { status: 'chill', chance: 100, target: 'foe' },
     statusBlurb: 'Chills the foe, halving its speed.',
   },
-  shade: {
+  dark: {
     quick: 'Shadow Nip',
     standard: 'Umbral Claw',
     heavy: 'Void Collapse',

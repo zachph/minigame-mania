@@ -61,6 +61,6 @@ test('strongAgainst and weakTo agree with the chart', () => {
 });
 
 test('an unknown type is treated as neutral', () => {
-  assert.equal(effectiveness('ember', 'nonsense'), 1);
-  assert.equal(effectiveness(null, 'ember'), 1);
+  assert.equal(effectiveness('fire', 'nonsense'), 1);
+  assert.equal(effectiveness(null, 'fire'), 1);
 });

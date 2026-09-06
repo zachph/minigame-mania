@@ -9,12 +9,12 @@
   --accent-2: #ff5d73;
   --good: #6ee7a8;
   --radius: 14px;
-  --type-ember: #ff8552;
-  --type-verdant: #63d17f;
-  --type-terra: #d0a163;
-  --type-storm: #ffd84d;
-  --type-tide: #57bdf7;
-  --type-shade: #ab7ce6;
+  --type-fire: #ff8552;
+  --type-grass: #63d17f;
+  --type-rock: #d0a163;
+  --type-wind: #b9c6e8;
+  --type-water: #4aa8f0;
+  --type-dark: #ab7ce6;
   --shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
   color-scheme: dark;
 }

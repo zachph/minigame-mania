@@ -29,12 +29,25 @@ The chart is a cycle. Every type is **strong against the next two** and
 type is better than another.
 
 ```
-Ember → Verdant → Terra → Storm → Tide → Shade → (back to Ember)
+Fire → Grass → Rock → Wind → Water → Dark → (back to Fire)
 ```
 
-So Ember beats Verdant and Terra, is resisted by Tide and Shade, and is neutral
-with Storm. Super effective is x1.5, resisted is x0.66, and using a move of your
-own type adds x1.25.
+So Fire beats Grass and Rock, is resisted by Water and Dark, and is neutral with
+Wind. Super effective is x1.5, resisted is x0.66, and using a move of your own
+type adds x1.25.
+
+| Type  | Beats        | Weak to      | Neutral with |
+| ----- | ------------ | ------------ | ------------ |
+| Fire  | Grass, Rock  | Water, Dark  | Wind         |
+| Grass | Rock, Wind   | Fire, Dark   | Water        |
+| Rock  | Wind, Water  | Grass, Fire  | Dark         |
+| Wind  | Water, Dark  | Rock, Grass  | Fire         |
+| Water | Dark, Fire   | Wind, Rock   | Grass        |
+| Dark  | Fire, Grass  | Water, Wind  | Rock         |
+
+The cycle is defined by the order of the `TYPES` array in
+[`types.js`](src/games/catchmon/types.js) — reorder it and the whole chart
+follows, with nothing else to change.
 
 ### The roster
 
@@ -52,14 +65,16 @@ Every type fields one of each role, and every fighter spends exactly the same
 | Runner   | Moves first, chips away, refuses to sit still  | 102 | 76  | 56  | 106 |
 | Keystone | No weak stat and an answer for most turns      | 118 | 74  | 72  | 76  |
 
-| Type    | Vanguard   | Striker    | Bulwark   | Runner    | Keystone  |
-| ------- | ---------- | ---------- | --------- | --------- | --------- |
-| Ember   | Pyrothane  | Cindralisk | Magmoth   | Ashenmane | Kilnhorn  |
-| Verdant | Thornmaw   | Bloomquill | Mosslok   | Saplynx   | Verdrake  |
-| Terra   | Craghide   | Quarrion   | Boulderox | Duneclaw  | Geodon    |
-| Storm   | Arcstag    | Voltaris   | Coilyx    | Galevane  | Thundrake |
-| Tide    | Tidalon    | Maelstrix  | Frostfin  | Coralynx  | Abyssarch |
-| Shade   | Nyxmaw     | Hexaraven  | Umbrathis | Duskgeist | Eclipsar  |
+| Type  | Vanguard   | Striker    | Bulwark   | Runner    | Keystone  |
+| ----- | ---------- | ---------- | --------- | --------- | --------- |
+| Fire  | Pyrothane  | Cindralisk | Magmoth   | Ashenmane | Kilnhorn  |
+| Grass | Thornmaw   | Bloomquill | Mosslok   | Saplynx   | Verdrake  |
+| Rock  | Craghide   | Quarrion   | Boulderox | Duneclaw  | Geodon    |
+| Wind  | Galehart   | Zephyris   | Cirrolith | Galevane  | Skydrake  |
+| Water | Tidalon    | Maelstrix  | Frostfin  | Coralynx  | Abyssarch |
+| Dark  | Nyxmaw     | Hexaraven  | Umbrathis | Duskgeist | Eclipsar  |
+
+These names are placeholders — see [Making it yours](#making-it-yours).
 
 ### A turn
 
@@ -70,9 +85,9 @@ type plus a neutral one.
 - **Heavy moves recharge.** Big hits sit on a cooldown for a couple of turns.
 - **Sustain is limited.** Mend and Second Wind work twice a battle, Shield three
   times, so stalling is not a plan.
-- **Status matters.** Ember burns (chip damage, weaker attacks), Tide chills
-  (halved speed), Storm stuns (may cost a turn), Verdant roots (cannot switch
-  out), Terra shreds defence and Shade hexes attack.
+- **Status matters.** Fire burns (chip damage, weaker attacks), Water chills
+  (halved speed), Wind leaves the foe reeling (may cost a turn), Grass roots
+  (cannot switch out), Rock shreds defence and Dark hexes attack.
 - **Stat stages** run from -3 to +3 at x1.25 a step, and reset when a fighter
   switches out.
 - Battles are capped at 40 turns; if the cap is hit, the healthier team wins.
@@ -80,6 +95,31 @@ type plus a neutral one.
 Score rewards winning fast and healthy. Your score, and which fighters you have
 battled with, are kept in `localStorage` (falling back to memory when site data
 is blocked).
+
+## Making it yours
+
+Names and type assignments all live in one table — `ENTRIES` in
+[`roster.js`](src/games/catchmon/roster.js). Each row is:
+
+```js
+[ id, name, type, role, shape, evolvesFrom, blurb, statTweak ]
+```
+
+- **id** — lowercase and unique; it is what saved records key off.
+- **type** — `fire` | `grass` | `rock` | `wind` | `water` | `dark`. Change it and
+  the fighter's move set, colours and crest follow automatically.
+- **role** — `vanguard` | `striker` | `bulwark` | `runner` | `keystone`; sets the
+  stat spread and which four move slots it fills.
+- **shape** — `quad` | `biped` | `serpent` | `winged` | `orb`; picks the body plan
+  it is drawn from.
+- **evolvesFrom** — the earlier form's name. Flavour only: every fighter in the
+  game is a final evolution, and no earlier stage is playable.
+- **statTweak** — must net to zero, e.g. `{ atk: 4, spd: -4 }`, so every fighter
+  keeps the same 340-point budget.
+
+`npm test` enforces the invariants after an edit: thirty fighters, five per
+type, one of each role per type, unique ids and names, equal stat budgets, and
+no move left unused.
 
 ## Layout
 

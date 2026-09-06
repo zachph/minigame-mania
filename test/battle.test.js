@@ -51,7 +51,7 @@ function autoBattle(battle, rng = makeRng(3)) {
 
 test('type effectiveness moves damage in the right direction', () => {
   const attacker = createFighter(getCharacter('pyrothane'), 'player', 0); // Ember
-  const move = getMove('ember-standard');
+  const move = getMove('fire-standard');
   const versus = (id) => {
     const defender = createFighter(getCharacter(id), 'enemy', 0);
     defender.character = { ...defender.character, stats: { ...attacker.character.stats } };
@@ -65,12 +65,12 @@ test('type effectiveness moves damage in the right direction', () => {
 });
 
 test('same-type moves get the attack bonus', () => {
-  const ember = createFighter(getCharacter('pyrothane'), 'player', 0);
-  const storm = createFighter(getCharacter('arcstag'), 'player', 0);
-  const target = createFighter(getCharacter('arcstag'), 'enemy', 0);
-  storm.character = { ...storm.character, stats: ember.character.stats };
-  const withStab = computeDamage(ember, target, getMove('ember-standard')).damage;
-  const noStab = computeDamage(storm, target, getMove('ember-standard')).damage;
+  const fire = createFighter(getCharacter('pyrothane'), 'player', 0);
+  const wind = createFighter(getCharacter('galehart'), 'player', 0);
+  const target = createFighter(getCharacter('galehart'), 'enemy', 0);
+  wind.character = { ...wind.character, stats: fire.character.stats };
+  const withStab = computeDamage(fire, target, getMove('fire-standard')).damage;
+  const noStab = computeDamage(wind, target, getMove('fire-standard')).damage;
   assert.ok(withStab > noStab);
 });
 
@@ -87,23 +87,23 @@ test('stat stages scale a stat and clamp at three', () => {
 
 test('the faster fighter moves first, and priority beats speed', () => {
   const battle = newBattle(['galevane'], ['magmoth']); // 100 spd vs 38 spd
-  battle.setAction('player', { kind: 'move', moveId: 'storm-standard' });
-  battle.setAction('enemy', { kind: 'move', moveId: 'ember-standard' });
+  battle.setAction('player', { kind: 'move', moveId: 'wind-standard' });
+  battle.setAction('enemy', { kind: 'move', moveId: 'fire-standard' });
   const events = battle.resolveTurn();
   const movers = events.filter((event) => event.kind === 'move').map((event) => event.side);
   assert.deepEqual(movers, ['player', 'enemy']);
 
   const slowFirst = newBattle(['magmoth'], ['galevane']);
-  slowFirst.setAction('player', { kind: 'move', moveId: 'ember-standard' });
-  slowFirst.setAction('enemy', { kind: 'move', moveId: 'storm-quick' }); // priority 1
+  slowFirst.setAction('player', { kind: 'move', moveId: 'fire-standard' });
+  slowFirst.setAction('enemy', { kind: 'move', moveId: 'wind-quick' }); // priority 1
   const order = slowFirst.resolveTurn().filter((e) => e.kind === 'move').map((e) => e.side);
   assert.deepEqual(order, ['enemy', 'player']);
 });
 
 test('switching happens before any move', () => {
-  const battle = newBattle(['magmoth', 'galevane'], ['arcstag']);
+  const battle = newBattle(['magmoth', 'galevane'], ['galehart']);
   battle.setAction('player', { kind: 'switch', index: 1 });
-  battle.setAction('enemy', { kind: 'move', moveId: 'storm-standard' });
+  battle.setAction('enemy', { kind: 'move', moveId: 'wind-standard' });
   const events = battle.resolveTurn();
   assert.equal(events[0].kind, 'switch');
   assert.equal(battle.activeOf('player').character.name, 'Galevane');
@@ -112,17 +112,17 @@ test('switching happens before any move', () => {
 test('cooldowns lock a move out and then tick back', () => {
   const battle = newBattle(['pyrothane'], ['thornmaw']);
   makeTanky(battle);
-  const heavy = 'ember-heavy'; // cooldown 2
+  const heavy = 'fire-heavy'; // cooldown 2
   battle.setAction('player', { kind: 'move', moveId: heavy });
-  battle.setAction('enemy', { kind: 'move', moveId: 'verdant-standard' });
+  battle.setAction('enemy', { kind: 'move', moveId: 'grass-standard' });
   battle.resolveTurn();
   const readiness = () => battle.moveOptions('player').find((o) => o.move.id === heavy);
   assert.equal(readiness().ready, false);
   assert.equal(readiness().cooldown, 2);
 
   for (let turn = 0; turn < 2; turn += 1) {
-    battle.setAction('player', { kind: 'move', moveId: 'ember-standard' });
-    battle.setAction('enemy', { kind: 'move', moveId: 'verdant-standard' });
+    battle.setAction('player', { kind: 'move', moveId: 'fire-standard' });
+    battle.setAction('enemy', { kind: 'move', moveId: 'grass-standard' });
     battle.resolveTurn();
   }
   assert.equal(readiness().ready, true, 'the heavy hitter comes back');
@@ -135,7 +135,7 @@ test('limited moves run out for good', () => {
   fighter.usesLeft.mend = 1;
   fighter.hp = 40;
   battle.setAction('player', { kind: 'move', moveId: 'mend' });
-  battle.setAction('enemy', { kind: 'move', moveId: 'verdant-standard' });
+  battle.setAction('enemy', { kind: 'move', moveId: 'grass-standard' });
   battle.resolveTurn();
   assert.equal(fighter.usesLeft.mend, 0);
   assert.equal(battle.moveOptions('player').find((o) => o.move.id === 'mend').ready, false);
@@ -145,21 +145,21 @@ test('limited moves run out for good', () => {
 test('burn chips away each turn and wears off', () => {
   const battle = newBattle(['cindralisk'], ['craghide']);
   makeTanky(battle);
-  battle.setAction('player', { kind: 'move', moveId: 'ember-status' }); // Scorch Mark
-  battle.setAction('enemy', { kind: 'move', moveId: 'terra-standard' });
+  battle.setAction('player', { kind: 'move', moveId: 'fire-status' }); // Scorch Mark
+  battle.setAction('enemy', { kind: 'move', moveId: 'rock-standard' });
   battle.resolveTurn();
   const burned = battle.activeOf('enemy');
   assert.equal(burned.status?.id, 'burn');
   const afterApply = burned.hp;
 
   battle.setAction('player', { kind: 'move', moveId: 'snare' });
-  battle.setAction('enemy', { kind: 'move', moveId: 'terra-standard' });
+  battle.setAction('enemy', { kind: 'move', moveId: 'rock-standard' });
   battle.resolveTurn();
   assert.ok(burned.hp < afterApply, 'the burn ticked');
 
   for (let turn = 0; turn < 3 && burned.status; turn += 1) {
     battle.setAction('player', { kind: 'move', moveId: 'snare' });
-    battle.setAction('enemy', { kind: 'move', moveId: 'terra-standard' });
+    battle.setAction('enemy', { kind: 'move', moveId: 'rock-standard' });
     battle.resolveTurn();
   }
   assert.equal(burned.status, null, 'the burn expires');
@@ -168,8 +168,8 @@ test('burn chips away each turn and wears off', () => {
 test('rooting a fighter stops it switching out', () => {
   const battle = newBattle(['thornmaw'], ['galevane', 'magmoth']);
   makeTanky(battle);
-  battle.setAction('player', { kind: 'move', moveId: 'verdant-status' }); // Snare Roots
-  battle.setAction('enemy', { kind: 'move', moveId: 'storm-standard' });
+  battle.setAction('player', { kind: 'move', moveId: 'grass-status' }); // Snare Roots
+  battle.setAction('enemy', { kind: 'move', moveId: 'wind-standard' });
   battle.resolveTurn();
   assert.equal(battle.activeOf('enemy').status?.id, 'root');
   assert.equal(battle.canSwitch('enemy'), false);
@@ -179,7 +179,7 @@ test('rooting a fighter stops it switching out', () => {
 test('a shielded fighter takes no damage that turn', () => {
   const battle = newBattle(['geodon'], ['pyrothane']);
   battle.setAction('player', { kind: 'move', moveId: 'shield' });
-  battle.setAction('enemy', { kind: 'move', moveId: 'ember-heavy' });
+  battle.setAction('enemy', { kind: 'move', moveId: 'fire-heavy' });
   const events = battle.resolveTurn();
   assert.ok(events.some((event) => event.kind === 'blocked'));
   assert.equal(battle.activeOf('player').hp, battle.activeOf('player').maxHp);
@@ -190,7 +190,7 @@ test('a knockout forces a replacement and can end the battle', () => {
   const battle = newBattle(['pyrothane', 'galevane'], ['thornmaw']);
   battle.activeOf('player').hp = 1;
   battle.setAction('player', { kind: 'move', moveId: 'ram' });
-  battle.setAction('enemy', { kind: 'move', moveId: 'verdant-heavy' });
+  battle.setAction('enemy', { kind: 'move', moveId: 'grass-heavy' });
   const events = battle.resolveTurn();
   assert.ok(events.some((event) => event.kind === 'faint' && event.side === 'player'));
   assert.equal(battle.pendingSwitch.player, true);
@@ -203,7 +203,7 @@ test('a knockout forces a replacement and can end the battle', () => {
 
   battle.activeOf('player').hp = 1;
   battle.setAction('player', { kind: 'move', moveId: 'ram' });
-  battle.setAction('enemy', { kind: 'move', moveId: 'verdant-heavy' });
+  battle.setAction('enemy', { kind: 'move', moveId: 'grass-heavy' });
   battle.resolveTurn();
   assert.equal(battle.over, true);
   assert.equal(battle.winner, 'enemy');
@@ -256,9 +256,9 @@ test('the same seed replays the same battle', () => {
 });
 
 test('previewDamage tracks real damage without rolling dice', () => {
-  const attacker = createFighter(getCharacter('voltaris'), 'player', 0);
+  const attacker = createFighter(getCharacter('zephyris'), 'player', 0);
   const defender = createFighter(getCharacter('tidalon'), 'enemy', 0);
-  const strong = previewDamage(attacker, defender, getMove('storm-standard'));
+  const strong = previewDamage(attacker, defender, getMove('wind-standard'));
   const weak = previewDamage(attacker, defender, getMove('ram'));
   assert.ok(strong > weak);
   assert.equal(previewDamage(attacker, defender, getMove('mend')), 0);
