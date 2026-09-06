@@ -1,100 +1,151 @@
 /**
- * Bundles the game into one self-contained HTML file that runs from anywhere -
- * a double-clicked file, a static host, or a published page. No dependencies:
- * the modules form a small acyclic graph, so inlining them in dependency order
- * and dropping the import/export keywords is enough.
+ * Bundles the app into one self-contained HTML file that runs from anywhere -
+ * a double-clicked file, a static host, or a published page.
  *
  *   node tools/build-single-file.mjs [outfile] [--fragment]
  *
  * --fragment omits the <!doctype>/<html>/<head>/<body> wrapper, for hosts that
  * supply their own document shell.
+ *
+ * Each module keeps its own scope: modules are emitted as IIFEs that return
+ * their exports into a registry, and imports become destructuring from it. That
+ * matters because separate games legitimately use the same local names.
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const ENTRY = 'src/main.js';
 
-// Dependency order: every module appears after everything it imports.
-const MODULES = [
-  'src/core/utils.js',
-  'src/core/storage.js',
-  'src/core/input.js',
-  'src/core/registry.js',
-  'src/core/shell.js',
-  'src/games/catchmon/types.js',
-  'src/games/catchmon/moves.js',
-  'src/games/catchmon/roster.js',
-  'src/games/catchmon/battle.js',
-  'src/games/catchmon/ai.js',
-  'src/games/catchmon/art.js',
-  'src/games/catchmon/scene.js',
-  'src/games/catchmon/ui.js',
-  'src/games/catchmon/game.js',
-  'src/games/catchmon/index.js',
-  'src/main.js',
-];
+const IMPORT_RE = /^import\s+(?:([\w$]+)\s*,\s*)?(?:\{([\s\S]*?)\}\s+)?(?:from\s+)?['"]([^'"]+)['"];?[ \t]*$/gm;
+const EXPORT_DECL_RE = /^export\s+(?:async\s+)?(?:const|let|var|function|class)\s+([\w$]+)/gm;
+const EXPORT_LIST_RE = /^export\s*\{([^}]*)\};?[ \t]*$/gm;
 
-/** Strips module syntax so the file can be concatenated into one scope. */
-function stripModuleSyntax(source, path) {
-  let code = source
-    .replace(/^import\s+\{[\s\S]*?\}\s+from\s+['"][^'"]+['"];\s*$/gm, '')
-    .replace(/^import\s+['"][^'"]+['"];\s*$/gm, '')
-    .replace(/^import\s+\w+\s+from\s+['"][^'"]+['"];\s*$/gm, '')
-    .replace(/^export\s+\{[^}]*\};\s*$/gm, '')
-    .replace(/^export\s+(const|let|function|class|async)\b/gm, '$1');
-  if (/^\s*(import|export)\b/m.test(code)) {
-    throw new Error(`${path}: module syntax survived the strip - check the bundler`);
+function parseModule(path, source) {
+  const imports = [];
+  const body = source.replace(IMPORT_RE, (match, defaultName, named, specifier) => {
+    if (defaultName) throw new Error(`${path}: default imports are not supported (${match.trim()})`);
+    imports.push({
+      specifier,
+      bindings: (named || '')
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .map((entry) => {
+          const [name, alias] = entry.split(/\s+as\s+/).map((part) => part.trim());
+          return { name, alias: alias || name };
+        }),
+    });
+    return '';
+  });
+
+  if (/^\s*export\s+default/m.test(body)) throw new Error(`${path}: default exports are not supported`);
+
+  const exports = new Set();
+  for (const match of body.matchAll(EXPORT_DECL_RE)) exports.add(match[1]);
+  for (const match of body.matchAll(EXPORT_LIST_RE)) {
+    for (const entry of match[1].split(',').map((part) => part.trim()).filter(Boolean)) {
+      const [name, alias] = entry.split(/\s+as\s+/).map((part) => part.trim());
+      exports.add(alias || name);
+    }
   }
-  return `// ---- ${path} ${'-'.repeat(Math.max(0, 62 - path.length))}\n${code.trim()}\n`;
+
+  const code = body
+    .replace(EXPORT_LIST_RE, '')
+    .replace(/^export\s+(?=(?:async\s+)?(?:const|let|var|function|class)\s)/gm, '');
+
+  if (/^\s*(import|export)\b/m.test(code)) {
+    throw new Error(`${path}: module syntax survived the rewrite - check the bundler`);
+  }
+  return { imports, exports: [...exports], code: code.trim() };
+}
+
+/** Depth-first walk from the entry point, so dependencies are emitted first. */
+async function collect(entry) {
+  const modules = new Map();
+  const visiting = new Set();
+
+  async function visit(path) {
+    if (modules.has(path)) return;
+    if (visiting.has(path)) throw new Error(`Import cycle through ${path}`);
+    visiting.add(path);
+
+    const source = await readFile(resolve(root, path), 'utf8');
+    const parsed = parseModule(path, source);
+    const resolved = parsed.imports.map((entryImport) => ({
+      ...entryImport,
+      path: relative(root, resolve(root, dirname(path), entryImport.specifier)).split('\\').join('/'),
+    }));
+    for (const dependency of resolved) await visit(dependency.path);
+
+    visiting.delete(path);
+    modules.set(path, { ...parsed, imports: resolved });
+  }
+
+  await visit(entry);
+  return modules;
+}
+
+function emit(modules) {
+  const chunks = ['const __modules = {};'];
+  for (const [path, module] of modules) {
+    const bindings = module.imports
+      .filter((entry) => entry.bindings.length > 0)
+      .map((entry) => {
+        const list = entry.bindings
+          .map(({ name, alias }) => (name === alias ? name : `${name}: ${alias}`))
+          .join(', ');
+        return `  const { ${list} } = __modules[${JSON.stringify(entry.path)}];`;
+      })
+      .join('\n');
+
+    chunks.push(
+      `// ---- ${path} ${'-'.repeat(Math.max(0, 60 - path.length))}\n` +
+      `__modules[${JSON.stringify(path)}] = (function () {\n` +
+      (bindings ? `${bindings}\n\n` : '') +
+      `${module.code}\n\n` +
+      `  return { ${module.exports.join(', ')} };\n` +
+      `})();`
+    );
+  }
+  return chunks.join('\n\n');
 }
 
 async function build() {
   const [, , outArg, ...flags] = process.argv;
   const fragment = flags.includes('--fragment');
-  const out = resolve(root, outArg && !outArg.startsWith('--') ? outArg : 'dist/catchmon.html');
+  const out = resolve(root, outArg && !outArg.startsWith('--') ? outArg : 'dist/minigame-mania.html');
 
   const html = await readFile(resolve(root, 'index.html'), 'utf8');
   const css = await readFile(resolve(root, 'src/styles.css'), 'utf8');
-  const bodyMatch = html.match(/<body>([\s\S]*?)<script/);
-  if (!bodyMatch) throw new Error('Could not find the page markup in index.html');
-  const markup = bodyMatch[1].trim();
+  const markup = html.match(/<body>([\s\S]*?)<script/)?.[1]?.trim();
+  if (!markup) throw new Error('Could not find the page markup in index.html');
 
-  const modules = [];
-  for (const path of MODULES) {
-    modules.push(stripModuleSyntax(await readFile(resolve(root, path), 'utf8'), path));
-  }
+  const modules = await collect(ENTRY);
+  const script = emit(modules);
 
-  const inner = `<title>Catchmon</title>
-<style>
-${css.trim()}
-</style>
-
-${markup}
-
-<script type="module">
-${modules.join('\n')}
-</script>
-`;
+  const head = `<title>Minigame Mania</title>\n<style>\n${css.trim()}\n</style>`;
+  const bodyContent = `${markup}\n\n<script type="module">\n${script}\n</script>`;
 
   const page = fragment
-    ? inner
+    ? `${head}\n\n${bodyContent}\n`
     : `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-${inner.slice(0, inner.indexOf('</style>') + 9)}</head>
+${head}
+</head>
 <body>
-${inner.slice(inner.indexOf('</style>') + 9).trim()}
+${bodyContent}
 </body>
 </html>
 `;
 
   await mkdir(dirname(out), { recursive: true });
   await writeFile(out, page, 'utf8');
-  const kb = (Buffer.byteLength(page) / 1024).toFixed(1);
-  console.log(`${out} (${kb} kB, ${MODULES.length} modules${fragment ? ', fragment' : ''})`);
+  console.log(`${out} (${(Buffer.byteLength(page) / 1024).toFixed(1)} kB, ${modules.size} modules${fragment ? ', fragment' : ''})`);
 }
 
 await build();

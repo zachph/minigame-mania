@@ -350,6 +350,13 @@ canvas {
   display: flex;
   flex-direction: column;
   font-size: clamp(11px, 1.35vw, 15px);
+  /* The layer itself must not eat clicks meant for the canvas underneath -
+     games like Nopoly are played on the board, not in the panels. */
+  pointer-events: none;
+}
+
+.stage-ui > * {
+  pointer-events: auto;
 }
 
 .stage-ui.is-inert {
@@ -637,6 +644,144 @@ canvas {
 .cm-bench-meta span { color: var(--muted); font-size: 0.8em; }
 
 .cm-portrait { display: block; }
+
+/* --- Nopoly --- */
+
+.np-setup {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1em;
+  background: rgba(9, 12, 28, 0.88);
+  overflow: auto;
+}
+
+.np-setup-card {
+  width: min(30em, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7em;
+  padding: 1.2em 1.4em;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.np-setup-card h2 { margin: 0; font-size: 1.9em; }
+.np-setup-lede { margin: 0; color: var(--muted); }
+
+.np-key { display: grid; gap: 0.4em; }
+
+.np-key-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  padding: 0.4em 0.6em;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.np-key-meta { display: flex; flex-direction: column; }
+.np-key-meta span { color: var(--muted); font-size: 0.88em; }
+
+.np-choice { display: flex; align-items: center; gap: 0.7em; justify-content: space-between; }
+.np-choice[hidden] { display: none; }
+.np-choice-label { color: var(--muted); font-size: 0.9em; }
+.np-choice-options { display: flex; gap: 0.35em; }
+
+.np-option {
+  padding: 0.35em 0.8em;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.np-option.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1400;
+  font-weight: 700;
+}
+
+.np-start { align-self: stretch; margin-top: 0.2em; }
+.np-setup-foot { margin: 0; color: var(--muted); font-size: 0.85em; text-align: center; }
+
+.np-panel {
+  position: absolute;
+  top: 1em;
+  right: 1em;
+  bottom: 1em;
+  width: 27em;
+  max-width: 45%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  padding: 0.9em;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(13, 17, 38, 0.92);
+}
+
+.np-turn {
+  display: grid;
+  gap: 0.15em;
+  padding: 0.6em 0.8em;
+  border-radius: 10px;
+  border-left: 4px solid var(--side, var(--accent));
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.np-turn-label { font-size: 1.15em; font-weight: 700; }
+.np-turn-hint { color: var(--muted); }
+.np-turn-count { color: var(--muted); font-size: 0.8em; letter-spacing: 0.08em; text-transform: uppercase; }
+
+.np-armies { display: grid; gap: 0.4em; }
+
+.np-army {
+  padding: 0.45em 0.7em;
+  border-radius: 10px;
+  border-left: 4px solid var(--side);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.np-army-head { display: flex; justify-content: space-between; align-items: baseline; }
+.np-army-count { color: var(--muted); font-size: 0.85em; }
+.np-army-pieces { display: flex; flex-wrap: wrap; gap: 1px; margin-top: 0.2em; }
+.np-army-pieces .is-lost { opacity: 0.22; filter: grayscale(1); }
+
+.np-heading {
+  margin: 0.2em 0 0;
+  font-size: 0.78em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.np-log {
+  flex: 1;
+  min-height: 3em;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0 0 0 1.6em;
+  color: var(--muted);
+}
+
+.np-log-line { margin: 0.1em 0; }
+.np-log-line--red { color: #ff9d94; }
+.np-log-line--blue { color: #9cc4ff; }
+
+.np-resign { align-self: flex-start; }
+.np-icon { display: block; }
+
+@media (max-width: 720px) {
+  .np-panel { width: 15em; padding: 0.6em; }
+  .np-log { display: none; }
+}
 
 /* ---------- Footer ---------- */
 

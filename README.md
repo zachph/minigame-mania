@@ -3,11 +3,12 @@
 A browser collection of small games. No build step, no dependencies — plain ES
 modules, a canvas and a `<script type="module">`.
 
-**First minigame: Catchmon.**
+**The games: [Catchmon](#catchmon) (3v3 type battles) and [Nopoly](#nopoly)
+(Red vs Blue on a chess board).**
 
 ## Play
 
-**The quickest way: open `dist/catchmon.html`.** It is the whole game bundled
+**The quickest way: open `dist/minigame-mania.html`.** It is both games bundled
 into one self-contained file — download it, double-click it, and it runs in your
 browser. Nothing to install, no server, works offline.
 
@@ -24,7 +25,7 @@ Any static file server does the job — `npx http-server`, `php -S`, etc.
 Rebuild the single file after changing anything under `src/`:
 
 ```bash
-npm run bundle     # writes dist/catchmon.html
+npm run bundle     # writes dist/minigame-mania.html
 ```
 
 ## Putting it on the web
@@ -136,6 +137,27 @@ Score rewards winning fast and healthy. Your score, and which fighters you have
 battled with, are kept in `localStorage` (falling back to memory when site data
 is blocked).
 
+## Nopoly
+
+Red against Blue on an 8x8 chess board. Eight pieces a side, sixteen in all.
+
+| Piece      | Each side has | Moves                                                    |
+| ---------- | ------------- | -------------------------------------------------------- |
+| **Farmer** | 6             | One square up, down, left or right.                        |
+| **Golem**  | 2             | Up to two squares in any of the eight directions.          |
+
+Golems start on the back rank at c and f; the farmers fill b–g on the rank in
+front of them. Red moves first.
+
+- **Nothing jumps.** Any piece in the path blocks it, friend or enemy.
+- **Landing on an enemy captures it.** There is no separate capture move.
+- **Win by capturing every enemy piece.** If 25 turns pass with nothing taken,
+  the match is called for the bigger army — or drawn if the armies are even.
+
+Play the computer at three depths (Easy looks one move ahead, Normal three,
+Hard four) or hand the same screen to a second player. Click a piece and then a
+highlighted square, or drive it with the arrow keys and Enter.
+
 ## Making it yours
 
 Names and type assignments all live in one table — `ENTRIES` in
@@ -174,6 +196,12 @@ src/
     input.js           pointer + keyboard -> per-frame snapshot
     storage.js         localStorage with a memory fallback
     utils.js           maths and canvas helpers
+  games/nopoly/
+    rules.js           board, moves, captures, the verdict (pure logic)
+    ai.js              alpha-beta search, three difficulties
+    render.js          board, pieces, move hints
+    ui.js              setup screen and the side panel
+    game.js            selection, animation, scoring
   games/catchmon/
     index.js           registration + how-to-play copy
     types.js           the six types and the effectiveness cycle
@@ -189,7 +217,7 @@ test/                  node:test suites
 tools/
   build-single-file.mjs  inlines everything into dist/catchmon.html
 dist/
-  catchmon.html        the whole game in one file (generated, committed)
+  minigame-mania.html  both games in one file (generated, committed)
 ```
 
 ## Adding a minigame
@@ -224,10 +252,13 @@ stores the high score and shows the results screen.
 npm test    # node --test
 ```
 
-45 cases covering the type chart (symmetry, two strengths and two weaknesses
+65 cases. For Catchmon: the type chart (symmetry, two strengths and two weaknesses
 each), the roster (thirty final evolutions, equal stat budgets, every move
 used), the battle engine (turn order, cooldowns, limited uses, status effects,
 knockouts, the turn cap, seeded replay determinism), the AI (legal actions,
 taking a knockout, sensible replacements) and the drawing code — every fighter
-is rendered through a fake canvas that rejects non-finite coordinates. No
-browser needed.
+is rendered through a fake canvas that rejects non-finite coordinates. For
+Nopoly: the opening position (sixteen pieces, mirrored), how each piece moves,
+that nothing jumps, captures, immutability of a position after a move, illegal
+moves being refused, every way a match can end, and an AI that only plays legal
+moves and takes a free golem. No browser needed.

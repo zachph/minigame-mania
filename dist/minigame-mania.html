@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Catchmon</title>
+<title>Minigame Mania</title>
 <style>
 :root {
   --bg: #0f1220;
@@ -357,6 +357,13 @@ canvas {
   display: flex;
   flex-direction: column;
   font-size: clamp(11px, 1.35vw, 15px);
+  /* The layer itself must not eat clicks meant for the canvas underneath -
+     games like Nopoly are played on the board, not in the panels. */
+  pointer-events: none;
+}
+
+.stage-ui > * {
+  pointer-events: auto;
 }
 
 .stage-ui.is-inert {
@@ -645,6 +652,144 @@ canvas {
 
 .cm-portrait { display: block; }
 
+/* --- Nopoly --- */
+
+.np-setup {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1em;
+  background: rgba(9, 12, 28, 0.88);
+  overflow: auto;
+}
+
+.np-setup-card {
+  width: min(30em, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7em;
+  padding: 1.2em 1.4em;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.np-setup-card h2 { margin: 0; font-size: 1.9em; }
+.np-setup-lede { margin: 0; color: var(--muted); }
+
+.np-key { display: grid; gap: 0.4em; }
+
+.np-key-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  padding: 0.4em 0.6em;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.np-key-meta { display: flex; flex-direction: column; }
+.np-key-meta span { color: var(--muted); font-size: 0.88em; }
+
+.np-choice { display: flex; align-items: center; gap: 0.7em; justify-content: space-between; }
+.np-choice[hidden] { display: none; }
+.np-choice-label { color: var(--muted); font-size: 0.9em; }
+.np-choice-options { display: flex; gap: 0.35em; }
+
+.np-option {
+  padding: 0.35em 0.8em;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.np-option.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1400;
+  font-weight: 700;
+}
+
+.np-start { align-self: stretch; margin-top: 0.2em; }
+.np-setup-foot { margin: 0; color: var(--muted); font-size: 0.85em; text-align: center; }
+
+.np-panel {
+  position: absolute;
+  top: 1em;
+  right: 1em;
+  bottom: 1em;
+  width: 27em;
+  max-width: 45%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  padding: 0.9em;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(13, 17, 38, 0.92);
+}
+
+.np-turn {
+  display: grid;
+  gap: 0.15em;
+  padding: 0.6em 0.8em;
+  border-radius: 10px;
+  border-left: 4px solid var(--side, var(--accent));
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.np-turn-label { font-size: 1.15em; font-weight: 700; }
+.np-turn-hint { color: var(--muted); }
+.np-turn-count { color: var(--muted); font-size: 0.8em; letter-spacing: 0.08em; text-transform: uppercase; }
+
+.np-armies { display: grid; gap: 0.4em; }
+
+.np-army {
+  padding: 0.45em 0.7em;
+  border-radius: 10px;
+  border-left: 4px solid var(--side);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.np-army-head { display: flex; justify-content: space-between; align-items: baseline; }
+.np-army-count { color: var(--muted); font-size: 0.85em; }
+.np-army-pieces { display: flex; flex-wrap: wrap; gap: 1px; margin-top: 0.2em; }
+.np-army-pieces .is-lost { opacity: 0.22; filter: grayscale(1); }
+
+.np-heading {
+  margin: 0.2em 0 0;
+  font-size: 0.78em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.np-log {
+  flex: 1;
+  min-height: 3em;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0 0 0 1.6em;
+  color: var(--muted);
+}
+
+.np-log-line { margin: 0.1em 0; }
+.np-log-line--red { color: #ff9d94; }
+.np-log-line--blue { color: #9cc4ff; }
+
+.np-resign { align-self: flex-start; }
+.np-icon { display: block; }
+
+@media (max-width: 720px) {
+  .np-panel { width: 15em; padding: 0.6em; }
+  .np-log { display: none; }
+}
+
 /* ---------- Footer ---------- */
 
 .footer {
@@ -735,114 +880,10 @@ kbd {
   </div>
 
 <script type="module">
-// ---- src/core/utils.js ---------------------------------------------
-const TAU = Math.PI * 2;
+const __modules = {};
 
-const clamp = (value, min, max) => (value < min ? min : value > max ? max : value);
-
-const lerp = (a, b, t) => a + (b - a) * t;
-
-const randomRange = (min, max) => min + Math.random() * (max - min);
-
-const randomInt = (min, max) => Math.floor(randomRange(min, max + 1));
-
-const distance = (ax, ay, bx, by) => Math.hypot(bx - ax, by - ay);
-
-/** Picks an entry from `items` using `weightOf(item)` as the relative weight. */
-function weightedPick(items, weightOf) {
-  let total = 0;
-  for (const item of items) total += Math.max(0, weightOf(item));
-  if (total <= 0) return items[0];
-  let roll = Math.random() * total;
-  for (const item of items) {
-    roll -= Math.max(0, weightOf(item));
-    if (roll <= 0) return item;
-  }
-  return items[items.length - 1];
-}
-
-/** Moves `value` towards `target` by at most `maxDelta`. */
-function approach(value, target, maxDelta) {
-  if (value < target) return Math.min(value + maxDelta, target);
-  return Math.max(value - maxDelta, target);
-}
-
-function formatTime(seconds) {
-  const whole = Math.max(0, Math.ceil(seconds));
-  const mins = Math.floor(whole / 60);
-  const secs = whole % 60;
-  return `${mins}:${String(secs).padStart(2, '0')}`;
-}
-
-function roundedRect(ctx, x, y, w, h, r) {
-  const radius = Math.min(r, w / 2, h / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.arcTo(x + w, y, x + w, y + h, radius);
-  ctx.arcTo(x + w, y + h, x, y + h, radius);
-  ctx.arcTo(x, y + h, x, y, radius);
-  ctx.arcTo(x, y, x + w, y, radius);
-  ctx.closePath();
-}
-
-// ---- src/core/storage.js -------------------------------------------
-/**
- * Thin, failure-tolerant wrapper around localStorage. Private browsing and
- * blocked site data both throw on access, so every call falls back to memory.
- */
-const PREFIX = 'minigamemania:';
-const memory = new Map();
-
-function read(key) {
-  try {
-    const raw = localStorage.getItem(PREFIX + key);
-    return raw == null ? null : JSON.parse(raw);
-  } catch {
-    return memory.has(key) ? memory.get(key) : null;
-  }
-}
-
-function write(key, value) {
-  memory.set(key, value);
-  try {
-    localStorage.setItem(PREFIX + key, JSON.stringify(value));
-  } catch {
-    /* memory-only for this session */
-  }
-}
-
-function getHighScore(gameId) {
-  const value = read(`highscore:${gameId}`);
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
-}
-
-/** Stores the score when it beats the record. Returns true if it did. */
-function submitHighScore(gameId, score) {
-  if (!Number.isFinite(score) || score <= getHighScore(gameId)) return false;
-  write(`highscore:${gameId}`, Math.round(score));
-  return true;
-}
-
-/** Per-game collection of things the player has found, as `{ [entryId]: count }`. */
-function getCollection(gameId) {
-  const value = read(`collection:${gameId}`);
-  return value && typeof value === 'object' ? value : {};
-}
-
-/** Merges `{ [entryId]: count }` into the stored collection; returns newly discovered ids. */
-function addToCollection(gameId, counts) {
-  const collection = getCollection(gameId);
-  const discovered = [];
-  for (const [entryId, count] of Object.entries(counts)) {
-    if (!count) continue;
-    if (!collection[entryId]) discovered.push(entryId);
-    collection[entryId] = (collection[entryId] || 0) + count;
-  }
-  write(`collection:${gameId}`, collection);
-  return discovered;
-}
-
-// ---- src/core/input.js ---------------------------------------------
+// ---- src/core/input.js -------------------------------------------
+__modules["src/core/input.js"] = (function () {
 /**
  * Normalises pointer + keyboard into a per-frame snapshot for minigames.
  *
@@ -947,7 +988,11 @@ class Input {
   }
 }
 
-// ---- src/core/registry.js ------------------------------------------
+  return { Input };
+})();
+
+// ---- src/core/registry.js ----------------------------------------
+__modules["src/core/registry.js"] = (function () {
 /**
  * The catalogue of minigames the shell knows how to run.
  *
@@ -973,7 +1018,76 @@ function listGames() {
   return [...games.values()];
 }
 
-// ---- src/core/shell.js ---------------------------------------------
+  return { registerGame, getGame, listGames };
+})();
+
+// ---- src/core/storage.js -----------------------------------------
+__modules["src/core/storage.js"] = (function () {
+/**
+ * Thin, failure-tolerant wrapper around localStorage. Private browsing and
+ * blocked site data both throw on access, so every call falls back to memory.
+ */
+const PREFIX = 'minigamemania:';
+const memory = new Map();
+
+function read(key) {
+  try {
+    const raw = localStorage.getItem(PREFIX + key);
+    return raw == null ? null : JSON.parse(raw);
+  } catch {
+    return memory.has(key) ? memory.get(key) : null;
+  }
+}
+
+function write(key, value) {
+  memory.set(key, value);
+  try {
+    localStorage.setItem(PREFIX + key, JSON.stringify(value));
+  } catch {
+    /* memory-only for this session */
+  }
+}
+
+function getHighScore(gameId) {
+  const value = read(`highscore:${gameId}`);
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/** Stores the score when it beats the record. Returns true if it did. */
+function submitHighScore(gameId, score) {
+  if (!Number.isFinite(score) || score <= getHighScore(gameId)) return false;
+  write(`highscore:${gameId}`, Math.round(score));
+  return true;
+}
+
+/** Per-game collection of things the player has found, as `{ [entryId]: count }`. */
+function getCollection(gameId) {
+  const value = read(`collection:${gameId}`);
+  return value && typeof value === 'object' ? value : {};
+}
+
+/** Merges `{ [entryId]: count }` into the stored collection; returns newly discovered ids. */
+function addToCollection(gameId, counts) {
+  const collection = getCollection(gameId);
+  const discovered = [];
+  for (const [entryId, count] of Object.entries(counts)) {
+    if (!count) continue;
+    if (!collection[entryId]) discovered.push(entryId);
+    collection[entryId] = (collection[entryId] || 0) + count;
+  }
+  write(`collection:${gameId}`, collection);
+  return discovered;
+}
+
+  return { getHighScore, submitHighScore, getCollection, addToCollection };
+})();
+
+// ---- src/core/shell.js -------------------------------------------
+__modules["src/core/shell.js"] = (function () {
+  const { Input } = __modules["src/core/input.js"];
+  const { listGames, getGame } = __modules["src/core/registry.js"];
+  const { getHighScore, submitHighScore } = __modules["src/core/storage.js"];
+
 const VIEWPORT = { width: 960, height: 540 };
 const MAX_FRAME_TIME = 1 / 20; // never step more than 50ms at once
 
@@ -1305,7 +1419,65 @@ class Shell {
   }
 }
 
-// ---- src/games/catchmon/types.js -----------------------------------
+  return { VIEWPORT, Shell };
+})();
+
+// ---- src/core/utils.js -------------------------------------------
+__modules["src/core/utils.js"] = (function () {
+const TAU = Math.PI * 2;
+
+const clamp = (value, min, max) => (value < min ? min : value > max ? max : value);
+
+const lerp = (a, b, t) => a + (b - a) * t;
+
+const randomRange = (min, max) => min + Math.random() * (max - min);
+
+const randomInt = (min, max) => Math.floor(randomRange(min, max + 1));
+
+const distance = (ax, ay, bx, by) => Math.hypot(bx - ax, by - ay);
+
+/** Picks an entry from `items` using `weightOf(item)` as the relative weight. */
+function weightedPick(items, weightOf) {
+  let total = 0;
+  for (const item of items) total += Math.max(0, weightOf(item));
+  if (total <= 0) return items[0];
+  let roll = Math.random() * total;
+  for (const item of items) {
+    roll -= Math.max(0, weightOf(item));
+    if (roll <= 0) return item;
+  }
+  return items[items.length - 1];
+}
+
+/** Moves `value` towards `target` by at most `maxDelta`. */
+function approach(value, target, maxDelta) {
+  if (value < target) return Math.min(value + maxDelta, target);
+  return Math.max(value - maxDelta, target);
+}
+
+function formatTime(seconds) {
+  const whole = Math.max(0, Math.ceil(seconds));
+  const mins = Math.floor(whole / 60);
+  const secs = whole % 60;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+function roundedRect(ctx, x, y, w, h, r) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+}
+
+  return { TAU, clamp, lerp, randomRange, randomInt, distance, weightedPick, approach, formatTime, roundedRect };
+})();
+
+// ---- src/games/catchmon/types.js ---------------------------------
+__modules["src/games/catchmon/types.js"] = (function () {
 /**
  * The six Catchmon types, arranged as a cycle.
  *
@@ -1363,7 +1535,13 @@ function effectivenessLabel(multiplier) {
   return '';
 }
 
-// ---- src/games/catchmon/moves.js -----------------------------------
+  return { TYPES, TYPE_IDS, TYPE_BY_ID, SUPER_EFFECTIVE, RESISTED, effectiveness, strongAgainst, weakTo, effectivenessLabel };
+})();
+
+// ---- src/games/catchmon/moves.js ---------------------------------
+__modules["src/games/catchmon/moves.js"] = (function () {
+  const { TYPES } = __modules["src/games/catchmon/types.js"];
+
 /**
  * Every fighter knows four moves. Typed moves are built from six archetypes so
  * each type gets the same toolkit with its own flavour, and the neutral moves
@@ -1536,156 +1714,14 @@ function typeMove(typeId, archetype) {
   return `${typeId}-${archetype}`;
 }
 
-// ---- src/games/catchmon/roster.js ----------------------------------
-/**
- * Thirty fighters, five per type. Every one of them is a final evolution -
- * there are no baby forms in Catchmon, only the fully grown article. Each
- * entry names the form it evolved from purely as flavour.
- *
- * Stats come from a role template plus a per-fighter tweak that always nets to
- * zero, so every fighter spends the same 340 points - members of a role feel
- * related without being clones, and no fighter is strictly better than another.
- *
- * NAMES AND TYPES LIVE IN THE `ENTRIES` TABLE BELOW and nothing else needs to
- * change when you edit them - move sets are derived from the type, and the art
- * from the type plus the body shape. The columns are:
- *
- *   [ id, name, type, role, shape, evolvesFrom, blurb, stat tweak ]
- *
- *   id           lowercase, unique, used for saved records
- *   type         fire | grass | rock | wind | water | dark
- *   role         vanguard | striker | bulwark | runner | keystone
- *   shape        quad | biped | serpent | winged | orb
- *   evolvesFrom  the earlier form's name - flavour only, never playable
- *   stat tweak   must net to zero, e.g. { atk: 4, spd: -4 }
- *
- * `npm test` checks the invariants: thirty fighters, five per type, one of each
- * role per type, equal stat budgets, unique ids and names.
- */
-const ROLES = {
-  vanguard: {
-    name: 'Vanguard',
-    blurb: 'Heavy hitter with the bulk to trade blows.',
-    base: { hp: 128, atk: 84, def: 68, spd: 60 },
-    moves: ['standard', 'heavy', 'focus', 'ram'],
-  },
-  striker: {
-    name: 'Striker',
-    blurb: 'Glass cannon: hits hardest, folds fastest.',
-    base: { hp: 100, atk: 98, def: 50, spd: 92 },
-    moves: ['quick', 'heavy', 'status', 'snare'],
-  },
-  bulwark: {
-    name: 'Bulwark',
-    blurb: 'Slow wall that outlasts whatever it is fighting.',
-    base: { hp: 144, atk: 58, def: 92, spd: 46 },
-    moves: ['standard', 'status', 'mend', 'bulwark'],
-  },
-  runner: {
-    name: 'Runner',
-    blurb: 'Moves first, chips away, refuses to sit still.',
-    base: { hp: 102, atk: 76, def: 56, spd: 106 },
-    moves: ['quick', 'volley', 'snare', 'second-wind'],
-  },
-  keystone: {
-    name: 'Keystone',
-    blurb: 'No weak stat and an answer for most turns.',
-    base: { hp: 118, atk: 74, def: 72, spd: 76 },
-    moves: ['standard', 'drain', 'guard-break', 'shield'],
-  },
-};
+  return { MOVES, MOVE_BY_ID, getMove, typeMove };
+})();
 
-const TYPED_ARCHETYPES = new Set(['quick', 'standard', 'heavy', 'status', 'drain', 'volley']);
+// ---- src/games/catchmon/battle.js --------------------------------
+__modules["src/games/catchmon/battle.js"] = (function () {
+  const { effectiveness, effectivenessLabel } = __modules["src/games/catchmon/types.js"];
+  const { getMove } = __modules["src/games/catchmon/moves.js"];
 
-const ENTRIES = [
-  // --- Fire -------------------------------------------------------------
-  ['pyrothane', 'Pyrothane', 'fire', 'vanguard', 'quad', 'Pyrocub', 'Molten plates grind as it walks; nothing about it is subtle.', { atk: 4, spd: -4 }],
-  ['cindralisk', 'Cindralisk', 'fire', 'striker', 'serpent', 'Cinderling', 'Sheds a trail of live cinders and strikes through the smoke.', { atk: 6, hp: -6 }],
-  ['magmoth', 'Magmoth', 'fire', 'bulwark', 'quad', 'Magmite', 'A slow furnace on legs. Sieges lose to it by attrition.', { hp: 8, spd: -8 }],
-  ['ashenmane', 'Ashenmane', 'fire', 'runner', 'biped', 'Ashkit', 'Its mane scatters ash to cover the ground it just crossed.', { spd: 6, def: -6 }],
-  ['kilnhorn', 'Kilnhorn', 'fire', 'keystone', 'quad', 'Forgecalf', 'Horns hot enough to work iron, temperament to match.', { atk: 3, def: 3, hp: -6 }],
-
-  // --- Grass -----------------------------------------------------------
-  ['thornmaw', 'Thornmaw', 'grass', 'vanguard', 'quad', 'Thornpup', 'Bites down with a jaw of hardwood spines and does not let go.', { atk: 5, def: 2, spd: -7 }],
-  ['bloomquill', 'Bloomquill', 'grass', 'striker', 'winged', 'Bloomlet', 'Fires seed-quills in volleys that bloom where they land.', { spd: 5, hp: -5 }],
-  ['mosslok', 'Mosslok', 'grass', 'bulwark', 'orb', 'Mossling', 'A boulder of packed moss that simply regrows the parts you break.', { hp: 10, atk: -10 }],
-  ['saplynx', 'Saplynx', 'grass', 'runner', 'biped', 'Sapkit', 'Runs the treeline so fast the branches barely move.', { spd: 5, atk: 2, def: -7 }],
-  ['verdrake', 'Verdrake', 'grass', 'keystone', 'winged', 'Verdling', 'A canopy drake that farms the forest it patrols.', { atk: 4, hp: 4, spd: -8 }],
-
-  // --- Rock -------------------------------------------------------------
-  ['craghide', 'Craghide', 'rock', 'vanguard', 'quad', 'Cragpup', 'Hide like shale. Charges downhill and lets gravity help.', { def: 5, spd: -5 }],
-  ['quarrion', 'Quarrion', 'rock', 'striker', 'winged', 'Quarrlet', 'Drops quarry stone from altitude with unpleasant accuracy.', { atk: 5, def: -5 }],
-  ['boulderox', 'Boulderox', 'rock', 'bulwark', 'quad', 'Bouldercalf', 'Plants four feet and becomes, for all practical purposes, terrain.', { hp: 6, def: 4, atk: -10 }],
-  ['duneclaw', 'Duneclaw', 'rock', 'runner', 'biped', 'Dunekit', 'Swims through loose sand and surfaces claws-first.', { spd: 4, atk: 3, hp: -7 }],
-  ['geodon', 'Geodon', 'rock', 'keystone', 'orb', 'Geodite', 'A hollow geode that rings before it strikes. The ring is a warning.', { def: 5, hp: 3, atk: -8 }],
-
-  // --- Wind -------------------------------------------------------------
-  ['galehart', 'Galehart', 'wind', 'vanguard', 'quad', 'Galefawn', 'Charges with the squall behind it and arrives early.', { atk: 4, spd: 3, def: -7 }],
-  ['zephyris', 'Zephyris', 'wind', 'striker', 'serpent', 'Zephyrling', 'Coils into a spiral and unwinds it all in one strike.', { atk: 7, def: -7 }],
-  ['cirrolith', 'Cirrolith', 'wind', 'bulwark', 'orb', 'Cirrite', 'A packed sphere of still air. Blows land in it and stop.', { hp: 6, def: 4, spd: -10 }],
-  ['galevane', 'Galevane', 'wind', 'runner', 'winged', 'Galewisp', 'Rides its own headwind. Catching it is mostly luck.', { spd: 8, hp: -8 }],
-  ['skydrake', 'Skydrake', 'wind', 'keystone', 'winged', 'Skyling', 'Circles a battle on the high air before it commits to one.', { atk: 3, spd: 4, hp: -7 }],
-
-  // --- Water --------------------------------------------------------------
-  ['tidalon', 'Tidalon', 'water', 'vanguard', 'serpent', 'Tidalet', 'Breaks over a foe in one long, deliberate wave.', { hp: 6, atk: 3, spd: -9 }],
-  ['maelstrix', 'Maelstrix', 'water', 'striker', 'winged', 'Swirlet', 'Spins up a waterspout and rides it into contact.', { atk: 5, spd: 4, hp: -9 }],
-  ['frostfin', 'Frostfin', 'water', 'bulwark', 'quad', 'Frostling', 'Freezes the water around it into armour, then thickens it.', { def: 6, hp: 4, atk: -10 }],
-  ['coralynx', 'Coralynx', 'water', 'runner', 'biped', 'Coralkit', 'Reef-cat built for the sprint between one rock and the next.', { spd: 5, def: 2, atk: -7 }],
-  ['abyssarch', 'Abyssarch', 'water', 'keystone', 'serpent', 'Abysslet', 'Comes up from the dark with the pressure still on it.', { atk: 4, def: 3, spd: -7 }],
-
-  // --- Dark -------------------------------------------------------------
-  ['nyxmaw', 'Nyxmaw', 'dark', 'vanguard', 'quad', 'Nyxpup', 'Hunts by swallowing the light between itself and its target.', { atk: 5, hp: 3, spd: -8 }],
-  ['hexaraven', 'Hexaraven', 'dark', 'striker', 'winged', 'Hexlet', 'Marks a foe on the first pass and collects on the second.', { atk: 6, spd: 3, def: -9 }],
-  ['umbrathis', 'Umbrathis', 'dark', 'bulwark', 'orb', 'Umbrite', 'A sphere of settled night. Attacks reach it late, if at all.', { hp: 7, def: 3, atk: -10 }],
-  ['duskgeist', 'Duskgeist', 'dark', 'runner', 'biped', 'Duskwisp', 'Half here at the best of times, and never for long.', { spd: 7, hp: -7 }],
-  ['eclipsar', 'Eclipsar', 'dark', 'keystone', 'winged', 'Eclipling', 'Its wings hold an eclipse open for exactly as long as it needs.', { atk: 3, def: 4, hp: -7 }],
-];
-
-function buildCharacter([id, name, typeId, roleId, shape, evolvesFrom, blurb, tweak]) {
-  const role = ROLES[roleId];
-  const stats = {
-    hp: role.base.hp + (tweak.hp || 0),
-    atk: role.base.atk + (tweak.atk || 0),
-    def: role.base.def + (tweak.def || 0),
-    spd: role.base.spd + (tweak.spd || 0),
-  };
-  const moves = role.moves.map((entry) => (TYPED_ARCHETYPES.has(entry) ? `${typeId}-${entry}` : entry));
-  moves.forEach(getMove); // fail loudly on a typo in the tables above
-  return {
-    id,
-    name,
-    type: typeId,
-    typeName: TYPE_BY_ID.get(typeId).name,
-    color: TYPE_BY_ID.get(typeId).color,
-    accent: TYPE_BY_ID.get(typeId).accent,
-    role: roleId,
-    roleName: role.name,
-    shape,
-    stage: 'final',
-    evolvesFrom,
-    blurb,
-    stats,
-    moves,
-    power: stats.hp + stats.atk + stats.def + stats.spd,
-  };
-}
-
-const ROSTER = ENTRIES.map(buildCharacter);
-const CHARACTER_BY_ID = new Map(ROSTER.map((character) => [character.id, character]));
-
-function getCharacter(id) {
-  const character = CHARACTER_BY_ID.get(id);
-  if (!character) throw new Error(`Unknown character: ${id}`);
-  return character;
-}
-
-function charactersOfType(typeId) {
-  return ROSTER.filter((character) => character.type === typeId);
-}
-
-const TEAM_SIZE = 3;
-
-// ---- src/games/catchmon/battle.js ----------------------------------
 /**
  * The battle engine. Pure logic: no canvas, no DOM, and every random roll goes
  * through the injected `rng`, so a battle can be replayed exactly in tests.
@@ -2166,7 +2202,172 @@ function makeRng(seed = 1) {
   };
 }
 
-// ---- src/games/catchmon/ai.js --------------------------------------
+  return { SIDES, MAX_STAGE, STAGE_STEP, STATUSES, createFighter, stageMultiplier, effectiveStat, computeDamage, previewDamage, Battle, makeRng };
+})();
+
+// ---- src/games/catchmon/roster.js --------------------------------
+__modules["src/games/catchmon/roster.js"] = (function () {
+  const { TYPE_BY_ID } = __modules["src/games/catchmon/types.js"];
+  const { getMove } = __modules["src/games/catchmon/moves.js"];
+
+/**
+ * Thirty fighters, five per type. Every one of them is a final evolution -
+ * there are no baby forms in Catchmon, only the fully grown article. Each
+ * entry names the form it evolved from purely as flavour.
+ *
+ * Stats come from a role template plus a per-fighter tweak that always nets to
+ * zero, so every fighter spends the same 340 points - members of a role feel
+ * related without being clones, and no fighter is strictly better than another.
+ *
+ * NAMES AND TYPES LIVE IN THE `ENTRIES` TABLE BELOW and nothing else needs to
+ * change when you edit them - move sets are derived from the type, and the art
+ * from the type plus the body shape. The columns are:
+ *
+ *   [ id, name, type, role, shape, evolvesFrom, blurb, stat tweak ]
+ *
+ *   id           lowercase, unique, used for saved records
+ *   type         fire | grass | rock | wind | water | dark
+ *   role         vanguard | striker | bulwark | runner | keystone
+ *   shape        quad | biped | serpent | winged | orb
+ *   evolvesFrom  the earlier form's name - flavour only, never playable
+ *   stat tweak   must net to zero, e.g. { atk: 4, spd: -4 }
+ *
+ * `npm test` checks the invariants: thirty fighters, five per type, one of each
+ * role per type, equal stat budgets, unique ids and names.
+ */
+const ROLES = {
+  vanguard: {
+    name: 'Vanguard',
+    blurb: 'Heavy hitter with the bulk to trade blows.',
+    base: { hp: 128, atk: 84, def: 68, spd: 60 },
+    moves: ['standard', 'heavy', 'focus', 'ram'],
+  },
+  striker: {
+    name: 'Striker',
+    blurb: 'Glass cannon: hits hardest, folds fastest.',
+    base: { hp: 100, atk: 98, def: 50, spd: 92 },
+    moves: ['quick', 'heavy', 'status', 'snare'],
+  },
+  bulwark: {
+    name: 'Bulwark',
+    blurb: 'Slow wall that outlasts whatever it is fighting.',
+    base: { hp: 144, atk: 58, def: 92, spd: 46 },
+    moves: ['standard', 'status', 'mend', 'bulwark'],
+  },
+  runner: {
+    name: 'Runner',
+    blurb: 'Moves first, chips away, refuses to sit still.',
+    base: { hp: 102, atk: 76, def: 56, spd: 106 },
+    moves: ['quick', 'volley', 'snare', 'second-wind'],
+  },
+  keystone: {
+    name: 'Keystone',
+    blurb: 'No weak stat and an answer for most turns.',
+    base: { hp: 118, atk: 74, def: 72, spd: 76 },
+    moves: ['standard', 'drain', 'guard-break', 'shield'],
+  },
+};
+
+const TYPED_ARCHETYPES = new Set(['quick', 'standard', 'heavy', 'status', 'drain', 'volley']);
+
+const ENTRIES = [
+  // --- Fire -------------------------------------------------------------
+  ['pyrothane', 'Pyrothane', 'fire', 'vanguard', 'quad', 'Pyrocub', 'Molten plates grind as it walks; nothing about it is subtle.', { atk: 4, spd: -4 }],
+  ['cindralisk', 'Cindralisk', 'fire', 'striker', 'serpent', 'Cinderling', 'Sheds a trail of live cinders and strikes through the smoke.', { atk: 6, hp: -6 }],
+  ['magmoth', 'Magmoth', 'fire', 'bulwark', 'quad', 'Magmite', 'A slow furnace on legs. Sieges lose to it by attrition.', { hp: 8, spd: -8 }],
+  ['ashenmane', 'Ashenmane', 'fire', 'runner', 'biped', 'Ashkit', 'Its mane scatters ash to cover the ground it just crossed.', { spd: 6, def: -6 }],
+  ['kilnhorn', 'Kilnhorn', 'fire', 'keystone', 'quad', 'Forgecalf', 'Horns hot enough to work iron, temperament to match.', { atk: 3, def: 3, hp: -6 }],
+
+  // --- Grass -----------------------------------------------------------
+  ['thornmaw', 'Thornmaw', 'grass', 'vanguard', 'quad', 'Thornpup', 'Bites down with a jaw of hardwood spines and does not let go.', { atk: 5, def: 2, spd: -7 }],
+  ['bloomquill', 'Bloomquill', 'grass', 'striker', 'winged', 'Bloomlet', 'Fires seed-quills in volleys that bloom where they land.', { spd: 5, hp: -5 }],
+  ['mosslok', 'Mosslok', 'grass', 'bulwark', 'orb', 'Mossling', 'A boulder of packed moss that simply regrows the parts you break.', { hp: 10, atk: -10 }],
+  ['saplynx', 'Saplynx', 'grass', 'runner', 'biped', 'Sapkit', 'Runs the treeline so fast the branches barely move.', { spd: 5, atk: 2, def: -7 }],
+  ['verdrake', 'Verdrake', 'grass', 'keystone', 'winged', 'Verdling', 'A canopy drake that farms the forest it patrols.', { atk: 4, hp: 4, spd: -8 }],
+
+  // --- Rock -------------------------------------------------------------
+  ['craghide', 'Craghide', 'rock', 'vanguard', 'quad', 'Cragpup', 'Hide like shale. Charges downhill and lets gravity help.', { def: 5, spd: -5 }],
+  ['quarrion', 'Quarrion', 'rock', 'striker', 'winged', 'Quarrlet', 'Drops quarry stone from altitude with unpleasant accuracy.', { atk: 5, def: -5 }],
+  ['boulderox', 'Boulderox', 'rock', 'bulwark', 'quad', 'Bouldercalf', 'Plants four feet and becomes, for all practical purposes, terrain.', { hp: 6, def: 4, atk: -10 }],
+  ['duneclaw', 'Duneclaw', 'rock', 'runner', 'biped', 'Dunekit', 'Swims through loose sand and surfaces claws-first.', { spd: 4, atk: 3, hp: -7 }],
+  ['geodon', 'Geodon', 'rock', 'keystone', 'orb', 'Geodite', 'A hollow geode that rings before it strikes. The ring is a warning.', { def: 5, hp: 3, atk: -8 }],
+
+  // --- Wind -------------------------------------------------------------
+  ['galehart', 'Galehart', 'wind', 'vanguard', 'quad', 'Galefawn', 'Charges with the squall behind it and arrives early.', { atk: 4, spd: 3, def: -7 }],
+  ['zephyris', 'Zephyris', 'wind', 'striker', 'serpent', 'Zephyrling', 'Coils into a spiral and unwinds it all in one strike.', { atk: 7, def: -7 }],
+  ['cirrolith', 'Cirrolith', 'wind', 'bulwark', 'orb', 'Cirrite', 'A packed sphere of still air. Blows land in it and stop.', { hp: 6, def: 4, spd: -10 }],
+  ['galevane', 'Galevane', 'wind', 'runner', 'winged', 'Galewisp', 'Rides its own headwind. Catching it is mostly luck.', { spd: 8, hp: -8 }],
+  ['skydrake', 'Skydrake', 'wind', 'keystone', 'winged', 'Skyling', 'Circles a battle on the high air before it commits to one.', { atk: 3, spd: 4, hp: -7 }],
+
+  // --- Water --------------------------------------------------------------
+  ['tidalon', 'Tidalon', 'water', 'vanguard', 'serpent', 'Tidalet', 'Breaks over a foe in one long, deliberate wave.', { hp: 6, atk: 3, spd: -9 }],
+  ['maelstrix', 'Maelstrix', 'water', 'striker', 'winged', 'Swirlet', 'Spins up a waterspout and rides it into contact.', { atk: 5, spd: 4, hp: -9 }],
+  ['frostfin', 'Frostfin', 'water', 'bulwark', 'quad', 'Frostling', 'Freezes the water around it into armour, then thickens it.', { def: 6, hp: 4, atk: -10 }],
+  ['coralynx', 'Coralynx', 'water', 'runner', 'biped', 'Coralkit', 'Reef-cat built for the sprint between one rock and the next.', { spd: 5, def: 2, atk: -7 }],
+  ['abyssarch', 'Abyssarch', 'water', 'keystone', 'serpent', 'Abysslet', 'Comes up from the dark with the pressure still on it.', { atk: 4, def: 3, spd: -7 }],
+
+  // --- Dark -------------------------------------------------------------
+  ['nyxmaw', 'Nyxmaw', 'dark', 'vanguard', 'quad', 'Nyxpup', 'Hunts by swallowing the light between itself and its target.', { atk: 5, hp: 3, spd: -8 }],
+  ['hexaraven', 'Hexaraven', 'dark', 'striker', 'winged', 'Hexlet', 'Marks a foe on the first pass and collects on the second.', { atk: 6, spd: 3, def: -9 }],
+  ['umbrathis', 'Umbrathis', 'dark', 'bulwark', 'orb', 'Umbrite', 'A sphere of settled night. Attacks reach it late, if at all.', { hp: 7, def: 3, atk: -10 }],
+  ['duskgeist', 'Duskgeist', 'dark', 'runner', 'biped', 'Duskwisp', 'Half here at the best of times, and never for long.', { spd: 7, hp: -7 }],
+  ['eclipsar', 'Eclipsar', 'dark', 'keystone', 'winged', 'Eclipling', 'Its wings hold an eclipse open for exactly as long as it needs.', { atk: 3, def: 4, hp: -7 }],
+];
+
+function buildCharacter([id, name, typeId, roleId, shape, evolvesFrom, blurb, tweak]) {
+  const role = ROLES[roleId];
+  const stats = {
+    hp: role.base.hp + (tweak.hp || 0),
+    atk: role.base.atk + (tweak.atk || 0),
+    def: role.base.def + (tweak.def || 0),
+    spd: role.base.spd + (tweak.spd || 0),
+  };
+  const moves = role.moves.map((entry) => (TYPED_ARCHETYPES.has(entry) ? `${typeId}-${entry}` : entry));
+  moves.forEach(getMove); // fail loudly on a typo in the tables above
+  return {
+    id,
+    name,
+    type: typeId,
+    typeName: TYPE_BY_ID.get(typeId).name,
+    color: TYPE_BY_ID.get(typeId).color,
+    accent: TYPE_BY_ID.get(typeId).accent,
+    role: roleId,
+    roleName: role.name,
+    shape,
+    stage: 'final',
+    evolvesFrom,
+    blurb,
+    stats,
+    moves,
+    power: stats.hp + stats.atk + stats.def + stats.spd,
+  };
+}
+
+const ROSTER = ENTRIES.map(buildCharacter);
+const CHARACTER_BY_ID = new Map(ROSTER.map((character) => [character.id, character]));
+
+function getCharacter(id) {
+  const character = CHARACTER_BY_ID.get(id);
+  if (!character) throw new Error(`Unknown character: ${id}`);
+  return character;
+}
+
+function charactersOfType(typeId) {
+  return ROSTER.filter((character) => character.type === typeId);
+}
+
+const TEAM_SIZE = 3;
+
+  return { ROLES, ROSTER, CHARACTER_BY_ID, getCharacter, charactersOfType, TEAM_SIZE };
+})();
+
+// ---- src/games/catchmon/ai.js ------------------------------------
+__modules["src/games/catchmon/ai.js"] = (function () {
+  const { ROSTER, TEAM_SIZE } = __modules["src/games/catchmon/roster.js"];
+  const { effectiveness } = __modules["src/games/catchmon/types.js"];
+  const { getMove } = __modules["src/games/catchmon/moves.js"];
+  const { STATUSES, effectiveStat, previewDamage } = __modules["src/games/catchmon/battle.js"];
+
 /**
  * The rival trainer. Drafts a team that answers yours, then plays a
  * score-the-options turn: finish a foe if it can, heal or buff when it is safe,
@@ -2296,7 +2497,14 @@ function chooseReplacement(battle, side = 'enemy') {
   return best;
 }
 
-// ---- src/games/catchmon/art.js -------------------------------------
+  return { draftTeam, randomTeam, chooseAction, chooseReplacement };
+})();
+
+// ---- src/games/catchmon/art.js -----------------------------------
+__modules["src/games/catchmon/art.js"] = (function () {
+  const { TAU, clamp } = __modules["src/core/utils.js"];
+  const { TYPE_BY_ID } = __modules["src/games/catchmon/types.js"];
+
 /**
  * Every fighter is drawn from code - five body plans crossed with six type
  * palettes and crests. `drawCharacter` works in a unit space roughly 120px
@@ -2699,272 +2907,15 @@ function drawPortrait(ctx, character, size) {
   ctx.restore();
 }
 
-// ---- src/games/catchmon/scene.js -----------------------------------
-const W = 960;
-const H = 540;
+  return { paletteFor, drawCharacter, drawPortrait };
+})();
 
-// The bottom third of the stage belongs to the DOM log and command panel, so
-// the whole fight is staged in the top ~360px.
-const SLOTS = {
-  enemy: { x: 690, y: 214, scale: 0.82, facing: -1 },
-  player: { x: 246, y: 338, scale: 1.02, facing: 1 },
-};
+// ---- src/games/catchmon/ui.js ------------------------------------
+__modules["src/games/catchmon/ui.js"] = (function () {
+  const { ROSTER, TEAM_SIZE } = __modules["src/games/catchmon/roster.js"];
+  const { TYPES, effectiveness } = __modules["src/games/catchmon/types.js"];
+  const { drawPortrait } = __modules["src/games/catchmon/art.js"];
 
-const HORIZON = 186;
-const PANEL_WIDTH = 340;
-
-const PANELS = {
-  enemy: { x: 36, y: 66 },
-  player: { x: W - 36 - PANEL_WIDTH, y: 236 },
-};
-
-/* ------------------------------------------------------------------ arena */
-
-function drawArena(ctx, time) {
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#2b3a72');
-  sky.addColorStop(HORIZON / H - 0.001, '#8492d4');
-  sky.addColorStop(HORIZON / H, '#79ab68');
-  sky.addColorStop(1, '#357044');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, H);
-
-  // Sun band sitting on the horizon
-  ctx.save();
-  ctx.globalAlpha = 0.3 + Math.sin(time * 0.6) * 0.04;
-  ctx.fillStyle = '#ffe9a8';
-  ctx.beginPath();
-  ctx.ellipse(690, HORIZON, 96, 40, 0, Math.PI, TAU);
-  ctx.fill();
-  ctx.restore();
-
-  // Distant ridge
-  ctx.fillStyle = 'rgba(38, 52, 96, 0.45)';
-  for (const [x, w, h] of [[120, 300, 86], [430, 380, 124], [810, 320, 96]]) {
-    ctx.beginPath();
-    ctx.ellipse(x, HORIZON, w / 2, h / 2, 0, Math.PI, TAU);
-    ctx.fill();
-  }
-
-  drawPlatform(ctx, SLOTS.enemy.x, SLOTS.enemy.y, 132, 30, '#5c9a5a');
-  drawPlatform(ctx, SLOTS.player.x, SLOTS.player.y, 200, 44, '#54925a');
-}
-
-function drawPlatform(ctx, x, y, rx, ry, color) {
-  ctx.fillStyle = 'rgba(24, 40, 30, 0.35)';
-  ctx.beginPath();
-  ctx.ellipse(x, y + 8, rx, ry, 0, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.ellipse(x, y, rx, ry, 0, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
-  ctx.beginPath();
-  ctx.ellipse(x - rx * 0.25, y - ry * 0.3, rx * 0.5, ry * 0.35, 0, 0, TAU);
-  ctx.fill();
-}
-
-/* --------------------------------------------------------------- fighters */
-
-function drawFighter(ctx, side, fighter, display, time) {
-  if (!fighter) return;
-  const slot = SLOTS[side];
-  const lunge = display.lunge * (side === 'player' ? 60 : -60);
-  const shake = display.shake > 0 ? (Math.random() - 0.5) * display.shake * 14 : 0;
-  const bob = Math.sin(time * 2 + (side === 'player' ? 0 : 1)) * 3;
-
-  drawCharacter(ctx, fighter.character, {
-    x: slot.x + lunge + shake,
-    y: slot.y + (side === 'player' ? 6 : 2),
-    scale: slot.scale * (display.entering ? 0.6 + display.entering * 0.4 : 1),
-    facing: slot.facing,
-    bob: bob + display.hop,
-    flash: display.flash,
-    alpha: display.alpha,
-    time,
-  });
-
-  if (fighter.shielded) {
-    ctx.save();
-    ctx.globalAlpha = 0.35 + Math.sin(time * 6) * 0.1;
-    ctx.strokeStyle = '#cfe8ff';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.ellipse(slot.x, slot.y - 60 * slot.scale, 74 * slot.scale, 88 * slot.scale, 0, 0, TAU);
-    ctx.stroke();
-    ctx.restore();
-  }
-}
-
-/* ----------------------------------------------------------------- panels */
-
-function drawPanels(ctx, battle, display) {
-  drawPanel(ctx, battle, 'enemy', display.enemy.hpShown);
-  drawPanel(ctx, battle, 'player', display.player.hpShown);
-}
-
-function drawPanel(ctx, battle, side, hpShown) {
-  const fighter = battle.activeOf(side);
-  const panel = PANELS[side];
-  const width = PANEL_WIDTH;
-  const height = 84;
-  const type = TYPE_BY_ID.get(fighter.character.type);
-
-  ctx.save();
-  ctx.fillStyle = 'rgba(14, 18, 38, 0.82)';
-  roundedRect(ctx, panel.x, panel.y, width, height, 14);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '700 20px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillText(fighter.character.name, panel.x + 16, panel.y + 22);
-
-  // Type chip
-  const chipText = type.name.toUpperCase();
-  ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
-  const chipWidth = ctx.measureText(chipText).width + 16;
-  const chipX = panel.x + width - 16 - chipWidth;
-  ctx.fillStyle = type.color;
-  roundedRect(ctx, chipX, panel.y + 13, chipWidth, 18, 9);
-  ctx.fill();
-  ctx.fillStyle = '#15182b';
-  ctx.textAlign = 'center';
-  ctx.fillText(chipText, chipX + chipWidth / 2, panel.y + 23);
-
-  // HP bar
-  const barX = panel.x + 16;
-  const barY = panel.y + 40;
-  const barW = width - 32;
-  const ratio = clamp(hpShown / fighter.maxHp, 0, 1);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
-  roundedRect(ctx, barX, barY, barW, 12, 6);
-  ctx.fill();
-  ctx.fillStyle = ratio > 0.5 ? '#6ee7a8' : ratio > 0.22 ? '#ffd166' : '#ff6b6b';
-  if (ratio > 0) {
-    roundedRect(ctx, barX, barY, Math.max(6, barW * ratio), 12, 6);
-    ctx.fill();
-  }
-
-  ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-  ctx.font = '600 13px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillText(`${Math.max(0, Math.round(hpShown))} / ${fighter.maxHp}`, barX, barY + 26);
-
-  // Status and stat-stage chips
-  let chipRight = panel.x + width - 16;
-  if (fighter.status) {
-    const status = STATUSES[fighter.status.id];
-    chipRight = drawMiniChip(ctx, chipRight, barY + 20, status.short, '#ff9f6b');
-  }
-  for (const stat of ['atk', 'def', 'spd']) {
-    const stage = fighter.stages[stat];
-    if (!stage) continue;
-    const label = `${stat.toUpperCase()}${stage > 0 ? '+' : ''}${stage}`;
-    chipRight = drawMiniChip(ctx, chipRight, barY + 20, label, stage > 0 ? '#8ee7ff' : '#ff8ea8');
-  }
-
-  drawTeamPips(ctx, battle, side, panel, width);
-  ctx.restore();
-}
-
-function drawMiniChip(ctx, right, y, text, color) {
-  ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
-  const width = ctx.measureText(text).width + 12;
-  const x = right - width;
-  ctx.fillStyle = color;
-  roundedRect(ctx, x, y - 8, width, 16, 8);
-  ctx.fill();
-  ctx.fillStyle = '#15182b';
-  ctx.textAlign = 'center';
-  ctx.fillText(text, x + width / 2, y);
-  ctx.textAlign = 'left';
-  return x - 6;
-}
-
-function drawTeamPips(ctx, battle, side, panel, width) {
-  const team = battle.teams[side];
-  const y = panel.y - 12;
-  const startX = panel.x + width - 16 - (team.length - 1) * 18;
-  team.forEach((fighter, index) => {
-    const x = startX + index * 18;
-    ctx.beginPath();
-    ctx.arc(x, y, 6, 0, TAU);
-    ctx.fillStyle = fighter.fainted
-      ? 'rgba(255, 255, 255, 0.2)'
-      : index === battle.active[side]
-        ? fighter.character.color
-        : 'rgba(255, 255, 255, 0.7)';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(10, 14, 30, 0.7)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  });
-}
-
-/* ---------------------------------------------------------------- effects */
-
-function drawPopups(ctx, popups) {
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  for (const popup of popups) {
-    const life = clamp(popup.life / popup.maxLife, 0, 1);
-    ctx.globalAlpha = life;
-    ctx.font = `700 ${popup.size}px "Trebuchet MS", system-ui, sans-serif`;
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = 'rgba(16, 18, 34, 0.85)';
-    ctx.strokeText(popup.text, popup.x, popup.y);
-    ctx.fillStyle = popup.color;
-    ctx.fillText(popup.text, popup.x, popup.y);
-  }
-  ctx.globalAlpha = 1;
-}
-
-function drawParticles(ctx, particles) {
-  for (const particle of particles) {
-    ctx.globalAlpha = clamp(particle.life / particle.maxLife, 0, 1);
-    ctx.fillStyle = particle.color;
-    ctx.beginPath();
-    ctx.arc(particle.x, particle.y, particle.size, 0, TAU);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-}
-
-function drawBanner(ctx, text, alpha) {
-  if (!text || alpha <= 0) return;
-  ctx.save();
-  ctx.globalAlpha = clamp(alpha, 0, 1);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = '700 46px "Trebuchet MS", system-ui, sans-serif';
-  ctx.lineWidth = 8;
-  ctx.strokeStyle = 'rgba(12, 14, 30, 0.8)';
-  ctx.strokeText(text, W / 2, 150);
-  ctx.fillStyle = '#ffe07a';
-  ctx.fillText(text, W / 2, 150);
-  ctx.restore();
-}
-
-function drawTurnBadge(ctx, turn, limit) {
-  ctx.save();
-  ctx.fillStyle = 'rgba(14, 18, 38, 0.75)';
-  roundedRect(ctx, W / 2 - 58, 16, 116, 30, 15);
-  ctx.fill();
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = '700 14px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillStyle = turn > limit - 6 ? '#ffb3b3' : '#ffffff';
-  ctx.fillText(`TURN ${turn} / ${limit}`, W / 2, 32);
-  ctx.restore();
-}
-
-// ---- src/games/catchmon/ui.js --------------------------------------
 /**
  * The DOM half of Catchmon: the team-select screen and the battle command
  * panel. Both live in the layer the shell hands the game, and both hand every
@@ -3288,7 +3239,295 @@ class BattlePanel {
   }
 }
 
-// ---- src/games/catchmon/game.js ------------------------------------
+  return { TeamSelect, BattlePanel };
+})();
+
+// ---- src/games/catchmon/scene.js ---------------------------------
+__modules["src/games/catchmon/scene.js"] = (function () {
+  const { TAU, clamp, roundedRect } = __modules["src/core/utils.js"];
+  const { TYPE_BY_ID } = __modules["src/games/catchmon/types.js"];
+  const { STATUSES } = __modules["src/games/catchmon/battle.js"];
+  const { drawCharacter } = __modules["src/games/catchmon/art.js"];
+
+const W = 960;
+const H = 540;
+
+// The bottom third of the stage belongs to the DOM log and command panel, so
+// the whole fight is staged in the top ~360px.
+const SLOTS = {
+  enemy: { x: 690, y: 214, scale: 0.82, facing: -1 },
+  player: { x: 246, y: 338, scale: 1.02, facing: 1 },
+};
+
+const HORIZON = 186;
+const PANEL_WIDTH = 340;
+
+const PANELS = {
+  enemy: { x: 36, y: 66 },
+  player: { x: W - 36 - PANEL_WIDTH, y: 236 },
+};
+
+/* ------------------------------------------------------------------ arena */
+
+function drawArena(ctx, time) {
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#2b3a72');
+  sky.addColorStop(HORIZON / H - 0.001, '#8492d4');
+  sky.addColorStop(HORIZON / H, '#79ab68');
+  sky.addColorStop(1, '#357044');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H);
+
+  // Sun band sitting on the horizon
+  ctx.save();
+  ctx.globalAlpha = 0.3 + Math.sin(time * 0.6) * 0.04;
+  ctx.fillStyle = '#ffe9a8';
+  ctx.beginPath();
+  ctx.ellipse(690, HORIZON, 96, 40, 0, Math.PI, TAU);
+  ctx.fill();
+  ctx.restore();
+
+  // Distant ridge
+  ctx.fillStyle = 'rgba(38, 52, 96, 0.45)';
+  for (const [x, w, h] of [[120, 300, 86], [430, 380, 124], [810, 320, 96]]) {
+    ctx.beginPath();
+    ctx.ellipse(x, HORIZON, w / 2, h / 2, 0, Math.PI, TAU);
+    ctx.fill();
+  }
+
+  drawPlatform(ctx, SLOTS.enemy.x, SLOTS.enemy.y, 132, 30, '#5c9a5a');
+  drawPlatform(ctx, SLOTS.player.x, SLOTS.player.y, 200, 44, '#54925a');
+}
+
+function drawPlatform(ctx, x, y, rx, ry, color) {
+  ctx.fillStyle = 'rgba(24, 40, 30, 0.35)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 8, rx, ry, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+  ctx.beginPath();
+  ctx.ellipse(x - rx * 0.25, y - ry * 0.3, rx * 0.5, ry * 0.35, 0, 0, TAU);
+  ctx.fill();
+}
+
+/* --------------------------------------------------------------- fighters */
+
+function drawFighter(ctx, side, fighter, display, time) {
+  if (!fighter) return;
+  const slot = SLOTS[side];
+  const lunge = display.lunge * (side === 'player' ? 60 : -60);
+  const shake = display.shake > 0 ? (Math.random() - 0.5) * display.shake * 14 : 0;
+  const bob = Math.sin(time * 2 + (side === 'player' ? 0 : 1)) * 3;
+
+  drawCharacter(ctx, fighter.character, {
+    x: slot.x + lunge + shake,
+    y: slot.y + (side === 'player' ? 6 : 2),
+    scale: slot.scale * (display.entering ? 0.6 + display.entering * 0.4 : 1),
+    facing: slot.facing,
+    bob: bob + display.hop,
+    flash: display.flash,
+    alpha: display.alpha,
+    time,
+  });
+
+  if (fighter.shielded) {
+    ctx.save();
+    ctx.globalAlpha = 0.35 + Math.sin(time * 6) * 0.1;
+    ctx.strokeStyle = '#cfe8ff';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(slot.x, slot.y - 60 * slot.scale, 74 * slot.scale, 88 * slot.scale, 0, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/* ----------------------------------------------------------------- panels */
+
+function drawPanels(ctx, battle, display) {
+  drawPanel(ctx, battle, 'enemy', display.enemy.hpShown);
+  drawPanel(ctx, battle, 'player', display.player.hpShown);
+}
+
+function drawPanel(ctx, battle, side, hpShown) {
+  const fighter = battle.activeOf(side);
+  const panel = PANELS[side];
+  const width = PANEL_WIDTH;
+  const height = 84;
+  const type = TYPE_BY_ID.get(fighter.character.type);
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(14, 18, 38, 0.82)';
+  roundedRect(ctx, panel.x, panel.y, width, height, 14);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 20px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(fighter.character.name, panel.x + 16, panel.y + 22);
+
+  // Type chip
+  const chipText = type.name.toUpperCase();
+  ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
+  const chipWidth = ctx.measureText(chipText).width + 16;
+  const chipX = panel.x + width - 16 - chipWidth;
+  ctx.fillStyle = type.color;
+  roundedRect(ctx, chipX, panel.y + 13, chipWidth, 18, 9);
+  ctx.fill();
+  ctx.fillStyle = '#15182b';
+  ctx.textAlign = 'center';
+  ctx.fillText(chipText, chipX + chipWidth / 2, panel.y + 23);
+
+  // HP bar
+  const barX = panel.x + 16;
+  const barY = panel.y + 40;
+  const barW = width - 32;
+  const ratio = clamp(hpShown / fighter.maxHp, 0, 1);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
+  roundedRect(ctx, barX, barY, barW, 12, 6);
+  ctx.fill();
+  ctx.fillStyle = ratio > 0.5 ? '#6ee7a8' : ratio > 0.22 ? '#ffd166' : '#ff6b6b';
+  if (ratio > 0) {
+    roundedRect(ctx, barX, barY, Math.max(6, barW * ratio), 12, 6);
+    ctx.fill();
+  }
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+  ctx.font = '600 13px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(`${Math.max(0, Math.round(hpShown))} / ${fighter.maxHp}`, barX, barY + 26);
+
+  // Status and stat-stage chips
+  let chipRight = panel.x + width - 16;
+  if (fighter.status) {
+    const status = STATUSES[fighter.status.id];
+    chipRight = drawMiniChip(ctx, chipRight, barY + 20, status.short, '#ff9f6b');
+  }
+  for (const stat of ['atk', 'def', 'spd']) {
+    const stage = fighter.stages[stat];
+    if (!stage) continue;
+    const label = `${stat.toUpperCase()}${stage > 0 ? '+' : ''}${stage}`;
+    chipRight = drawMiniChip(ctx, chipRight, barY + 20, label, stage > 0 ? '#8ee7ff' : '#ff8ea8');
+  }
+
+  drawTeamPips(ctx, battle, side, panel, width);
+  ctx.restore();
+}
+
+function drawMiniChip(ctx, right, y, text, color) {
+  ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
+  const width = ctx.measureText(text).width + 12;
+  const x = right - width;
+  ctx.fillStyle = color;
+  roundedRect(ctx, x, y - 8, width, 16, 8);
+  ctx.fill();
+  ctx.fillStyle = '#15182b';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, x + width / 2, y);
+  ctx.textAlign = 'left';
+  return x - 6;
+}
+
+function drawTeamPips(ctx, battle, side, panel, width) {
+  const team = battle.teams[side];
+  const y = panel.y - 12;
+  const startX = panel.x + width - 16 - (team.length - 1) * 18;
+  team.forEach((fighter, index) => {
+    const x = startX + index * 18;
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, TAU);
+    ctx.fillStyle = fighter.fainted
+      ? 'rgba(255, 255, 255, 0.2)'
+      : index === battle.active[side]
+        ? fighter.character.color
+        : 'rgba(255, 255, 255, 0.7)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(10, 14, 30, 0.7)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+}
+
+/* ---------------------------------------------------------------- effects */
+
+function drawPopups(ctx, popups) {
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const popup of popups) {
+    const life = clamp(popup.life / popup.maxLife, 0, 1);
+    ctx.globalAlpha = life;
+    ctx.font = `700 ${popup.size}px "Trebuchet MS", system-ui, sans-serif`;
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = 'rgba(16, 18, 34, 0.85)';
+    ctx.strokeText(popup.text, popup.x, popup.y);
+    ctx.fillStyle = popup.color;
+    ctx.fillText(popup.text, popup.x, popup.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawParticles(ctx, particles) {
+  for (const particle of particles) {
+    ctx.globalAlpha = clamp(particle.life / particle.maxLife, 0, 1);
+    ctx.fillStyle = particle.color;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, particle.size, 0, TAU);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawBanner(ctx, text, alpha) {
+  if (!text || alpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = clamp(alpha, 0, 1);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 46px "Trebuchet MS", system-ui, sans-serif';
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = 'rgba(12, 14, 30, 0.8)';
+  ctx.strokeText(text, W / 2, 150);
+  ctx.fillStyle = '#ffe07a';
+  ctx.fillText(text, W / 2, 150);
+  ctx.restore();
+}
+
+function drawTurnBadge(ctx, turn, limit) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(14, 18, 38, 0.75)';
+  roundedRect(ctx, W / 2 - 58, 16, 116, 30, 15);
+  ctx.fill();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 14px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = turn > limit - 6 ? '#ffb3b3' : '#ffffff';
+  ctx.fillText(`TURN ${turn} / ${limit}`, W / 2, 32);
+  ctx.restore();
+}
+
+  return { SLOTS, drawArena, drawFighter, drawPanels, drawPopups, drawParticles, drawBanner, drawTurnBadge };
+})();
+
+// ---- src/games/catchmon/game.js ----------------------------------
+__modules["src/games/catchmon/game.js"] = (function () {
+  const { clamp } = __modules["src/core/utils.js"];
+  const { addToCollection, getCollection } = __modules["src/core/storage.js"];
+  const { Battle } = __modules["src/games/catchmon/battle.js"];
+  const { chooseAction, chooseReplacement, draftTeam, randomTeam } = __modules["src/games/catchmon/ai.js"];
+  const { getMove } = __modules["src/games/catchmon/moves.js"];
+  const { TYPE_BY_ID } = __modules["src/games/catchmon/types.js"];
+  const { TEAM_SIZE } = __modules["src/games/catchmon/roster.js"];
+  const { BattlePanel, TeamSelect } = __modules["src/games/catchmon/ui.js"];
+  const { SLOTS, drawArena, drawBanner, drawFighter, drawPanels, drawParticles, drawPopups, drawTurnBadge } = __modules["src/games/catchmon/scene.js"];
+
 const GAME_ID = 'catchmon';
 
 /** How long each kind of event is held on screen before the next one plays. */
@@ -3652,7 +3891,14 @@ function createCatchmon(context) {
   return new CatchmonGame(context);
 }
 
-// ---- src/games/catchmon/index.js -----------------------------------
+  return { GAME_ID, createCatchmon, CatchmonGame };
+})();
+
+// ---- src/games/catchmon/index.js ---------------------------------
+__modules["src/games/catchmon/index.js"] = (function () {
+  const { registerGame } = __modules["src/core/registry.js"];
+  const { createCatchmon, GAME_ID } = __modules["src/games/catchmon/game.js"];
+
 registerGame({
   id: GAME_ID,
   name: 'Catchmon',
@@ -3668,17 +3914,1149 @@ registerGame({
   create: createCatchmon,
 });
 
-// ---- src/main.js ---------------------------------------------------
-// Placeholders so the menu shows where the collection is heading.
-registerGame({
-  id: 'stackomat',
-  name: 'Stack-o-Mat',
-  tagline: 'Time your drops and build the tallest tower.',
-  status: 'coming-soon',
-  create: () => {
-    throw new Error('Not implemented yet');
+  return {  };
+})();
+
+// ---- src/games/nopoly/rules.js -----------------------------------
+__modules["src/games/nopoly/rules.js"] = (function () {
+/**
+ * Nopoly rules. Pure logic - no canvas, no DOM, no randomness.
+ *
+ * An 8x8 chess board, Red against Blue, eight pieces each:
+ *   6 Farmers - one square up, down, left or right.
+ *   2 Golems  - up to two squares in any of the eight directions.
+ * Sixteen pieces on the board at the start. Landing on an enemy captures it;
+ * nothing jumps over anything.
+ *
+ * State is treated as immutable: `applyMove` returns a new state, which keeps
+ * the search in `ai.js` and the move history honest.
+ */
+
+const BOARD_SIZE = 8;
+const SQUARES = BOARD_SIZE * BOARD_SIZE;
+
+const SIDES = {
+  red: { id: 'red', name: 'Red', color: '#e2564a', light: '#ff8a7d', dark: '#8f2016', home: 'bottom' },
+  blue: { id: 'blue', name: 'Blue', color: '#4a8fe2', light: '#8ec2ff', dark: '#16508f', home: 'top' },
+};
+const SIDE_IDS = ['red', 'blue'];
+
+const ORTHOGONAL = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+const DIAGONAL = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+
+const PIECES = {
+  farmer: {
+    id: 'farmer',
+    name: 'Farmer',
+    count: 6,
+    steps: 1,
+    directions: ORTHOGONAL,
+    value: 100,
+    blurb: 'One square up, down, left or right.',
   },
+  golem: {
+    id: 'golem',
+    name: 'Golem',
+    count: 2,
+    steps: 2,
+    directions: [...ORTHOGONAL, ...DIAGONAL],
+    value: 380,
+    blurb: 'Up to two squares in any direction, including diagonals.',
+  },
+};
+
+/** Turns without a capture before the match is called on material. */
+const STALE_LIMIT = 50;
+
+const indexOf = (col, row) => row * BOARD_SIZE + col;
+const colOf = (index) => index % BOARD_SIZE;
+const rowOf = (index) => Math.floor(index / BOARD_SIZE);
+const onBoard = (col, row) => col >= 0 && col < BOARD_SIZE && row >= 0 && row < BOARD_SIZE;
+
+/** Standard algebraic-ish name for a square, e.g. 12 -> "e7". */
+function squareName(index) {
+  return `${'abcdefgh'[colOf(index)]}${BOARD_SIZE - rowOf(index)}`;
+}
+
+const opponentOf = (side) => (side === 'red' ? 'blue' : 'red');
+
+/**
+ * The opening position: golems on the back rank at c and f, farmers filling
+ * b-g on the rank in front of them. Blue at the top, Red at the bottom.
+ */
+function createBoard() {
+  const board = new Array(SQUARES).fill(null);
+  let serial = 0;
+  const place = (side, type, col, row) => {
+    board[indexOf(col, row)] = { id: `${side}-${type}-${serial += 1}`, side, type };
+  };
+
+  for (const col of [2, 5]) {
+    place('blue', 'golem', col, 0);
+    place('red', 'golem', col, BOARD_SIZE - 1);
+  }
+  for (let col = 1; col <= 6; col += 1) {
+    place('blue', 'farmer', col, 1);
+    place('red', 'farmer', col, BOARD_SIZE - 2);
+  }
+  return board;
+}
+
+function createGame() {
+  return {
+    board: createBoard(),
+    turn: 'red',
+    moveNumber: 1,
+    movesSinceCapture: 0,
+    captured: { red: [], blue: [] }, // pieces each side has lost
+    lastMove: null,
+    over: false,
+    winner: null,
+    reason: null,
+  };
+}
+
+function piecesOf(state, side) {
+  const pieces = [];
+  for (let index = 0; index < SQUARES; index += 1) {
+    const piece = state.board[index];
+    if (piece && piece.side === side) pieces.push({ ...piece, index });
+  }
+  return pieces;
+}
+
+function materialOf(state, side) {
+  return piecesOf(state, side).reduce((total, piece) => total + PIECES[piece.type].value, 0);
+}
+
+/** Every move the piece on `index` can make. Nothing jumps; landing captures. */
+function movesFrom(state, index) {
+  const piece = state.board[index];
+  if (!piece) return [];
+  const { steps, directions } = PIECES[piece.type];
+  const col = colOf(index);
+  const row = rowOf(index);
+  const moves = [];
+
+  for (const [dx, dy] of directions) {
+    for (let step = 1; step <= steps; step += 1) {
+      const nextCol = col + dx * step;
+      const nextRow = row + dy * step;
+      if (!onBoard(nextCol, nextRow)) break;
+      const target = indexOf(nextCol, nextRow);
+      const occupant = state.board[target];
+      if (!occupant) {
+        moves.push({ from: index, to: target, piece: piece.type, side: piece.side, captured: null });
+        continue;
+      }
+      if (occupant.side !== piece.side) {
+        moves.push({ from: index, to: target, piece: piece.type, side: piece.side, captured: occupant.type });
+      }
+      break; // blocked either way: no jumping
+    }
+  }
+  return moves;
+}
+
+function legalMoves(state, side = state.turn) {
+  if (state.over) return [];
+  const moves = [];
+  for (const piece of piecesOf(state, side)) moves.push(...movesFrom(state, piece.index));
+  return moves;
+}
+
+function isLegal(state, move) {
+  return movesFrom(state, move.from).some((option) => option.to === move.to);
+}
+
+/** Applies a move and returns the new state, including any end-of-game verdict. */
+function applyMove(state, move) {
+  const piece = state.board[move.from];
+  if (!piece) throw new Error(`No piece on ${squareName(move.from)}`);
+  if (piece.side !== state.turn) throw new Error(`It is ${state.turn}'s turn`);
+  if (!isLegal(state, move)) throw new Error(`Illegal move ${squareName(move.from)}-${squareName(move.to)}`);
+
+  const board = state.board.slice();
+  const target = board[move.to];
+  board[move.to] = piece;
+  board[move.from] = null;
+
+  const captured = { red: [...state.captured.red], blue: [...state.captured.blue] };
+  if (target) captured[target.side].push(target.type);
+
+  const next = {
+    ...state,
+    board,
+    captured,
+    turn: opponentOf(state.turn),
+    moveNumber: state.moveNumber + 1,
+    movesSinceCapture: target ? 0 : state.movesSinceCapture + 1,
+    lastMove: {
+      from: move.from,
+      to: move.to,
+      side: piece.side,
+      piece: piece.type,
+      captured: target ? target.type : null,
+    },
+  };
+
+  return applyVerdict(next);
+}
+
+/** Decides whether the game is over after a move. */
+function applyVerdict(state) {
+  const mover = opponentOf(state.turn); // the side that just moved
+  const defender = state.turn;
+
+  if (piecesOf(state, defender).length === 0) {
+    return { ...state, over: true, winner: mover, reason: 'every piece captured' };
+  }
+  if (legalMoves(state, defender).length === 0) {
+    return { ...state, over: true, winner: mover, reason: `${SIDES[defender].name} has no legal move` };
+  }
+  if (state.movesSinceCapture >= STALE_LIMIT) {
+    const red = materialOf(state, 'red');
+    const blue = materialOf(state, 'blue');
+    if (red === blue) return { ...state, over: true, winner: null, reason: 'a draw: nothing captured for 50 turns' };
+    return {
+      ...state,
+      over: true,
+      winner: red > blue ? 'red' : 'blue',
+      reason: 'nothing captured for 50 turns - the stronger army wins',
+    };
+  }
+  return state;
+}
+
+/** Short move notation for the log, e.g. "Golem c1-e3 x Farmer". */
+function describeMove(move) {
+  const piece = PIECES[move.piece].name;
+  const capture = move.captured ? ` takes ${PIECES[move.captured].name}` : '';
+  return `${piece} ${squareName(move.from)}-${squareName(move.to)}${capture}`;
+}
+
+  return { BOARD_SIZE, SQUARES, SIDES, SIDE_IDS, PIECES, STALE_LIMIT, indexOf, colOf, rowOf, onBoard, squareName, opponentOf, createBoard, createGame, piecesOf, materialOf, movesFrom, legalMoves, isLegal, applyMove, describeMove };
+})();
+
+// ---- src/games/nopoly/ai.js --------------------------------------
+__modules["src/games/nopoly/ai.js"] = (function () {
+  const { BOARD_SIZE, PIECES, applyMove, colOf, legalMoves, opponentOf, piecesOf, rowOf } = __modules["src/games/nopoly/rules.js"];
+
+/**
+ * The computer opponent: alpha-beta minimax over the move tree, with captures
+ * searched first so cut-offs happen early.
+ *
+ * Difficulties differ only in how deep they look (and how much randomness sits
+ * on top), so the same evaluation drives all of them.
+ */
+const DIFFICULTIES = {
+  easy: { id: 'easy', name: 'Easy', depth: 1, jitter: 90, blurb: 'Looks one move ahead.' },
+  normal: { id: 'normal', name: 'Normal', depth: 3, jitter: 25, blurb: 'Looks three moves ahead.' },
+  hard: { id: 'hard', name: 'Hard', depth: 4, jitter: 0, blurb: 'Looks four moves ahead and takes no chances.' },
+};
+
+const WIN_SCORE = 100000;
+
+/** How far up the board a square is from `side`'s point of view. */
+function advancement(side, index) {
+  const row = rowOf(index);
+  return side === 'red' ? BOARD_SIZE - 1 - row : row;
+}
+
+/** Distance from the middle of the board, 0 in the centre. */
+function centreDistance(index) {
+  const middle = (BOARD_SIZE - 1) / 2;
+  return Math.abs(colOf(index) - middle) + Math.abs(rowOf(index) - middle);
+}
+
+/** Positive numbers favour `side`. */
+function evaluate(state, side) {
+  if (state.over) {
+    if (!state.winner) return 0;
+    return state.winner === side ? WIN_SCORE : -WIN_SCORE;
+  }
+
+  let score = 0;
+  for (const owner of [side, opponentOf(side)]) {
+    const sign = owner === side ? 1 : -1;
+    for (const piece of piecesOf(state, owner)) {
+      const spec = PIECES[piece.type];
+      let value = spec.value;
+      value += advancement(owner, piece.index) * (piece.type === 'farmer' ? 6 : 2);
+      value += (6 - centreDistance(piece.index)) * 3;
+      score += sign * value;
+    }
+  }
+  score += (legalMoves(state, side).length - legalMoves(state, opponentOf(side)).length) * 4;
+  return score;
+}
+
+/** Captures first, biggest first: better ordering means more alpha-beta cut-offs. */
+function orderMoves(moves) {
+  return [...moves].sort((a, b) => {
+    const av = a.captured ? PIECES[a.captured].value : 0;
+    const bv = b.captured ? PIECES[b.captured].value : 0;
+    return bv - av;
+  });
+}
+
+function search(state, depth, alpha, beta, side) {
+  if (state.over || depth === 0) return evaluate(state, side);
+  const maximizing = state.turn === side;
+  const moves = orderMoves(legalMoves(state, state.turn));
+  if (moves.length === 0) return evaluate(state, side);
+
+  let best = maximizing ? -Infinity : Infinity;
+  for (const move of moves) {
+    const score = search(applyMove(state, move), depth - 1, alpha, beta, side);
+    if (maximizing) {
+      best = Math.max(best, score);
+      alpha = Math.max(alpha, score);
+    } else {
+      best = Math.min(best, score);
+      beta = Math.min(beta, score);
+    }
+    if (beta <= alpha) break;
+  }
+  return best;
+}
+
+/**
+ * Picks a move for `state.turn`. `random` is injectable so tests can pin the
+ * jitter that keeps the easier levels from being perfectly repeatable.
+ */
+function chooseMove(state, difficulty = 'normal', random = Math.random) {
+  const level = DIFFICULTIES[difficulty] || DIFFICULTIES.normal;
+  const side = state.turn;
+  const moves = orderMoves(legalMoves(state, side));
+  if (moves.length === 0) return null;
+
+  let best = null;
+  let bestScore = -Infinity;
+  let alpha = -Infinity;
+  for (const move of moves) {
+    const raw = search(applyMove(state, move), level.depth - 1, alpha, Infinity, side);
+    const score = raw + (level.jitter ? (random() - 0.5) * level.jitter : 0);
+    if (score > bestScore) {
+      bestScore = score;
+      best = move;
+      alpha = Math.max(alpha, raw);
+    }
+  }
+  return best;
+}
+
+  return { DIFFICULTIES, evaluate, chooseMove };
+})();
+
+// ---- src/games/nopoly/render.js ----------------------------------
+__modules["src/games/nopoly/render.js"] = (function () {
+  const { TAU, clamp, roundedRect } = __modules["src/core/utils.js"];
+  const { BOARD_SIZE, PIECES, SIDES, colOf, rowOf } = __modules["src/games/nopoly/rules.js"];
+
+/**
+ * Board and piece drawing. Pieces are drawn from code - a farmer under a straw
+ * hat, a golem cut from stone - tinted by the side that owns them.
+ */
+
+const BOARD = { x: 54, y: 54, square: 54 };
+const BOARD_PX = BOARD.square * BOARD_SIZE;
+
+const LIGHT_SQUARE = '#c9d0ea';
+const DARK_SQUARE = '#5b6699';
+const EDGE = '#2b3358';
+
+const squareCentre = (index) => ({
+  x: BOARD.x + colOf(index) * BOARD.square + BOARD.square / 2,
+  y: BOARD.y + rowOf(index) * BOARD.square + BOARD.square / 2,
 });
+
+/** The square under a canvas point, or null when the point is off the board. */
+function squareAt(x, y) {
+  const col = Math.floor((x - BOARD.x) / BOARD.square);
+  const row = Math.floor((y - BOARD.y) / BOARD.square);
+  if (col < 0 || col >= BOARD_SIZE || row < 0 || row >= BOARD_SIZE) return null;
+  return row * BOARD_SIZE + col;
+}
+
+function drawBackdrop(ctx, width, height, time) {
+  const sky = ctx.createLinearGradient(0, 0, width, height);
+  sky.addColorStop(0, '#161c38');
+  sky.addColorStop(1, '#0d1024');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, width, height);
+
+  // Slow drifting field furrows behind the board, so the page is not flat black.
+  ctx.save();
+  ctx.globalAlpha = 0.08;
+  ctx.strokeStyle = '#8ea0ff';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 14; i += 1) {
+    const offset = ((time * 8 + i * 46) % (height + 120)) - 60;
+    ctx.beginPath();
+    ctx.moveTo(0, offset);
+    ctx.lineTo(width, offset - 80);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawBoard(ctx, state, view) {
+  ctx.save();
+  ctx.fillStyle = EDGE;
+  roundedRect(ctx, BOARD.x - 10, BOARD.y - 10, BOARD_PX + 20, BOARD_PX + 20, 12);
+  ctx.fill();
+
+  for (let index = 0; index < BOARD_SIZE * BOARD_SIZE; index += 1) {
+    const col = colOf(index);
+    const row = rowOf(index);
+    ctx.fillStyle = (col + row) % 2 === 0 ? LIGHT_SQUARE : DARK_SQUARE;
+    ctx.fillRect(BOARD.x + col * BOARD.square, BOARD.y + row * BOARD.square, BOARD.square, BOARD.square);
+  }
+
+  if (state.lastMove) {
+    for (const index of [state.lastMove.from, state.lastMove.to]) {
+      ctx.fillStyle = 'rgba(255, 209, 102, 0.28)';
+      ctx.fillRect(BOARD.x + colOf(index) * BOARD.square, BOARD.y + rowOf(index) * BOARD.square, BOARD.square, BOARD.square);
+    }
+  }
+
+  drawCoordinates(ctx);
+  ctx.restore();
+}
+
+function drawCoordinates(ctx) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(214, 221, 255, 0.55)';
+  ctx.font = '600 12px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < BOARD_SIZE; i += 1) {
+    ctx.fillText('abcdefgh'[i], BOARD.x + i * BOARD.square + BOARD.square / 2, BOARD.y + BOARD_PX + 20);
+    ctx.fillText(String(BOARD_SIZE - i), BOARD.x - 20, BOARD.y + i * BOARD.square + BOARD.square / 2);
+  }
+  ctx.restore();
+}
+
+/** Selection ring, legal-move dots and capture rings. */
+function drawHints(ctx, { selected, moves, cursor, time }) {
+  ctx.save();
+  if (selected != null) {
+    const { x, y } = squareCentre(selected);
+    ctx.strokeStyle = '#ffd166';
+    ctx.lineWidth = 3;
+    roundedRect(ctx, x - BOARD.square / 2 + 3, y - BOARD.square / 2 + 3, BOARD.square - 6, BOARD.square - 6, 8);
+    ctx.stroke();
+  }
+
+  const pulse = 0.55 + Math.sin(time * 4) * 0.12;
+  for (const move of moves) {
+    const { x, y } = squareCentre(move.to);
+    if (move.captured) {
+      ctx.strokeStyle = `rgba(255, 122, 122, ${pulse + 0.2})`;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(x, y, BOARD.square / 2 - 5, 0, TAU);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = `rgba(255, 245, 214, ${pulse})`;
+      ctx.beginPath();
+      ctx.arc(x, y, 7, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  if (cursor != null) {
+    const { x, y } = squareCentre(cursor);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.setLineDash([6, 5]);
+    ctx.lineWidth = 2;
+    roundedRect(ctx, x - BOARD.square / 2 + 4, y - BOARD.square / 2 + 4, BOARD.square - 8, BOARD.square - 8, 7);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+}
+
+/* ------------------------------------------------------------------ pieces */
+
+function drawPiece(ctx, piece, x, y, scale = 1, alpha = 1) {
+  const side = SIDES[piece.side];
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = 'rgba(10, 12, 26, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(0, 18, 17, 6, 0, 0, TAU);
+  ctx.fill();
+
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = 'rgba(14, 16, 32, 0.9)';
+  if (piece.type === 'farmer') drawFarmer(ctx, side);
+  else drawGolem(ctx, side);
+  ctx.restore();
+}
+
+function drawFarmer(ctx, side) {
+  // Body
+  ctx.fillStyle = side.color;
+  ctx.beginPath();
+  ctx.moveTo(-11, 17);
+  ctx.quadraticCurveTo(-12, -2, -6, -6);
+  ctx.lineTo(6, -6);
+  ctx.quadraticCurveTo(12, -2, 11, 17);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Head
+  ctx.fillStyle = '#f3d3ae';
+  ctx.beginPath();
+  ctx.arc(0, -11, 7.5, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+
+  // Straw hat
+  ctx.fillStyle = '#f0cf87';
+  ctx.beginPath();
+  ctx.ellipse(0, -16, 15, 5, 0, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(0, -20, 7, 5.5, 0, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+
+  // Band in the side's darker tone
+  ctx.fillStyle = side.dark;
+  ctx.fillRect(-7, -18, 14, 2.5);
+
+  ctx.fillStyle = '#1b1d31';
+  ctx.beginPath();
+  ctx.arc(-2.6, -10.5, 1.2, 0, TAU);
+  ctx.arc(2.6, -10.5, 1.2, 0, TAU);
+  ctx.fill();
+}
+
+function drawGolem(ctx, side) {
+  // Stone torso
+  ctx.fillStyle = side.dark;
+  ctx.beginPath();
+  ctx.moveTo(-13, 18);
+  ctx.lineTo(-15, -4);
+  ctx.lineTo(-8, -10);
+  ctx.lineTo(8, -10);
+  ctx.lineTo(15, -4);
+  ctx.lineTo(13, 18);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Shoulders
+  ctx.fillStyle = side.color;
+  for (const dir of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(dir * 9, -8);
+    ctx.lineTo(dir * 18, -2);
+    ctx.lineTo(dir * 16, 9);
+    ctx.lineTo(dir * 10, 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // Head block with a glowing core
+  ctx.fillStyle = side.color;
+  ctx.beginPath();
+  ctx.moveTo(-8, -11);
+  ctx.lineTo(-7, -21);
+  ctx.lineTo(7, -21);
+  ctx.lineTo(8, -11);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = side.light;
+  ctx.fillRect(-4.5, -18, 9, 3.5);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.fillRect(-4.5, -18, 9, 1.2);
+
+  // Cracks
+  ctx.strokeStyle = 'rgba(12, 14, 28, 0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-4, -2);
+  ctx.lineTo(0, 5);
+  ctx.lineTo(-3, 12);
+  ctx.stroke();
+}
+
+/** Piece portrait for the DOM panels (captured lists, rules key). */
+function drawPieceIcon(ctx, type, sideId, size) {
+  ctx.save();
+  ctx.translate(size / 2, size * 0.62);
+  ctx.scale(size / 52, size / 52);
+  drawPiece(ctx, { type, side: sideId }, 0, 0, 1, 1);
+  ctx.restore();
+}
+
+function drawBanner(ctx, width, text, subtext, alpha) {
+  if (!text || alpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = clamp(alpha, 0, 1);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 44px "Trebuchet MS", system-ui, sans-serif';
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = 'rgba(10, 12, 26, 0.85)';
+  ctx.strokeText(text, width / 2, 210);
+  ctx.fillStyle = '#ffe07a';
+  ctx.fillText(text, width / 2, 210);
+  if (subtext) {
+    ctx.font = '600 18px "Trebuchet MS", system-ui, sans-serif';
+    ctx.lineWidth = 5;
+    ctx.strokeText(subtext, width / 2, 248);
+    ctx.fillStyle = '#e7ecff';
+    ctx.fillText(subtext, width / 2, 248);
+  }
+  ctx.restore();
+}
+
+const PIECE_NAMES = Object.fromEntries(
+  Object.values(PIECES).map((piece) => [piece.id, piece.name])
+);
+
+  return { BOARD, BOARD_PX, squareCentre, squareAt, drawBackdrop, drawBoard, drawHints, drawPiece, drawPieceIcon, drawBanner, PIECE_NAMES };
+})();
+
+// ---- src/games/nopoly/ui.js --------------------------------------
+__modules["src/games/nopoly/ui.js"] = (function () {
+  const { PIECES, SIDES, describeMove } = __modules["src/games/nopoly/rules.js"];
+  const { DIFFICULTIES } = __modules["src/games/nopoly/ai.js"];
+  const { drawPieceIcon } = __modules["src/games/nopoly/render.js"];
+
+/**
+ * The DOM side of Nopoly: the pre-game options and the panel beside the board
+ * (whose turn it is, what has been taken, the move log).
+ */
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
+function icon(type, sideId, size) {
+  const canvas = el('canvas', 'np-icon');
+  const scale = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = size * scale;
+  canvas.height = size * scale;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  drawPieceIcon(ctx, type, sideId, size);
+  return canvas;
+}
+
+/* ------------------------------------------------------------ setup screen */
+
+class SetupPanel {
+  constructor(container, { onStart }) {
+    this.onStart = onStart;
+    this.mode = 'computer';
+    this.difficulty = 'normal';
+    this.root = el('div', 'np-setup');
+    container.append(this.root);
+    this._build();
+  }
+
+  _build() {
+    const card = el('div', 'np-setup-card');
+    card.append(el('h2', null, 'Nopoly'));
+    card.append(el('p', 'np-setup-lede', 'Red and Blue, eight pieces each, one board. Take everything your opponent has.'));
+
+    const key = el('div', 'np-key');
+    for (const piece of Object.values(PIECES)) {
+      const row = el('div', 'np-key-row');
+      row.append(icon(piece.id, 'red', 40));
+      const meta = el('div', 'np-key-meta');
+      meta.append(el('strong', null, `${piece.count} ${piece.name}${piece.count === 1 ? '' : 's'} a side`));
+      meta.append(el('span', null, piece.blurb));
+      row.append(meta);
+      key.append(row);
+    }
+    card.append(key);
+
+    card.append(this._choice('Opponent', [
+      { id: 'computer', label: 'Play the computer' },
+      { id: 'hotseat', label: 'Two players, one screen' },
+    ], (id) => {
+      this.mode = id;
+      this.difficultyRow.hidden = id !== 'computer';
+    }, () => this.mode));
+
+    this.difficultyRow = this._choice('Difficulty',
+      Object.values(DIFFICULTIES).map((level) => ({ id: level.id, label: level.name, title: level.blurb })),
+      (id) => { this.difficulty = id; },
+      () => this.difficulty);
+    card.append(this.difficultyRow);
+
+    const start = el('button', 'btn btn--primary np-start', 'Start the match');
+    start.type = 'button';
+    start.addEventListener('click', () => this.onStart({ mode: this.mode, difficulty: this.difficulty }));
+    card.append(start);
+
+    card.append(el('p', 'np-setup-foot', 'Red moves first. Landing on an enemy piece captures it, and nothing jumps over anything.'));
+    this.root.append(card);
+  }
+
+  _choice(label, options, onPick, current) {
+    const row = el('div', 'np-choice');
+    row.append(el('span', 'np-choice-label', label));
+    const group = el('div', 'np-choice-options');
+    const buttons = [];
+    for (const option of options) {
+      const button = el('button', 'np-option', option.label);
+      button.type = 'button';
+      if (option.title) button.title = option.title;
+      button.classList.toggle('is-active', option.id === current());
+      button.addEventListener('click', () => {
+        onPick(option.id);
+        for (const other of buttons) other.button.classList.toggle('is-active', other.id === current());
+      });
+      buttons.push({ id: option.id, button });
+      group.append(button);
+    }
+    row.append(group);
+    return row;
+  }
+
+  destroy() {
+    this.root.remove();
+  }
+}
+
+/* ----------------------------------------------------------- in-game panel */
+
+class BoardPanel {
+  constructor(container, { onResign }) {
+    this.root = el('div', 'np-panel');
+
+    this.turnCard = el('div', 'np-turn');
+    this.root.append(this.turnCard);
+
+    this.armies = el('div', 'np-armies');
+    this.root.append(this.armies);
+
+    this.root.append(el('h3', 'np-heading', 'Moves'));
+    this.log = el('ol', 'np-log');
+    this.root.append(this.log);
+
+    const resign = el('button', 'btn btn--ghost np-resign', 'Resign');
+    resign.type = 'button';
+    resign.addEventListener('click', onResign);
+    this.root.append(resign);
+
+    container.append(this.root);
+  }
+
+  /** Whose turn, and what they are waiting on. */
+  setTurn(state, { thinking, mode, playerSide }) {
+    this.turnCard.replaceChildren();
+    const side = SIDES[state.turn];
+    this.turnCard.style.setProperty('--side', side.color);
+
+    const label = el('span', 'np-turn-label', state.over ? 'Match over' : `${side.name} to move`);
+    this.turnCard.append(label);
+
+    let hint = '';
+    if (state.over) hint = state.winner ? `${SIDES[state.winner].name} wins - ${state.reason}` : state.reason;
+    else if (thinking) hint = 'Thinking...';
+    else if (mode === 'hotseat') hint = 'Pick up a piece, then choose a square.';
+    else hint = state.turn === playerSide ? 'Your move.' : 'Waiting on the computer.';
+    this.turnCard.append(el('span', 'np-turn-hint', hint));
+    this.turnCard.append(el('span', 'np-turn-count', `Turn ${Math.ceil(state.moveNumber / 2)}`));
+  }
+
+  /** Pieces each side still has, with what it has lost greyed out beside them. */
+  setArmies(state, counts) {
+    this.armies.replaceChildren();
+    for (const sideId of ['red', 'blue']) {
+      const side = SIDES[sideId];
+      const card = el('div', 'np-army');
+      card.style.setProperty('--side', side.color);
+
+      const head = el('div', 'np-army-head');
+      head.append(el('strong', null, side.name));
+      head.append(el('span', 'np-army-count', `${counts[sideId].alive} left`));
+      card.append(head);
+
+      const row = el('div', 'np-army-pieces');
+      for (const type of ['golem', 'farmer']) {
+        const total = PIECES[type].count;
+        const lost = state.captured[sideId].filter((entry) => entry === type).length;
+        for (let i = 0; i < total; i += 1) {
+          const chip = icon(type, sideId, 26);
+          if (i >= total - lost) chip.classList.add('is-lost');
+          chip.title = `${PIECES[type].name}${i >= total - lost ? ' (captured)' : ''}`;
+          row.append(chip);
+        }
+      }
+      card.append(row);
+      this.armies.append(card);
+    }
+  }
+
+  setLog(moves) {
+    this.log.replaceChildren();
+    for (const move of moves.slice(-8)) {
+      const item = el('li', `np-log-line np-log-line--${move.side}`, describeMove(move));
+      this.log.append(item);
+    }
+    this.log.scrollTop = this.log.scrollHeight;
+  }
+
+  destroy() {
+    this.root.remove();
+  }
+}
+
+  return { SetupPanel, BoardPanel };
+})();
+
+// ---- src/games/nopoly/game.js ------------------------------------
+__modules["src/games/nopoly/game.js"] = (function () {
+  const { clamp } = __modules["src/core/utils.js"];
+  const { BOARD_SIZE, PIECES, SIDES, applyMove, createGame, legalMoves, movesFrom, opponentOf, piecesOf } = __modules["src/games/nopoly/rules.js"];
+  const { chooseMove } = __modules["src/games/nopoly/ai.js"];
+  const { BoardPanel, SetupPanel } = __modules["src/games/nopoly/ui.js"];
+  const { drawBackdrop, drawBanner, drawBoard, drawHints, drawPiece, squareAt, squareCentre } = __modules["src/games/nopoly/render.js"];
+
+const GAME_ID = 'nopoly';
+
+const MOVE_ANIMATION = 0.24;   // seconds a piece takes to slide
+const THINK_DELAY = 0.45;      // pause before the computer commits, so it reads as a turn
+
+class NopolyGame {
+  constructor(context) {
+    this.context = context;
+    this.time = 0;
+    this.phase = 'setup';
+    this.state = createGame();
+    this.mode = 'computer';
+    this.difficulty = 'normal';
+    this.playerSide = 'red';
+
+    this.selected = null;
+    this.moveHints = [];
+    this.cursor = 52; // b2-ish, so the keyboard has somewhere to start
+    this.history = [];
+    this.animation = null;
+    this.thinkTimer = 0;
+    this.thinking = false;
+    this.banner = { text: '', subtext: '', life: 0 };
+    this.finished = false;
+    this.panel = null;
+
+    this.setup = new SetupPanel(context.ui, {
+      onStart: (options) => this._begin(options),
+    });
+  }
+
+  _begin({ mode, difficulty }) {
+    this.setup.destroy();
+    this.setup = null;
+    this.mode = mode;
+    this.difficulty = difficulty;
+    this.phase = 'play';
+    this.state = createGame();
+    this.history = [];
+    this.panel = new BoardPanel(this.context.ui, { onResign: () => this._resign() });
+    this._refreshPanel();
+  }
+
+  /* ------------------------------------------------------------- helpers */
+
+  get controlsCurrentSide() {
+    if (this.state.over || this.animation || this.thinking) return false;
+    return this.mode === 'hotseat' || this.state.turn === this.playerSide;
+  }
+
+  _refreshPanel() {
+    if (!this.panel) return;
+    const counts = {
+      red: { alive: piecesOf(this.state, 'red').length },
+      blue: { alive: piecesOf(this.state, 'blue').length },
+    };
+    this.panel.setTurn(this.state, {
+      thinking: this.thinking,
+      mode: this.mode,
+      playerSide: this.playerSide,
+    });
+    this.panel.setArmies(this.state, counts);
+    this.panel.setLog(this.history);
+  }
+
+  _select(index) {
+    const piece = this.state.board[index];
+    if (!piece || piece.side !== this.state.turn) return false;
+    this.selected = index;
+    this.moveHints = movesFrom(this.state, index);
+    return true;
+  }
+
+  _clearSelection() {
+    this.selected = null;
+    this.moveHints = [];
+  }
+
+  /** Starts the slide animation; the move is applied to state immediately. */
+  _play(move) {
+    const piece = this.state.board[move.from];
+    const target = this.state.board[move.to];
+    const next = applyMove(this.state, move);
+    this.history.push(next.lastMove);
+    this.animation = {
+      piece,
+      from: squareCentre(move.from),
+      to: squareCentre(move.to),
+      captured: target ? { piece: target, at: squareCentre(move.to) } : null,
+      t: 0,
+    };
+    this.state = next;
+    this._clearSelection();
+    this._refreshPanel();
+  }
+
+  _resign() {
+    if (this.state.over || this.finished) return;
+    const loser = this.mode === 'hotseat' ? this.state.turn : this.playerSide;
+    this.state = {
+      ...this.state,
+      over: true,
+      winner: opponentOf(loser),
+      reason: `${SIDES[loser].name} resigned`,
+    };
+    this._refreshPanel();
+    this._announceEnd();
+  }
+
+  _announceEnd() {
+    const { winner, reason } = this.state;
+    this.banner = {
+      text: winner ? `${SIDES[winner].name} wins!` : 'Draw',
+      subtext: reason || '',
+      life: 2.6,
+    };
+  }
+
+  /* --------------------------------------------------------------- input */
+
+  update(dt, input) {
+    this.time += dt;
+    if (this.banner.life > 0) this.banner.life -= dt;
+    if (this.phase !== 'play') return;
+
+    if (this.animation) {
+      this.animation.t += dt / MOVE_ANIMATION;
+      if (this.animation.t >= 1) {
+        this.animation = null;
+        if (this.state.over) this._finishIfNeeded();
+      }
+      return;
+    }
+
+    if (this.state.over) {
+      this._finishIfNeeded();
+      return;
+    }
+
+    this._handlePointer(input);
+    this._handleKeyboard(input);
+    this._maybeThink(dt);
+  }
+
+  _handlePointer(input) {
+    if (!input.justPressed || !this.controlsCurrentSide) return;
+    const index = squareAt(input.x, input.y);
+    if (index == null) {
+      this._clearSelection();
+      return;
+    }
+    this.cursor = index;
+    const move = this.moveHints.find((option) => option.to === index);
+    if (move) {
+      this._play(move);
+      return;
+    }
+    if (!this._select(index)) this._clearSelection();
+  }
+
+  _handleKeyboard(input) {
+    if (!this.controlsCurrentSide) return;
+    const col = this.cursor % BOARD_SIZE;
+    const row = Math.floor(this.cursor / BOARD_SIZE);
+    let dx = 0;
+    let dy = 0;
+    if (input.wasKeyPressed('ArrowLeft', 'KeyA')) dx -= 1;
+    if (input.wasKeyPressed('ArrowRight', 'KeyD')) dx += 1;
+    if (input.wasKeyPressed('ArrowUp', 'KeyW')) dy -= 1;
+    if (input.wasKeyPressed('ArrowDown', 'KeyS')) dy += 1;
+    if (dx || dy) {
+      const nextCol = clamp(col + dx, 0, BOARD_SIZE - 1);
+      const nextRow = clamp(row + dy, 0, BOARD_SIZE - 1);
+      this.cursor = nextRow * BOARD_SIZE + nextCol;
+    }
+    if (input.wasKeyPressed('Space', 'Enter')) {
+      const move = this.moveHints.find((option) => option.to === this.cursor);
+      if (move) this._play(move);
+      else if (!this._select(this.cursor)) this._clearSelection();
+    }
+    if (input.wasKeyPressed('Backspace', 'Delete')) this._clearSelection();
+  }
+
+  /** Runs the computer's turn, one beat after it becomes its move. */
+  _maybeThink(dt) {
+    if (this.mode !== 'computer' || this.state.turn === this.playerSide) return;
+    if (!this.thinking) {
+      this.thinking = true;
+      this.thinkTimer = THINK_DELAY;
+      this._clearSelection();
+      this._refreshPanel(); // paint "Thinking..." before the search blocks the frame
+      return;
+    }
+    this.thinkTimer -= dt;
+    if (this.thinkTimer > 0) return;
+    const move = chooseMove(this.state, this.difficulty);
+    this.thinking = false;
+    if (move) this._play(move);
+    else this._refreshPanel();
+  }
+
+  _finishIfNeeded() {
+    if (this.finished) return;
+    this.finished = true;
+    this._announceEnd();
+
+    const { winner, reason } = this.state;
+    const survivors = piecesOf(this.state, this.playerSide);
+    const enemyLosses = this.state.captured[opponentOf(this.playerSide)];
+    const turns = Math.ceil(this.state.moveNumber / 2);
+    const playerWon = this.mode === 'hotseat' ? Boolean(winner) : winner === this.playerSide;
+
+    let score = 0;
+    if (this.mode === 'hotseat') {
+      score = enemyLosses.length * 120;
+    } else if (playerWon) {
+      score = Math.round(1200 + survivors.length * 140 + Math.max(0, (40 - turns) * 20));
+    } else {
+      score = enemyLosses.length * 90;
+    }
+
+    const title = this.mode === 'hotseat'
+      ? winner ? `${SIDES[winner].name} wins!` : 'A draw'
+      : playerWon ? 'You win!' : winner ? 'Beaten' : 'A draw';
+
+    const counts = {};
+    for (const type of enemyLosses) counts[type] = (counts[type] || 0) + 1;
+
+    this.context.finish({
+      score,
+      title,
+      detailTitle: `${reason} - ${turns} turn${turns === 1 ? '' : 's'}`,
+      collected: Object.entries(counts).map(([type, count]) => ({
+        name: `${PIECES[type].name}s taken`,
+        color: SIDES[opponentOf(this.playerSide)].color,
+        count,
+        label: `x${count}`,
+      })),
+      emptyText: 'No captures this match.',
+    });
+  }
+
+  /* ------------------------------------------------------------- drawing */
+
+  render(ctx) {
+    const { width, height } = this.context;
+    drawBackdrop(ctx, width, height, this.time);
+    if (this.phase === 'setup') return;
+
+    drawBoard(ctx, this.state, this);
+    drawHints(ctx, {
+      selected: this.selected,
+      moves: this.controlsCurrentSide ? this.moveHints : [],
+      cursor: this.controlsCurrentSide ? this.cursor : null,
+      time: this.time,
+    });
+
+    const moving = this.animation;
+    for (let index = 0; index < BOARD_SIZE * BOARD_SIZE; index += 1) {
+      const piece = this.state.board[index];
+      if (!piece) continue;
+      if (moving && piece === moving.piece) continue; // drawn along its path below
+      const { x, y } = squareCentre(index);
+      drawPiece(ctx, piece, x, y);
+    }
+
+    if (moving) {
+      if (moving.captured) {
+        const fade = 1 - clamp(moving.t * 1.4, 0, 1);
+        drawPiece(ctx, moving.captured.piece, moving.captured.at.x, moving.captured.at.y, 0.6 + fade * 0.4, fade);
+      }
+      const ease = moving.t < 0.5 ? 2 * moving.t * moving.t : 1 - ((-2 * moving.t + 2) ** 2) / 2;
+      const x = moving.from.x + (moving.to.x - moving.from.x) * ease;
+      const y = moving.from.y + (moving.to.y - moving.from.y) * ease;
+      const lift = Math.sin(Math.PI * moving.t) * 6;
+      drawPiece(ctx, moving.piece, x, y - lift, 1.08);
+    }
+
+    drawBanner(ctx, width, this.banner.text, this.banner.subtext, clamp(this.banner.life, 0, 1));
+  }
+
+  destroy() {
+    this.setup?.destroy();
+    this.panel?.destroy();
+  }
+}
+
+function createNopoly(context) {
+  return new NopolyGame(context);
+}
+
+  return { GAME_ID, createNopoly, NopolyGame };
+})();
+
+// ---- src/games/nopoly/index.js -----------------------------------
+__modules["src/games/nopoly/index.js"] = (function () {
+  const { registerGame } = __modules["src/core/registry.js"];
+  const { createNopoly, GAME_ID } = __modules["src/games/nopoly/game.js"];
+
+registerGame({
+  id: GAME_ID,
+  name: 'Nopoly',
+  tagline: 'Red against Blue on a chess board: six farmers, two golems, no mercy.',
+  description: 'Eight pieces a side on an 8x8 board. Capture everything your opponent has.',
+  howTo: [
+    '<strong>Farmers</strong> (six a side) move <strong>one square</strong> up, down, left or right.',
+    '<strong>Golems</strong> (two a side) move <strong>up to two squares</strong> in any of the eight directions.',
+    'Nothing jumps: a piece in the way blocks the path. Landing on an enemy <strong>captures</strong> it.',
+    'Red moves first. Click a piece, then a highlighted square - or use the arrow keys and <strong>Enter</strong>.',
+    'Win by <strong>capturing every enemy piece</strong>. If 25 turns pass with no capture, the bigger army takes it.',
+  ],
+  create: createNopoly,
+});
+
+  return {  };
+})();
+
+// ---- src/main.js -------------------------------------------------
+__modules["src/main.js"] = (function () {
+  const { Shell } = __modules["src/core/shell.js"];
 
 const shell = new Shell();
 shell.showMenu();
@@ -3686,6 +5064,8 @@ shell.showMenu();
 // Handy while developing in the browser console.
 window.minigameMania = shell;
 
+  return {  };
+})();
 </script>
 </body>
 </html>
