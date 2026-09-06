@@ -1,0 +1,11 @@
+{
+  "name": "minigame-mania",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minigame Mania - a browser collection of tiny arcade games. First up: Catchmon.",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "test": "node --test"
+  }
+}

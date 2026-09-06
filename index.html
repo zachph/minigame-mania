@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Minigame Mania</title>
+<meta name="description" content="Minigame Mania - a collection of tiny arcade games. First up: Catchmon." />
+<link rel="stylesheet" href="src/styles.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23ff4d4d'/><path d='M2 16h28' stroke='%23111' stroke-width='3'/><circle cx='16' cy='16' r='5' fill='%23fff' stroke='%23111' stroke-width='3'/></svg>" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <button class="brand" id="brand" type="button" title="Back to the menu">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-text">Minigame<em>Mania</em></span>
+      </button>
+      <div class="topbar-right" id="topbar-right"></div>
+    </header>
+
+    <main class="screens">
+      <!-- Menu -->
+      <section class="screen screen--menu is-active" id="screen-menu">
+        <p class="menu-intro">Pick a minigame. More coming soon.</p>
+        <ul class="game-grid" id="game-grid"></ul>
+      </section>
+
+      <!-- Play -->
+      <section class="screen screen--play" id="screen-play">
+        <div class="stage" id="stage">
+          <canvas id="canvas" width="960" height="540" aria-label="Game canvas" role="img"></canvas>
+
+          <div class="overlay overlay--howto" id="overlay-howto" hidden>
+            <div class="panel">
+              <h2 id="howto-title">How to play</h2>
+              <p class="panel-tagline" id="howto-tagline"></p>
+              <ul class="howto-list" id="howto-list"></ul>
+              <div class="panel-actions">
+                <button class="btn btn--primary" id="btn-start" type="button">Start</button>
+                <button class="btn" id="btn-howto-back" type="button">Back</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="overlay overlay--pause" id="overlay-pause" hidden>
+            <div class="panel">
+              <h2>Paused</h2>
+              <div class="panel-actions">
+                <button class="btn btn--primary" id="btn-resume" type="button">Resume</button>
+                <button class="btn" id="btn-quit" type="button">Quit to menu</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="overlay overlay--results" id="overlay-results" hidden>
+            <div class="panel">
+              <h2 id="results-title">Time!</h2>
+              <p class="results-score"><span id="results-score">0</span><small>points</small></p>
+              <p class="results-best" id="results-best"></p>
+              <div class="results-detail" id="results-detail"></div>
+              <div class="panel-actions">
+                <button class="btn btn--primary" id="btn-again" type="button">Play again</button>
+                <button class="btn" id="btn-results-menu" type="button">Menu</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Arrow keys / WASD + Space also work. <kbd>Esc</kbd> pauses.</span>
+    </footer>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
