@@ -29,25 +29,27 @@ The chart is a cycle. Every type is **strong against the next two** and
 type is better than another.
 
 ```
-Fire → Grass → Rock → Wind → Water → Dark → (back to Fire)
+Fire → Grass → Wind → Dark → Water → Rock → (back to Fire)
 ```
 
-So Fire beats Grass and Rock, is resisted by Water and Dark, and is neutral with
-Wind. Super effective is x1.5, resisted is x0.66, and using a move of your own
+So Fire beats Grass and Wind, is resisted by Water and Rock, and is neutral with
+Dark. Super effective is x1.5, resisted is x0.66, and using a move of your own
 type adds x1.25.
 
 | Type  | Beats        | Weak to      | Neutral with |
 | ----- | ------------ | ------------ | ------------ |
-| Fire  | Grass, Rock  | Water, Dark  | Wind         |
-| Grass | Rock, Wind   | Fire, Dark   | Water        |
-| Rock  | Wind, Water  | Grass, Fire  | Dark         |
-| Wind  | Water, Dark  | Rock, Grass  | Fire         |
-| Water | Dark, Fire   | Wind, Rock   | Grass        |
-| Dark  | Fire, Grass  | Water, Wind  | Rock         |
+| Fire  | Grass, Wind  | Water, Rock  | Dark         |
+| Grass | Wind, Dark   | Fire, Rock   | Water        |
+| Wind  | Dark, Water  | Grass, Fire  | Rock         |
+| Dark  | Water, Rock  | Wind, Grass  | Fire         |
+| Water | Rock, Fire   | Dark, Wind   | Grass        |
+| Rock  | Fire, Grass  | Water, Dark  | Wind         |
 
 The cycle is defined by the order of the `TYPES` array in
 [`types.js`](src/games/catchmon/types.js) — reorder it and the whole chart
-follows, with nothing else to change.
+follows, with nothing else to change. A six-type cycle cannot satisfy every
+intuition at once: this arrangement keeps Rock over Fire and Water over Rock,
+and pays for it with Rock over Grass.
 
 ### The roster
 

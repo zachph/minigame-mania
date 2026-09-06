@@ -50,16 +50,16 @@ function autoBattle(battle, rng = makeRng(3)) {
 }
 
 test('type effectiveness moves damage in the right direction', () => {
-  const attacker = createFighter(getCharacter('pyrothane'), 'player', 0); // Ember
+  const attacker = createFighter(getCharacter('pyrothane'), 'player', 0); // Fire
   const move = getMove('fire-standard');
   const versus = (id) => {
     const defender = createFighter(getCharacter(id), 'enemy', 0);
     defender.character = { ...defender.character, stats: { ...attacker.character.stats } };
     return computeDamage(attacker, defender, move).damage;
   };
-  const superEffective = versus('thornmaw'); // Verdant
-  const neutral = versus('galevane');        // Storm
-  const resisted = versus('tidalon');        // Tide
+  const superEffective = versus('thornmaw'); // Grass
+  const neutral = versus('nyxmaw');          // Dark
+  const resisted = versus('tidalon');        // Water
   assert.ok(superEffective > neutral, 'super effective beats neutral');
   assert.ok(neutral > resisted, 'neutral beats resisted');
 });

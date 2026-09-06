@@ -65,13 +65,13 @@ test('the AI takes an available knockout instead of setting up', () => {
 
 test('the replacement is alive and favours a good matchup', () => {
   const battle = new Battle({
-    playerTeam: team('pyrothane'),           // Ember
-    enemyTeam: team('thornmaw', 'tidalon', 'craghide'),
+    playerTeam: team('pyrothane'),           // Fire
+    enemyTeam: team('thornmaw', 'tidalon', 'mosslok'),
     rng: makeRng(9),
   });
   battle.teams.enemy[0].fainted = true;
   battle.teams.enemy[0].hp = 0;
   const index = chooseReplacement(battle, 'enemy');
   assert.ok(!battle.teams.enemy[index].fainted);
-  assert.equal(battle.teams.enemy[index].character.name, 'Tidalon', 'Tide answers Ember');
+  assert.equal(battle.teams.enemy[index].character.name, 'Tidalon', 'Water answers Fire');
 });
