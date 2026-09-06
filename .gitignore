@@ -1,2 +1,5 @@
 .DS_Store
 node_modules/
+
+# The single-file build is committed so it can be downloaded and opened
+# directly; regenerate it with `npm run bundle` after changing anything in src/.

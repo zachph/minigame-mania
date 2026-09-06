@@ -7,8 +7,12 @@ modules, a canvas and a `<script type="module">`.
 
 ## Play
 
-The game uses ES modules, so it needs to be served over HTTP (opening
-`index.html` from disk will not work):
+**The quickest way: open `dist/catchmon.html`.** It is the whole game bundled
+into one self-contained file — download it, double-click it, and it runs in your
+browser. Nothing to install, no server, works offline.
+
+To run the source instead: it uses ES modules, so it needs to be served over
+HTTP (opening `index.html` straight off disk will not work).
 
 ```bash
 npm start          # python3 -m http.server 8000
@@ -16,6 +20,40 @@ npm start          # python3 -m http.server 8000
 ```
 
 Any static file server does the job — `npx http-server`, `php -S`, etc.
+
+Rebuild the single file after changing anything under `src/`:
+
+```bash
+npm run bundle     # writes dist/catchmon.html
+```
+
+## Putting it on the web
+
+This is a plain static site: no build step, no server code, no dependencies.
+Any static host serves it by pointing at the repository root — `index.html` is
+already there. **There is nothing to deploy until the code is on the branch your
+host is watching, which is almost always `main`.**
+
+**Vercel** — import the repository at [vercel.com/new](https://vercel.com/new):
+
+- Framework preset: **Other**
+- Build command: **leave empty** (there is nothing to build)
+- Output directory: **leave empty** (the repository root)
+- Install command: leave empty
+
+Every push to `main` then redeploys. The site lives at the URL Vercel gives you
+on the project's dashboard — that exact hostname, which is not necessarily the
+repository's name.
+
+**GitHub Pages** — Settings → Pages → Source: *Deploy from a branch* → Branch:
+`main`, folder `/ (root)` → Save. It appears at
+`https://<user>.github.io/<repo>/` about a minute later. Note that Pages on a
+**private** repository needs a paid GitHub plan; on the free plan, make the
+repository public first.
+
+If a URL says *"this site can't be reached"*, nothing is deployed at that
+hostname — the browser could not connect at all. A deployed site that is merely
+missing a file answers with a 404 page instead.
 
 ## Catchmon
 
@@ -148,6 +186,10 @@ src/
     ui.js              DOM team-select screen and battle commands
     game.js            phases, event playback, scoring
 test/                  node:test suites
+tools/
+  build-single-file.mjs  inlines everything into dist/catchmon.html
+dist/
+  catchmon.html        the whole game in one file (generated, committed)
 ```
 
 ## Adding a minigame

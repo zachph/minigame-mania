@@ -1,0 +1,3691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Catchmon</title>
+<style>
+:root {
+  --bg: #0f1220;
+  --bg-soft: #171b30;
+  --panel: #1d2240;
+  --line: #2c3358;
+  --text: #eef1ff;
+  --muted: #9aa3cc;
+  --accent: #ffd166;
+  --accent-2: #ff5d73;
+  --good: #6ee7a8;
+  --radius: 14px;
+  --type-fire: #ff8552;
+  --type-grass: #63d17f;
+  --type-rock: #d0a163;
+  --type-wind: #b9c6e8;
+  --type-water: #4aa8f0;
+  --type-dark: #ab7ce6;
+  --shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #253063 0%, transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font: 16px/1.5 "Trebuchet MS", "Segoe UI", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  min-height: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 18px 16px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ---------- Top bar ---------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 10px;
+}
+
+.brand:hover { background: rgba(255, 255, 255, 0.06); }
+
+.brand-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(#ff4d4d 0 48%, #111 48% 56%, #f4f6ff 56% 100%);
+  box-shadow: inset 0 0 0 3px #111, 0 3px 10px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+.brand-mark::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #f4f6ff;
+  box-shadow: inset 0 0 0 2.5px #111;
+}
+
+.brand-text {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.brand-text em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.topbar-right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 34px;
+}
+
+/* ---------- Screens ---------- */
+
+.screens { flex: 1; }
+.screen { display: none; }
+.screen.is-active { display: block; }
+
+.menu-intro {
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+
+.game-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.game-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: linear-gradient(160deg, var(--panel), var(--bg-soft));
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.game-card:hover,
+.game-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  outline: none;
+}
+
+.game-card h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.game-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.game-card .card-meta {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.game-card--soon {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.game-card--soon:hover { transform: none; border-color: var(--line); }
+
+/* ---------- Stage ---------- */
+
+.stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  background: #0b1020;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(9, 12, 26, 0.78);
+  backdrop-filter: blur(3px);
+}
+
+.overlay[hidden] { display: none; }
+
+.panel {
+  width: min(460px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 22px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.panel h2 {
+  margin: 0 0 6px;
+  font-size: 26px;
+}
+
+.panel-tagline {
+  margin: 0 0 14px;
+  color: var(--muted);
+}
+
+.howto-list {
+  margin: 0 0 18px;
+  padding: 0 0 0 20px;
+  text-align: left;
+  color: var(--text);
+}
+
+.howto-list li { margin-bottom: 6px; }
+.howto-list strong { color: var(--accent); }
+
+.panel-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn:hover { border-color: var(--accent); }
+
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1400;
+}
+
+.btn--primary:hover { filter: brightness(1.06); }
+
+.btn--ghost {
+  background: transparent;
+  font-weight: 500;
+}
+
+.results-score {
+  margin: 6px 0 2px;
+  font-size: 46px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.results-score small {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.results-best {
+  margin: 10px 0 14px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.results-best.is-record { color: var(--good); font-weight: 700; }
+
+.results-detail {
+  text-align: left;
+  margin-bottom: 18px;
+}
+
+.dex-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.dex-row:last-child { border-bottom: 0; }
+
+.dex-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.45);
+}
+
+.dex-name { flex: 1; }
+
+.dex-count { color: var(--muted); }
+
+.dex-new {
+  color: #1a1400;
+  background: var(--accent);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.results-empty {
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+/* ---------- Game UI layer ---------- */
+
+.stage-ui {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: clamp(11px, 1.35vw, 15px);
+}
+
+.stage-ui.is-inert {
+  pointer-events: none;
+  filter: saturate(0.6) brightness(0.7);
+}
+
+.results-detail-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* --- team select --- */
+
+.cm-select {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  padding: 1em;
+  background: rgba(10, 13, 30, 0.9);
+  overflow: hidden;
+}
+
+.cm-select-head {
+  display: flex;
+  gap: 1em;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.cm-select-title h2 {
+  margin: 0;
+  font-size: 1.6em;
+}
+
+.cm-select-title p {
+  margin: 0.2em 0 0;
+  color: var(--muted);
+}
+
+.cm-rival {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  align-items: flex-end;
+}
+
+.cm-rival-label {
+  font-size: 0.85em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  font-weight: 700;
+}
+
+.cm-rival-list { display: flex; gap: 0.5em; }
+
+.cm-rival-card {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.3em 0.6em 0.3em 0.3em;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.cm-rival-meta { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.cm-rival-meta strong { font-size: 0.95em; }
+
+.cm-filters { display: flex; gap: 0.4em; flex-wrap: wrap; }
+
+.cm-filter {
+  padding: 0.3em 0.8em;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.cm-filter.is-active {
+  color: #10131f;
+  background: var(--chip, var(--accent));
+  border-color: transparent;
+  font-weight: 700;
+}
+
+.cm-grid {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15em, 1fr));
+  gap: 0.5em;
+  padding-right: 0.3em;
+  align-content: start;
+}
+
+.cm-card {
+  display: flex;
+  gap: 0.5em;
+  text-align: left;
+  padding: 0.5em;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--type);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.cm-card:hover { background: rgba(255, 255, 255, 0.09); }
+
+.cm-card.is-picked {
+  background: rgba(255, 209, 102, 0.16);
+  border-color: var(--accent);
+  border-left-color: var(--type);
+}
+
+.cm-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2em; }
+.cm-card-name { display: flex; align-items: center; gap: 0.4em; justify-content: space-between; }
+.cm-card-name strong { font-size: 1.05em; }
+.cm-card-role { color: var(--muted); font-size: 0.82em; }
+
+.cm-chip {
+  padding: 0.1em 0.5em;
+  border-radius: 999px;
+  color: #12162a;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cm-stats { display: grid; gap: 1px; }
+.cm-stat { display: flex; align-items: center; gap: 0.4em; font-size: 0.75em; }
+.cm-stat-label { width: 2.4em; color: var(--muted); }
+.cm-stat-track { flex: 1; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); }
+.cm-stat-fill { display: block; height: 100%; border-radius: 2px; background: var(--type); }
+.cm-stat-value { width: 2em; text-align: right; color: var(--muted); }
+
+.cm-hint { font-size: 0.75em; font-weight: 700; }
+.cm-hint--good { color: var(--good); }
+.cm-hint--bad { color: #ff8f8f; }
+.cm-hint--even { color: var(--muted); }
+
+.cm-select-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  flex-wrap: wrap;
+}
+
+.cm-tray { display: flex; gap: 0.5em; }
+
+.cm-tray-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  min-width: 8.5em;
+  padding: 0.3em 0.7em 0.3em 0.3em;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+}
+
+.cm-tray-cell.is-filled {
+  border-style: solid;
+  border-left-width: 3px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.cm-select-actions { display: flex; gap: 0.5em; }
+
+/* --- battle --- */
+
+.cm-battle {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  padding: 0.6em;
+}
+
+.cm-log {
+  min-height: 4.6em;
+  padding: 0.5em 0.8em;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 13, 30, 0.86);
+  cursor: pointer;
+}
+
+.cm-log-line { margin: 0.1em 0; }
+.cm-log-line:last-child { color: #fff; font-weight: 700; }
+
+.cm-commands { display: flex; gap: 0.5em; align-items: stretch; }
+.cm-commands.is-busy { justify-content: center; }
+
+.cm-busy {
+  margin: 0;
+  padding: 0.6em;
+  color: var(--muted);
+  letter-spacing: 0.3em;
+}
+
+.cm-moves {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4em;
+}
+
+.cm-move {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  padding: 0.45em 0.6em;
+  text-align: left;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--type);
+  background: rgba(18, 22, 44, 0.92);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.cm-move:hover:not(:disabled) { background: rgba(40, 48, 88, 0.95); }
+.cm-move:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.cm-move-head { display: flex; justify-content: space-between; gap: 0.5em; align-items: baseline; }
+.cm-move-power { font-size: 0.75em; color: var(--muted); }
+.cm-move-meta { display: flex; gap: 0.3em; flex-wrap: wrap; }
+
+.cm-tag {
+  font-size: 0.7em;
+  padding: 0.05em 0.45em;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--muted);
+}
+
+.cm-tag--good { background: rgba(110, 231, 168, 0.22); color: var(--good); }
+.cm-tag--bad { background: rgba(255, 139, 139, 0.2); color: #ff9d9d; }
+
+.cm-side-actions { display: flex; flex-direction: column; justify-content: center; }
+
+.cm-bench {
+  flex: 1;
+  display: flex;
+  gap: 0.4em;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.cm-bench-title { margin: 0; color: var(--muted); }
+
+.cm-bench-card {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.35em 0.8em 0.35em 0.35em;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--type);
+  background: rgba(18, 22, 44, 0.92);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.cm-bench-card:hover { background: rgba(40, 48, 88, 0.95); }
+.cm-bench-meta { display: flex; flex-direction: column; align-items: flex-start; }
+.cm-bench-meta span { color: var(--muted); font-size: 0.8em; }
+
+.cm-portrait { display: block; }
+
+/* ---------- Footer ---------- */
+
+.footer {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+kbd {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 0 5px;
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .brand-text { font-size: 18px; }
+  .footer { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+    <header class="topbar">
+      <button class="brand" id="brand" type="button" title="Back to the menu">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-text">Minigame<em>Mania</em></span>
+      </button>
+      <div class="topbar-right" id="topbar-right"></div>
+    </header>
+
+    <main class="screens">
+      <!-- Menu -->
+      <section class="screen screen--menu is-active" id="screen-menu">
+        <p class="menu-intro">Pick a minigame. More coming soon.</p>
+        <ul class="game-grid" id="game-grid"></ul>
+      </section>
+
+      <!-- Play -->
+      <section class="screen screen--play" id="screen-play">
+        <div class="stage" id="stage">
+          <canvas id="canvas" width="960" height="540" aria-label="Game canvas" role="img"></canvas>
+          <div class="stage-ui" id="stage-ui"></div>
+
+          <div class="overlay overlay--howto" id="overlay-howto" hidden>
+            <div class="panel">
+              <h2 id="howto-title">How to play</h2>
+              <p class="panel-tagline" id="howto-tagline"></p>
+              <ul class="howto-list" id="howto-list"></ul>
+              <div class="panel-actions">
+                <button class="btn btn--primary" id="btn-start" type="button">Start</button>
+                <button class="btn" id="btn-howto-back" type="button">Back</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="overlay overlay--pause" id="overlay-pause" hidden>
+            <div class="panel">
+              <h2>Paused</h2>
+              <div class="panel-actions">
+                <button class="btn btn--primary" id="btn-resume" type="button">Resume</button>
+                <button class="btn" id="btn-quit" type="button">Quit to menu</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="overlay overlay--results" id="overlay-results" hidden>
+            <div class="panel">
+              <h2 id="results-title">Time!</h2>
+              <p class="results-score"><span id="results-score">0</span><small>points</small></p>
+              <p class="results-best" id="results-best"></p>
+              <div class="results-detail" id="results-detail"></div>
+              <div class="panel-actions">
+                <button class="btn btn--primary" id="btn-again" type="button">Play again</button>
+                <button class="btn" id="btn-results-menu" type="button">Menu</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Arrow keys / WASD + Space also work. <kbd>Esc</kbd> pauses.</span>
+    </footer>
+  </div>
+
+<script type="module">
+// ---- src/core/utils.js ---------------------------------------------
+const TAU = Math.PI * 2;
+
+const clamp = (value, min, max) => (value < min ? min : value > max ? max : value);
+
+const lerp = (a, b, t) => a + (b - a) * t;
+
+const randomRange = (min, max) => min + Math.random() * (max - min);
+
+const randomInt = (min, max) => Math.floor(randomRange(min, max + 1));
+
+const distance = (ax, ay, bx, by) => Math.hypot(bx - ax, by - ay);
+
+/** Picks an entry from `items` using `weightOf(item)` as the relative weight. */
+function weightedPick(items, weightOf) {
+  let total = 0;
+  for (const item of items) total += Math.max(0, weightOf(item));
+  if (total <= 0) return items[0];
+  let roll = Math.random() * total;
+  for (const item of items) {
+    roll -= Math.max(0, weightOf(item));
+    if (roll <= 0) return item;
+  }
+  return items[items.length - 1];
+}
+
+/** Moves `value` towards `target` by at most `maxDelta`. */
+function approach(value, target, maxDelta) {
+  if (value < target) return Math.min(value + maxDelta, target);
+  return Math.max(value - maxDelta, target);
+}
+
+function formatTime(seconds) {
+  const whole = Math.max(0, Math.ceil(seconds));
+  const mins = Math.floor(whole / 60);
+  const secs = whole % 60;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+function roundedRect(ctx, x, y, w, h, r) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+}
+
+// ---- src/core/storage.js -------------------------------------------
+/**
+ * Thin, failure-tolerant wrapper around localStorage. Private browsing and
+ * blocked site data both throw on access, so every call falls back to memory.
+ */
+const PREFIX = 'minigamemania:';
+const memory = new Map();
+
+function read(key) {
+  try {
+    const raw = localStorage.getItem(PREFIX + key);
+    return raw == null ? null : JSON.parse(raw);
+  } catch {
+    return memory.has(key) ? memory.get(key) : null;
+  }
+}
+
+function write(key, value) {
+  memory.set(key, value);
+  try {
+    localStorage.setItem(PREFIX + key, JSON.stringify(value));
+  } catch {
+    /* memory-only for this session */
+  }
+}
+
+function getHighScore(gameId) {
+  const value = read(`highscore:${gameId}`);
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/** Stores the score when it beats the record. Returns true if it did. */
+function submitHighScore(gameId, score) {
+  if (!Number.isFinite(score) || score <= getHighScore(gameId)) return false;
+  write(`highscore:${gameId}`, Math.round(score));
+  return true;
+}
+
+/** Per-game collection of things the player has found, as `{ [entryId]: count }`. */
+function getCollection(gameId) {
+  const value = read(`collection:${gameId}`);
+  return value && typeof value === 'object' ? value : {};
+}
+
+/** Merges `{ [entryId]: count }` into the stored collection; returns newly discovered ids. */
+function addToCollection(gameId, counts) {
+  const collection = getCollection(gameId);
+  const discovered = [];
+  for (const [entryId, count] of Object.entries(counts)) {
+    if (!count) continue;
+    if (!collection[entryId]) discovered.push(entryId);
+    collection[entryId] = (collection[entryId] || 0) + count;
+  }
+  write(`collection:${gameId}`, collection);
+  return discovered;
+}
+
+// ---- src/core/input.js ---------------------------------------------
+/**
+ * Normalises pointer + keyboard into a per-frame snapshot for minigames.
+ *
+ * Pointer coordinates are converted from CSS pixels into the viewport's logical
+ * coordinate space, so a game always works against a fixed 960x540 field no
+ * matter how the stage is scaled or how dense the display is.
+ */
+class Input {
+  constructor(canvas, viewport) {
+    this.canvas = canvas;
+    this.viewport = viewport;
+    this.x = viewport.width / 2;
+    this.y = viewport.height / 2;
+    this.down = false;
+    this.justPressed = false;
+    this.justReleased = false;
+    this.usingPointer = false;
+    this.keys = new Set();
+    this.keysPressed = new Set();
+
+    this._onPointerDown = (event) => {
+      if (event.button != null && event.button !== 0) return;
+      this.canvas.setPointerCapture?.(event.pointerId);
+      this._track(event);
+      this.usingPointer = true;
+      if (!this.down) this.justPressed = true;
+      this.down = true;
+      event.preventDefault();
+    };
+    this._onPointerMove = (event) => {
+      this._track(event);
+      this.usingPointer = true;
+    };
+    this._onPointerUp = (event) => {
+      this._track(event);
+      if (this.down) this.justReleased = true;
+      this.down = false;
+    };
+    this._onPointerCancel = () => {
+      this.down = false;
+    };
+    this._onKeyDown = (event) => {
+      if (event.repeat) return;
+      const code = event.code;
+      if (!this.keys.has(code)) this.keysPressed.add(code);
+      this.keys.add(code);
+      if (code === 'Space' || code.startsWith('Arrow')) event.preventDefault();
+    };
+    this._onKeyUp = (event) => {
+      this.keys.delete(event.code);
+    };
+    this._onBlur = () => this.reset();
+
+    canvas.addEventListener('pointerdown', this._onPointerDown);
+    canvas.addEventListener('pointermove', this._onPointerMove);
+    window.addEventListener('pointerup', this._onPointerUp);
+    window.addEventListener('pointercancel', this._onPointerCancel);
+    window.addEventListener('keydown', this._onKeyDown);
+    window.addEventListener('keyup', this._onKeyUp);
+    window.addEventListener('blur', this._onBlur);
+  }
+
+  _track(event) {
+    const rect = this.canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    this.x = ((event.clientX - rect.left) / rect.width) * this.viewport.width;
+    this.y = ((event.clientY - rect.top) / rect.height) * this.viewport.height;
+  }
+
+  isKeyDown(...codes) {
+    return codes.some((code) => this.keys.has(code));
+  }
+
+  wasKeyPressed(...codes) {
+    return codes.some((code) => this.keysPressed.has(code));
+  }
+
+  /** Clears edge-triggered state; called by the shell after every update. */
+  endFrame() {
+    this.justPressed = false;
+    this.justReleased = false;
+    this.keysPressed.clear();
+  }
+
+  /** Drops held state, e.g. when the window loses focus or the game pauses. */
+  reset() {
+    this.down = false;
+    this.justPressed = false;
+    this.justReleased = false;
+    this.keys.clear();
+    this.keysPressed.clear();
+  }
+
+  destroy() {
+    this.canvas.removeEventListener('pointerdown', this._onPointerDown);
+    this.canvas.removeEventListener('pointermove', this._onPointerMove);
+    window.removeEventListener('pointerup', this._onPointerUp);
+    window.removeEventListener('pointercancel', this._onPointerCancel);
+    window.removeEventListener('keydown', this._onKeyDown);
+    window.removeEventListener('keyup', this._onKeyUp);
+    window.removeEventListener('blur', this._onBlur);
+  }
+}
+
+// ---- src/core/registry.js ------------------------------------------
+/**
+ * The catalogue of minigames the shell knows how to run.
+ *
+ * A minigame is registered as `{ ...meta, create(ctx) }` where `create` returns
+ * an instance implementing the contract documented in `shell.js`.
+ */
+const games = new Map();
+
+function registerGame(definition) {
+  const { id, name, create } = definition;
+  if (!id) throw new Error('A minigame needs an id');
+  if (typeof create !== 'function') throw new Error(`Minigame "${id}" needs a create() factory`);
+  if (games.has(id)) throw new Error(`Minigame "${id}" is already registered`);
+  games.set(id, { tagline: '', description: '', howTo: [], status: 'ready', ...definition, name: name || id });
+  return definition;
+}
+
+function getGame(id) {
+  return games.get(id) || null;
+}
+
+function listGames() {
+  return [...games.values()];
+}
+
+// ---- src/core/shell.js ---------------------------------------------
+const VIEWPORT = { width: 960, height: 540 };
+const MAX_FRAME_TIME = 1 / 20; // never step more than 50ms at once
+
+/**
+ * Runs the app: menu, the requestAnimationFrame loop, pause/resume and the
+ * results screen. Minigames stay ignorant of the DOM.
+ *
+ * A minigame instance returned from `create(context)` must implement:
+ *   update(dt, input)  - advance by dt seconds
+ *   render(ctx)        - draw into a 960x540 logical space
+ *   destroy?()         - release anything it holds
+ *
+ * The context it receives carries `{ width, height, highScore, ui, finish(result) }`,
+ * where `ui` is a DOM layer over the canvas the game may fill with controls.
+ * `finish` ends the round with `{ score, title?, detailTitle?, collected?, emptyText? }`.
+ */
+class Shell {
+  constructor() {
+    this.canvas = document.getElementById('canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.input = new Input(this.canvas, VIEWPORT);
+
+    this.el = {
+      menuScreen: document.getElementById('screen-menu'),
+      playScreen: document.getElementById('screen-play'),
+      grid: document.getElementById('game-grid'),
+      ui: document.getElementById('stage-ui'),
+      topbarRight: document.getElementById('topbar-right'),
+      howto: document.getElementById('overlay-howto'),
+      howtoTitle: document.getElementById('howto-title'),
+      howtoTagline: document.getElementById('howto-tagline'),
+      howtoList: document.getElementById('howto-list'),
+      pause: document.getElementById('overlay-pause'),
+      results: document.getElementById('overlay-results'),
+      resultsTitle: document.getElementById('results-title'),
+      resultsScore: document.getElementById('results-score'),
+      resultsBest: document.getElementById('results-best'),
+      resultsDetail: document.getElementById('results-detail'),
+    };
+
+    this.game = null;
+    this.gameDef = null;
+    this.state = 'menu'; // menu | howto | playing | paused | results
+    this.rafId = 0;
+    this.lastTime = 0;
+
+    this._loop = this._loop.bind(this);
+    this._bindUi();
+    this._resizeCanvas();
+    window.addEventListener('resize', () => this._resizeCanvas());
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && this.state === 'playing') this.pause();
+    });
+  }
+
+  _bindUi() {
+    document.getElementById('brand').addEventListener('click', () => this.showMenu());
+    document.getElementById('btn-start').addEventListener('click', () => this.startRound());
+    document.getElementById('btn-howto-back').addEventListener('click', () => this.showMenu());
+    document.getElementById('btn-resume').addEventListener('click', () => this.resume());
+    document.getElementById('btn-quit').addEventListener('click', () => this.showMenu());
+    document.getElementById('btn-again').addEventListener('click', () => this.startRound());
+    document.getElementById('btn-results-menu').addEventListener('click', () => this.showMenu());
+
+    window.addEventListener('keydown', (event) => {
+      if (event.code !== 'Escape') return;
+      if (this.state === 'playing') this.pause();
+      else if (this.state === 'paused') this.resume();
+    });
+  }
+
+  /** Keeps the backing store dense enough for the display without changing logical coords. */
+  _resizeCanvas() {
+    const scale = Math.min(2, window.devicePixelRatio || 1);
+    const width = Math.round(VIEWPORT.width * scale);
+    const height = Math.round(VIEWPORT.height * scale);
+    if (this.canvas.width !== width || this.canvas.height !== height) {
+      this.canvas.width = width;
+      this.canvas.height = height;
+    }
+    this.ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    if (this.game) this._render();
+  }
+
+  buildMenu() {
+    const games = listGames();
+    this.el.grid.replaceChildren();
+    for (const def of games) {
+      const item = document.createElement('li');
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'game-card';
+
+      const title = document.createElement('h3');
+      title.textContent = def.name;
+      const tagline = document.createElement('p');
+      tagline.textContent = def.tagline || def.description || '';
+      card.append(title, tagline);
+
+      if (def.status === 'coming-soon') {
+        card.classList.add('game-card--soon');
+        card.disabled = true;
+        const meta = document.createElement('span');
+        meta.className = 'card-meta';
+        meta.textContent = 'Coming soon';
+        card.append(meta);
+      } else {
+        const best = getHighScore(def.id);
+        if (best > 0) {
+          const meta = document.createElement('span');
+          meta.className = 'card-meta';
+          meta.textContent = `Best: ${best.toLocaleString()}`;
+          card.append(meta);
+        }
+        card.addEventListener('click', () => this.select(def.id));
+      }
+
+      item.append(card);
+      this.el.grid.append(item);
+    }
+  }
+
+  showMenu() {
+    this._stopLoop();
+    this._destroyGame();
+    this.state = 'menu';
+    this.gameDef = null;
+    this._hideOverlays();
+    this.el.playScreen.classList.remove('is-active');
+    this.el.menuScreen.classList.add('is-active');
+    this.el.topbarRight.replaceChildren();
+    this.buildMenu();
+  }
+
+  select(gameId) {
+    const def = getGame(gameId);
+    if (!def) return;
+    this.gameDef = def;
+    this.state = 'howto';
+    this.el.menuScreen.classList.remove('is-active');
+    this.el.playScreen.classList.add('is-active');
+    this._hideOverlays();
+
+    this.el.howtoTitle.textContent = def.name;
+    this.el.howtoTagline.textContent = def.description || def.tagline || '';
+    this.el.howtoList.replaceChildren();
+    for (const line of def.howTo || []) {
+      const li = document.createElement('li');
+      li.innerHTML = line; // authored in-repo, not user input
+      this.el.howtoList.append(li);
+    }
+    this.el.howto.hidden = false;
+    this._paintIdleBackdrop();
+    this._renderTopbar();
+  }
+
+  startRound() {
+    if (!this.gameDef) return;
+    this._destroyGame();
+    this._hideOverlays();
+    this.input.reset();
+
+    this.game = this.gameDef.create({
+      width: VIEWPORT.width,
+      height: VIEWPORT.height,
+      highScore: getHighScore(this.gameDef.id),
+      ui: this.el.ui,
+      finish: (result) => this.finish(result),
+    });
+
+    this.state = 'playing';
+    this.lastTime = performance.now();
+    this._renderTopbar();
+    this._startLoop();
+  }
+
+  pause() {
+    if (this.state !== 'playing') return;
+    this.state = 'paused';
+    this.input.reset();
+    this._stopLoop();
+    this.el.ui.classList.add('is-inert');
+    this.el.pause.hidden = false;
+  }
+
+  resume() {
+    if (this.state !== 'paused') return;
+    this.el.ui.classList.remove('is-inert');
+    this.el.pause.hidden = true;
+    this.state = 'playing';
+    this.lastTime = performance.now();
+    this._startLoop();
+  }
+
+  finish(result = {}) {
+    this._stopLoop();
+    this.state = 'results';
+    const score = Math.round(result.score || 0);
+    const isRecord = submitHighScore(this.gameDef.id, score);
+    const best = getHighScore(this.gameDef.id);
+
+    this.el.resultsTitle.textContent = result.title || "Time's up!";
+    this.el.resultsScore.textContent = score.toLocaleString();
+    this.el.resultsBest.textContent = isRecord
+      ? 'New personal best!'
+      : best > 0
+        ? `Best: ${best.toLocaleString()}`
+        : 'No record yet - this one is yours to beat.';
+    this.el.resultsBest.classList.toggle('is-record', isRecord);
+
+    this.el.ui.classList.add('is-inert');
+    this._renderCollected(result.collected, result.emptyText, result.detailTitle);
+    this.el.results.hidden = false;
+    this._renderTopbar();
+  }
+
+  _renderCollected(rows, emptyText, detailTitle) {
+    const detail = this.el.resultsDetail;
+    detail.replaceChildren();
+    if (detailTitle) {
+      const heading = document.createElement('p');
+      heading.className = 'results-detail-title';
+      heading.textContent = detailTitle;
+      detail.append(heading);
+    }
+    if (!rows || rows.length === 0) {
+      if (emptyText) {
+        const p = document.createElement('p');
+        p.className = 'results-empty';
+        p.textContent = emptyText;
+        detail.append(p);
+      }
+      return;
+    }
+    for (const row of rows) {
+      const line = document.createElement('div');
+      line.className = 'dex-row';
+
+      const dot = document.createElement('span');
+      dot.className = 'dex-dot';
+      dot.style.background = row.color || '#888';
+
+      const name = document.createElement('span');
+      name.className = 'dex-name';
+      name.textContent = row.name;
+
+      const count = document.createElement('span');
+      count.className = 'dex-count';
+      count.textContent = row.label ?? `x${row.count}`;
+
+      line.append(dot, name, count);
+      if (row.isNew) {
+        const badge = document.createElement('span');
+        badge.className = 'dex-new';
+        badge.textContent = 'NEW';
+        line.append(badge);
+      }
+      detail.append(line);
+    }
+  }
+
+  _renderTopbar() {
+    const right = this.el.topbarRight;
+    right.replaceChildren();
+    if (this.state === 'menu' || !this.gameDef) return;
+
+    if (this.state === 'playing' || this.state === 'paused') {
+      const pauseBtn = document.createElement('button');
+      pauseBtn.type = 'button';
+      pauseBtn.className = 'btn btn--ghost';
+      pauseBtn.textContent = this.state === 'paused' ? 'Resume' : 'Pause';
+      pauseBtn.addEventListener('click', () => (this.state === 'paused' ? this.resume() : this.pause()));
+      right.append(pauseBtn);
+    }
+
+    const menuBtn = document.createElement('button');
+    menuBtn.type = 'button';
+    menuBtn.className = 'btn btn--ghost';
+    menuBtn.textContent = 'Menu';
+    menuBtn.addEventListener('click', () => this.showMenu());
+    right.append(menuBtn);
+  }
+
+  _hideOverlays() {
+    this.el.ui.classList.remove('is-inert');
+    this.el.howto.hidden = true;
+    this.el.pause.hidden = true;
+    this.el.results.hidden = true;
+  }
+
+  _paintIdleBackdrop() {
+    const { ctx } = this;
+    ctx.fillStyle = '#0b1020';
+    ctx.fillRect(0, 0, VIEWPORT.width, VIEWPORT.height);
+  }
+
+  _startLoop() {
+    if (this.rafId) return;
+    this.rafId = requestAnimationFrame(this._loop);
+  }
+
+  _stopLoop() {
+    if (!this.rafId) return;
+    cancelAnimationFrame(this.rafId);
+    this.rafId = 0;
+  }
+
+  _loop(now) {
+    this.rafId = requestAnimationFrame(this._loop);
+    const dt = Math.min((now - this.lastTime) / 1000, MAX_FRAME_TIME);
+    this.lastTime = now;
+    if (this.state !== 'playing' || !this.game) return;
+    this.game.update(dt, this.input);
+    this.input.endFrame();
+    this._render();
+  }
+
+  _render() {
+    if (!this.game) return;
+    this.ctx.save();
+    this.game.render(this.ctx);
+    this.ctx.restore();
+  }
+
+  _destroyGame() {
+    this.game?.destroy?.();
+    this.game = null;
+    this.el.ui.replaceChildren();
+  }
+}
+
+// ---- src/games/catchmon/types.js -----------------------------------
+/**
+ * The six Catchmon types, arranged as a cycle.
+ *
+ * Every type is strong against the next two types in the cycle and resisted by
+ * the previous two, which leaves exactly one neutral matchup (the type
+ * opposite it). No type is strictly better than another.
+ *
+ *   Fire -> Grass -> Wind -> Dark -> Water -> Rock -> (Fire)
+ *
+ * So Fire beats Grass and Wind, is resisted by Water and Rock, and is neutral
+ * against Dark. Reordering this array reshapes the whole chart, and nothing
+ * else needs to change: move sets, art and the UI all read the type from here.
+ */
+const TYPES = [
+  { id: 'fire', name: 'Fire', color: '#ff8552', accent: '#a32d05', glyph: 'flame' },
+  { id: 'grass', name: 'Grass', color: '#63d17f', accent: '#1f7a3a', glyph: 'leaf' },
+  { id: 'wind', name: 'Wind', color: '#b9c6e8', accent: '#4f5f8c', glyph: 'swirl' },
+  { id: 'dark', name: 'Dark', color: '#ab7ce6', accent: '#4b2a7a', glyph: 'moon' },
+  { id: 'water', name: 'Water', color: '#4aa8f0', accent: '#12608f', glyph: 'drop' },
+  { id: 'rock', name: 'Rock', color: '#d0a163', accent: '#7a5220', glyph: 'rock' },
+];
+
+const TYPE_IDS = TYPES.map((type) => type.id);
+const TYPE_BY_ID = new Map(TYPES.map((type) => [type.id, type]));
+
+const SUPER_EFFECTIVE = 1.5;
+const RESISTED = 0.66;
+
+/** Damage multiplier for `attackType` hitting `defendType`. */
+function effectiveness(attackType, defendType) {
+  const attack = TYPE_IDS.indexOf(attackType);
+  const defend = TYPE_IDS.indexOf(defendType);
+  if (attack < 0 || defend < 0) return 1;
+  const step = (defend - attack + TYPE_IDS.length) % TYPE_IDS.length;
+  if (step === 1 || step === 2) return SUPER_EFFECTIVE;
+  if (step === 4 || step === 5) return RESISTED;
+  return 1;
+}
+
+/** The two types this type hits hard. */
+function strongAgainst(typeId) {
+  const index = TYPE_IDS.indexOf(typeId);
+  return [1, 2].map((step) => TYPE_IDS[(index + step) % TYPE_IDS.length]);
+}
+
+/** The two types that hit this type hard. */
+function weakTo(typeId) {
+  const index = TYPE_IDS.indexOf(typeId);
+  return [1, 2].map((step) => TYPE_IDS[(index - step + TYPE_IDS.length) % TYPE_IDS.length]);
+}
+
+function effectivenessLabel(multiplier) {
+  if (multiplier > 1) return 'Super effective!';
+  if (multiplier < 1) return "It's resisted...";
+  return '';
+}
+
+// ---- src/games/catchmon/moves.js -----------------------------------
+/**
+ * Every fighter knows four moves. Typed moves are built from six archetypes so
+ * each type gets the same toolkit with its own flavour, and the neutral moves
+ * below are shared by everyone.
+ *
+ * A move is:
+ *   power      0 for support moves
+ *   accuracy   percentage
+ *   cooldown   turns before it can be used again (0 = every turn)
+ *   priority   higher goes first regardless of speed
+ *   hits       [min, max] strikes for multi-hit moves
+ *   effect     see `battle.js` for how each field is applied
+ */
+const ARCHETYPES = [
+  { key: 'quick', power: 42, accuracy: 100, cooldown: 0, priority: 1, blurb: 'A fast jab that always strikes first.' },
+  { key: 'standard', power: 64, accuracy: 95, cooldown: 0, priority: 0, blurb: 'A reliable attack.' },
+  { key: 'heavy', power: 108, accuracy: 82, cooldown: 2, priority: 0, blurb: 'A punishing hit that needs time to recharge.' },
+  { key: 'status', power: 0, accuracy: 90, cooldown: 2, priority: 0, blurb: '' },
+  { key: 'drain', power: 56, accuracy: 95, cooldown: 1, priority: 0, effect: { drain: 0.5 }, blurb: 'Heals for half the damage dealt.' },
+  { key: 'volley', power: 26, accuracy: 90, cooldown: 1, priority: 0, hits: [2, 3], blurb: 'Strikes two or three times.' },
+];
+
+/** Per-type names, plus what that type's status move does. */
+const TYPE_MOVES = {
+  fire: {
+    quick: 'Ember Jab',
+    standard: 'Flame Lash',
+    heavy: 'Inferno Core',
+    status: 'Scorch Mark',
+    drain: 'Cinder Siphon',
+    volley: 'Ash Volley',
+    statusEffect: { status: 'burn', chance: 100, target: 'foe' },
+    statusBlurb: 'Burns the foe: chip damage each turn and weaker attacks.',
+  },
+  grass: {
+    quick: 'Vine Flick',
+    standard: 'Thorn Strike',
+    heavy: 'Forest Judgment',
+    status: 'Snare Roots',
+    drain: 'Sap Drain',
+    volley: 'Bramble Volley',
+    statusEffect: { status: 'root', chance: 100, target: 'foe' },
+    statusBlurb: 'Roots the foe in place so it cannot be switched out.',
+  },
+  rock: {
+    quick: 'Pebble Toss',
+    standard: 'Stone Fist',
+    heavy: 'Tectonic Slam',
+    status: 'Sandblast',
+    drain: 'Strata Siphon',
+    volley: 'Rubble Volley',
+    statusEffect: { stat: 'def', stages: -2, chance: 100, target: 'foe' },
+    statusBlurb: "Scours away the foe's defence.",
+  },
+  wind: {
+    quick: 'Gust Jab',
+    standard: 'Cyclone Claw',
+    heavy: 'Tempest Nova',
+    status: 'Vacuum Snare',
+    drain: 'Updraft Siphon',
+    volley: 'Gale Volley',
+    statusEffect: { status: 'stun', chance: 100, target: 'foe' },
+    statusBlurb: 'Leaves the foe reeling, which may cost it a turn.',
+  },
+  water: {
+    quick: 'Bubble Snap',
+    standard: 'Tidal Slash',
+    heavy: 'Abyssal Surge',
+    status: 'Frost Veil',
+    drain: 'Undertow',
+    volley: 'Spray Volley',
+    statusEffect: { status: 'chill', chance: 100, target: 'foe' },
+    statusBlurb: 'Chills the foe, halving its speed.',
+  },
+  dark: {
+    quick: 'Shadow Nip',
+    standard: 'Umbral Claw',
+    heavy: 'Void Collapse',
+    status: 'Hex Mark',
+    drain: 'Soul Drain',
+    volley: 'Phantom Volley',
+    statusEffect: { stat: 'atk', stages: -2, chance: 100, target: 'foe' },
+    statusBlurb: "Hexes the foe, sapping its attack.",
+  },
+};
+
+const NEUTRAL_MOVES = [
+  {
+    id: 'ram', name: 'Ram', type: null, power: 48, accuracy: 100, cooldown: 0, priority: 0,
+    description: 'A plain body slam. Never resisted, never boosted.',
+  },
+  {
+    id: 'bulwark', name: 'Bulwark', type: null, power: 0, accuracy: 100, cooldown: 2, priority: 0,
+    effect: { stat: 'def', stages: 2, chance: 100, target: 'self' },
+    description: 'Sharply raises your defence.',
+  },
+  {
+    id: 'focus', name: 'Focus', type: null, power: 0, accuracy: 100, cooldown: 2, priority: 0,
+    effect: { stat: 'atk', stages: 2, chance: 100, target: 'self' },
+    description: 'Sharply raises your attack.',
+  },
+  {
+    id: 'mend', name: 'Mend', type: null, power: 0, accuracy: 100, cooldown: 3, priority: 0, uses: 2,
+    effect: { heal: 0.35 },
+    description: 'Restores 35% of max HP. Twice per battle.',
+  },
+  {
+    id: 'snare', name: 'Snare', type: null, power: 0, accuracy: 95, cooldown: 1, priority: 0,
+    effect: { stat: 'spd', stages: -2, chance: 100, target: 'foe' },
+    description: "Sharply lowers the foe's speed.",
+  },
+  {
+    id: 'guard-break', name: 'Guard Break', type: null, power: 34, accuracy: 95, cooldown: 1, priority: 0,
+    effect: { stat: 'def', stages: -1, chance: 100, target: 'foe' },
+    description: "A light hit that lowers the foe's defence.",
+  },
+  {
+    id: 'shield', name: 'Shield', type: null, power: 0, accuracy: 100, cooldown: 3, priority: 4, uses: 3,
+    effect: { shield: true },
+    description: 'Blocks all damage for one turn. Three times per battle.',
+  },
+  {
+    id: 'second-wind', name: 'Second Wind', type: null, power: 0, accuracy: 100, cooldown: 4, priority: 0, uses: 2,
+    effect: { heal: 0.2, cure: true },
+    description: 'Restores 20% of max HP and clears status. Twice per battle.',
+  },
+];
+
+function buildTypedMoves() {
+  const moves = [];
+  for (const type of TYPES) {
+    const flavour = TYPE_MOVES[type.id];
+    for (const archetype of ARCHETYPES) {
+      const isStatus = archetype.key === 'status';
+      moves.push({
+        id: `${type.id}-${archetype.key}`,
+        name: flavour[archetype.key],
+        type: type.id,
+        power: archetype.power,
+        accuracy: archetype.accuracy,
+        cooldown: archetype.cooldown,
+        priority: archetype.priority,
+        hits: archetype.hits || null,
+        effect: isStatus ? flavour.statusEffect : archetype.effect || null,
+        description: isStatus ? flavour.statusBlurb : archetype.blurb,
+      });
+    }
+  }
+  return moves;
+}
+
+const MOVES = [...buildTypedMoves(), ...NEUTRAL_MOVES].map((move) => ({
+  hits: null,
+  effect: null,
+  uses: null,
+  ...move,
+  category: move.power > 0 ? 'attack' : 'support',
+}));
+
+const MOVE_BY_ID = new Map(MOVES.map((move) => [move.id, move]));
+
+function getMove(id) {
+  const move = MOVE_BY_ID.get(id);
+  if (!move) throw new Error(`Unknown move: ${id}`);
+  return move;
+}
+
+/** `${type}-${archetype}` helper so the roster reads clearly. */
+function typeMove(typeId, archetype) {
+  return `${typeId}-${archetype}`;
+}
+
+// ---- src/games/catchmon/roster.js ----------------------------------
+/**
+ * Thirty fighters, five per type. Every one of them is a final evolution -
+ * there are no baby forms in Catchmon, only the fully grown article. Each
+ * entry names the form it evolved from purely as flavour.
+ *
+ * Stats come from a role template plus a per-fighter tweak that always nets to
+ * zero, so every fighter spends the same 340 points - members of a role feel
+ * related without being clones, and no fighter is strictly better than another.
+ *
+ * NAMES AND TYPES LIVE IN THE `ENTRIES` TABLE BELOW and nothing else needs to
+ * change when you edit them - move sets are derived from the type, and the art
+ * from the type plus the body shape. The columns are:
+ *
+ *   [ id, name, type, role, shape, evolvesFrom, blurb, stat tweak ]
+ *
+ *   id           lowercase, unique, used for saved records
+ *   type         fire | grass | rock | wind | water | dark
+ *   role         vanguard | striker | bulwark | runner | keystone
+ *   shape        quad | biped | serpent | winged | orb
+ *   evolvesFrom  the earlier form's name - flavour only, never playable
+ *   stat tweak   must net to zero, e.g. { atk: 4, spd: -4 }
+ *
+ * `npm test` checks the invariants: thirty fighters, five per type, one of each
+ * role per type, equal stat budgets, unique ids and names.
+ */
+const ROLES = {
+  vanguard: {
+    name: 'Vanguard',
+    blurb: 'Heavy hitter with the bulk to trade blows.',
+    base: { hp: 128, atk: 84, def: 68, spd: 60 },
+    moves: ['standard', 'heavy', 'focus', 'ram'],
+  },
+  striker: {
+    name: 'Striker',
+    blurb: 'Glass cannon: hits hardest, folds fastest.',
+    base: { hp: 100, atk: 98, def: 50, spd: 92 },
+    moves: ['quick', 'heavy', 'status', 'snare'],
+  },
+  bulwark: {
+    name: 'Bulwark',
+    blurb: 'Slow wall that outlasts whatever it is fighting.',
+    base: { hp: 144, atk: 58, def: 92, spd: 46 },
+    moves: ['standard', 'status', 'mend', 'bulwark'],
+  },
+  runner: {
+    name: 'Runner',
+    blurb: 'Moves first, chips away, refuses to sit still.',
+    base: { hp: 102, atk: 76, def: 56, spd: 106 },
+    moves: ['quick', 'volley', 'snare', 'second-wind'],
+  },
+  keystone: {
+    name: 'Keystone',
+    blurb: 'No weak stat and an answer for most turns.',
+    base: { hp: 118, atk: 74, def: 72, spd: 76 },
+    moves: ['standard', 'drain', 'guard-break', 'shield'],
+  },
+};
+
+const TYPED_ARCHETYPES = new Set(['quick', 'standard', 'heavy', 'status', 'drain', 'volley']);
+
+const ENTRIES = [
+  // --- Fire -------------------------------------------------------------
+  ['pyrothane', 'Pyrothane', 'fire', 'vanguard', 'quad', 'Pyrocub', 'Molten plates grind as it walks; nothing about it is subtle.', { atk: 4, spd: -4 }],
+  ['cindralisk', 'Cindralisk', 'fire', 'striker', 'serpent', 'Cinderling', 'Sheds a trail of live cinders and strikes through the smoke.', { atk: 6, hp: -6 }],
+  ['magmoth', 'Magmoth', 'fire', 'bulwark', 'quad', 'Magmite', 'A slow furnace on legs. Sieges lose to it by attrition.', { hp: 8, spd: -8 }],
+  ['ashenmane', 'Ashenmane', 'fire', 'runner', 'biped', 'Ashkit', 'Its mane scatters ash to cover the ground it just crossed.', { spd: 6, def: -6 }],
+  ['kilnhorn', 'Kilnhorn', 'fire', 'keystone', 'quad', 'Forgecalf', 'Horns hot enough to work iron, temperament to match.', { atk: 3, def: 3, hp: -6 }],
+
+  // --- Grass -----------------------------------------------------------
+  ['thornmaw', 'Thornmaw', 'grass', 'vanguard', 'quad', 'Thornpup', 'Bites down with a jaw of hardwood spines and does not let go.', { atk: 5, def: 2, spd: -7 }],
+  ['bloomquill', 'Bloomquill', 'grass', 'striker', 'winged', 'Bloomlet', 'Fires seed-quills in volleys that bloom where they land.', { spd: 5, hp: -5 }],
+  ['mosslok', 'Mosslok', 'grass', 'bulwark', 'orb', 'Mossling', 'A boulder of packed moss that simply regrows the parts you break.', { hp: 10, atk: -10 }],
+  ['saplynx', 'Saplynx', 'grass', 'runner', 'biped', 'Sapkit', 'Runs the treeline so fast the branches barely move.', { spd: 5, atk: 2, def: -7 }],
+  ['verdrake', 'Verdrake', 'grass', 'keystone', 'winged', 'Verdling', 'A canopy drake that farms the forest it patrols.', { atk: 4, hp: 4, spd: -8 }],
+
+  // --- Rock -------------------------------------------------------------
+  ['craghide', 'Craghide', 'rock', 'vanguard', 'quad', 'Cragpup', 'Hide like shale. Charges downhill and lets gravity help.', { def: 5, spd: -5 }],
+  ['quarrion', 'Quarrion', 'rock', 'striker', 'winged', 'Quarrlet', 'Drops quarry stone from altitude with unpleasant accuracy.', { atk: 5, def: -5 }],
+  ['boulderox', 'Boulderox', 'rock', 'bulwark', 'quad', 'Bouldercalf', 'Plants four feet and becomes, for all practical purposes, terrain.', { hp: 6, def: 4, atk: -10 }],
+  ['duneclaw', 'Duneclaw', 'rock', 'runner', 'biped', 'Dunekit', 'Swims through loose sand and surfaces claws-first.', { spd: 4, atk: 3, hp: -7 }],
+  ['geodon', 'Geodon', 'rock', 'keystone', 'orb', 'Geodite', 'A hollow geode that rings before it strikes. The ring is a warning.', { def: 5, hp: 3, atk: -8 }],
+
+  // --- Wind -------------------------------------------------------------
+  ['galehart', 'Galehart', 'wind', 'vanguard', 'quad', 'Galefawn', 'Charges with the squall behind it and arrives early.', { atk: 4, spd: 3, def: -7 }],
+  ['zephyris', 'Zephyris', 'wind', 'striker', 'serpent', 'Zephyrling', 'Coils into a spiral and unwinds it all in one strike.', { atk: 7, def: -7 }],
+  ['cirrolith', 'Cirrolith', 'wind', 'bulwark', 'orb', 'Cirrite', 'A packed sphere of still air. Blows land in it and stop.', { hp: 6, def: 4, spd: -10 }],
+  ['galevane', 'Galevane', 'wind', 'runner', 'winged', 'Galewisp', 'Rides its own headwind. Catching it is mostly luck.', { spd: 8, hp: -8 }],
+  ['skydrake', 'Skydrake', 'wind', 'keystone', 'winged', 'Skyling', 'Circles a battle on the high air before it commits to one.', { atk: 3, spd: 4, hp: -7 }],
+
+  // --- Water --------------------------------------------------------------
+  ['tidalon', 'Tidalon', 'water', 'vanguard', 'serpent', 'Tidalet', 'Breaks over a foe in one long, deliberate wave.', { hp: 6, atk: 3, spd: -9 }],
+  ['maelstrix', 'Maelstrix', 'water', 'striker', 'winged', 'Swirlet', 'Spins up a waterspout and rides it into contact.', { atk: 5, spd: 4, hp: -9 }],
+  ['frostfin', 'Frostfin', 'water', 'bulwark', 'quad', 'Frostling', 'Freezes the water around it into armour, then thickens it.', { def: 6, hp: 4, atk: -10 }],
+  ['coralynx', 'Coralynx', 'water', 'runner', 'biped', 'Coralkit', 'Reef-cat built for the sprint between one rock and the next.', { spd: 5, def: 2, atk: -7 }],
+  ['abyssarch', 'Abyssarch', 'water', 'keystone', 'serpent', 'Abysslet', 'Comes up from the dark with the pressure still on it.', { atk: 4, def: 3, spd: -7 }],
+
+  // --- Dark -------------------------------------------------------------
+  ['nyxmaw', 'Nyxmaw', 'dark', 'vanguard', 'quad', 'Nyxpup', 'Hunts by swallowing the light between itself and its target.', { atk: 5, hp: 3, spd: -8 }],
+  ['hexaraven', 'Hexaraven', 'dark', 'striker', 'winged', 'Hexlet', 'Marks a foe on the first pass and collects on the second.', { atk: 6, spd: 3, def: -9 }],
+  ['umbrathis', 'Umbrathis', 'dark', 'bulwark', 'orb', 'Umbrite', 'A sphere of settled night. Attacks reach it late, if at all.', { hp: 7, def: 3, atk: -10 }],
+  ['duskgeist', 'Duskgeist', 'dark', 'runner', 'biped', 'Duskwisp', 'Half here at the best of times, and never for long.', { spd: 7, hp: -7 }],
+  ['eclipsar', 'Eclipsar', 'dark', 'keystone', 'winged', 'Eclipling', 'Its wings hold an eclipse open for exactly as long as it needs.', { atk: 3, def: 4, hp: -7 }],
+];
+
+function buildCharacter([id, name, typeId, roleId, shape, evolvesFrom, blurb, tweak]) {
+  const role = ROLES[roleId];
+  const stats = {
+    hp: role.base.hp + (tweak.hp || 0),
+    atk: role.base.atk + (tweak.atk || 0),
+    def: role.base.def + (tweak.def || 0),
+    spd: role.base.spd + (tweak.spd || 0),
+  };
+  const moves = role.moves.map((entry) => (TYPED_ARCHETYPES.has(entry) ? `${typeId}-${entry}` : entry));
+  moves.forEach(getMove); // fail loudly on a typo in the tables above
+  return {
+    id,
+    name,
+    type: typeId,
+    typeName: TYPE_BY_ID.get(typeId).name,
+    color: TYPE_BY_ID.get(typeId).color,
+    accent: TYPE_BY_ID.get(typeId).accent,
+    role: roleId,
+    roleName: role.name,
+    shape,
+    stage: 'final',
+    evolvesFrom,
+    blurb,
+    stats,
+    moves,
+    power: stats.hp + stats.atk + stats.def + stats.spd,
+  };
+}
+
+const ROSTER = ENTRIES.map(buildCharacter);
+const CHARACTER_BY_ID = new Map(ROSTER.map((character) => [character.id, character]));
+
+function getCharacter(id) {
+  const character = CHARACTER_BY_ID.get(id);
+  if (!character) throw new Error(`Unknown character: ${id}`);
+  return character;
+}
+
+function charactersOfType(typeId) {
+  return ROSTER.filter((character) => character.type === typeId);
+}
+
+const TEAM_SIZE = 3;
+
+// ---- src/games/catchmon/battle.js ----------------------------------
+/**
+ * The battle engine. Pure logic: no canvas, no DOM, and every random roll goes
+ * through the injected `rng`, so a battle can be replayed exactly in tests.
+ *
+ * A turn is: both sides commit an action, `resolveTurn()` applies them in
+ * order and returns a list of events for the presentation layer to play back.
+ */
+
+const SIDES = ['player', 'enemy'];
+const MAX_STAGE = 3;
+const STAGE_STEP = 1.25;
+
+const STATUSES = {
+  burn: { id: 'burn', name: 'Burn', short: 'BRN', turns: 3, dot: 0.06, atkScale: 0.85,
+    onApply: 'is scorched!', tick: 'is burning.' },
+  chill: { id: 'chill', name: 'Chill', short: 'CHL', turns: 3, spdScale: 0.5,
+    onApply: 'is chilled to the bone!', tick: null },
+  stun: { id: 'stun', name: 'Stun', short: 'STN', turns: 2, skipChance: 0.3,
+    onApply: 'is stunned!', tick: null },
+  root: { id: 'root', name: 'Root', short: 'RTD', turns: 3, blocksSwitch: true,
+    onApply: 'is rooted in place!', tick: null },
+};
+
+const SWITCH_PRIORITY = 6;
+const CRIT_CHANCE = 0.06;
+const CRIT_MULTIPLIER = 1.6;
+const STAB = 1.25;
+
+function createFighter(character, side, slot) {
+  return {
+    uid: `${side}-${slot}`,
+    side,
+    slot,
+    character,
+    maxHp: character.stats.hp,
+    hp: character.stats.hp,
+    stages: { atk: 0, def: 0, spd: 0 },
+    status: null,
+    cooldowns: {},
+    usesLeft: Object.fromEntries(
+      character.moves.map((moveId) => [moveId, getMove(moveId).uses ?? Infinity])
+    ),
+    shielded: false,
+    fainted: false,
+    kos: 0,
+  };
+}
+
+function stageMultiplier(stage) {
+  return STAGE_STEP ** Math.max(-MAX_STAGE, Math.min(MAX_STAGE, stage));
+}
+
+function effectiveStat(fighter, stat) {
+  let value = fighter.character.stats[stat] * stageMultiplier(fighter.stages[stat]);
+  const status = fighter.status && STATUSES[fighter.status.id];
+  if (status) {
+    if (stat === 'atk' && status.atkScale) value *= status.atkScale;
+    if (stat === 'spd' && status.spdScale) value *= status.spdScale;
+  }
+  return value;
+}
+
+/**
+ * Damage for one hit. `roll` and `critRoll` are supplied so the same function
+ * can produce an average-case preview for the AI (`previewDamage`).
+ */
+function computeDamage(attacker, defender, move, { variance = 1, crit = false } = {}) {
+  const atk = effectiveStat(attacker, 'atk');
+  const def = effectiveStat(defender, 'def');
+  const typeMult = move.type ? effectiveness(move.type, defender.character.type) : 1;
+  const stab = move.type && move.type === attacker.character.type ? STAB : 1;
+  const critMult = crit ? CRIT_MULTIPLIER : 1;
+  const raw = (move.power * (atk / (def + 55)) * 1.15 + 2) * typeMult * stab * critMult * variance;
+  return { damage: Math.max(1, Math.round(raw)), typeMult, crit };
+}
+
+/** Average damage a move would deal right now - used by the AI, never for real hits. */
+function previewDamage(attacker, defender, move) {
+  if (move.power <= 0) return 0;
+  const hits = move.hits ? (move.hits[0] + move.hits[1]) / 2 : 1;
+  const accuracy = move.accuracy / 100;
+  return computeDamage(attacker, defender, move, { variance: 0.975 }).damage * hits * accuracy;
+}
+
+class Battle {
+  constructor({ playerTeam, enemyTeam, rng = Math.random, turnLimit = 40 }) {
+    this.rng = rng;
+    this.turnLimit = turnLimit;
+    this.teams = {
+      player: playerTeam.map((character, slot) => createFighter(character, 'player', slot)),
+      enemy: enemyTeam.map((character, slot) => createFighter(character, 'enemy', slot)),
+    };
+    this.active = { player: 0, enemy: 0 };
+    this.actions = { player: null, enemy: null };
+    this.pendingSwitch = { player: false, enemy: false };
+    this.turn = 1;
+    this.over = false;
+    this.winner = null;
+  }
+
+  /* ------------------------------------------------------------- queries */
+
+  activeOf(side) {
+    return this.teams[side][this.active[side]];
+  }
+
+  benchOf(side) {
+    return this.teams[side].filter((fighter, index) => index !== this.active[side] && !fighter.fainted);
+  }
+
+  foeSide(side) {
+    return side === 'player' ? 'enemy' : 'player';
+  }
+
+  /** Moves plus whether each is usable this turn. */
+  moveOptions(side) {
+    const fighter = this.activeOf(side);
+    return fighter.character.moves.map((moveId) => {
+      const move = getMove(moveId);
+      const cooldown = fighter.cooldowns[moveId] || 0;
+      const usesLeft = fighter.usesLeft[moveId];
+      return {
+        move,
+        cooldown,
+        usesLeft,
+        limited: Number.isFinite(usesLeft),
+        ready: cooldown === 0 && usesLeft > 0,
+      };
+    });
+  }
+
+  canSwitch(side) {
+    const fighter = this.activeOf(side);
+    const status = fighter.status && STATUSES[fighter.status.id];
+    if (status?.blocksSwitch && !fighter.fainted) return false;
+    return this.benchOf(side).length > 0;
+  }
+
+  /** Every legal action for a side this turn. */
+  availableActions(side) {
+    const actions = this.moveOptions(side)
+      .filter((option) => option.ready)
+      .map((option) => ({ kind: 'move', moveId: option.move.id }));
+    if (this.canSwitch(side)) {
+      for (const [index, fighter] of this.teams[side].entries()) {
+        if (index !== this.active[side] && !fighter.fainted) actions.push({ kind: 'switch', index });
+      }
+    }
+    // A fighter with everything on cooldown can always fall back on struggling on.
+    return actions.length ? actions : [{ kind: 'move', moveId: this.moveOptions(side)[0].move.id }];
+  }
+
+  setAction(side, action) {
+    this.actions[side] = action;
+  }
+
+  ready() {
+    return Boolean(this.actions.player && this.actions.enemy);
+  }
+
+  /* ------------------------------------------------------------ resolving */
+
+  /** Applies both committed actions and returns the events to play back. */
+  resolveTurn() {
+    if (this.over) return [];
+    if (!this.ready()) throw new Error('Both sides must choose an action first');
+
+    const events = [];
+    const order = this._turnOrder();
+    for (const side of order) {
+      if (this.over) break;
+      const fighter = this.activeOf(side);
+      if (fighter.fainted) continue;
+      const action = this.actions[side];
+      if (action.kind === 'switch') this._performSwitch(side, action.index, events);
+      else this._performMove(side, action.moveId, events);
+      this._checkFaints(events);
+    }
+
+    if (!this.over) this._endOfTurn(events);
+    this.actions = { player: null, enemy: null };
+    if (!this.over && this.turn >= this.turnLimit) this._callTheMatch(events);
+    if (!this.over) this.turn += 1;
+    return events;
+  }
+
+  _turnOrder() {
+    const score = (side) => {
+      const action = this.actions[side];
+      if (action.kind === 'switch') return SWITCH_PRIORITY;
+      return getMove(action.moveId).priority;
+    };
+    const playerPriority = score('player');
+    const enemyPriority = score('enemy');
+    if (playerPriority !== enemyPriority) return playerPriority > enemyPriority ? ['player', 'enemy'] : ['enemy', 'player'];
+    const playerSpeed = effectiveStat(this.activeOf('player'), 'spd');
+    const enemySpeed = effectiveStat(this.activeOf('enemy'), 'spd');
+    if (playerSpeed !== enemySpeed) return playerSpeed > enemySpeed ? ['player', 'enemy'] : ['enemy', 'player'];
+    return this.rng() < 0.5 ? ['player', 'enemy'] : ['enemy', 'player'];
+  }
+
+  _performSwitch(side, index, events) {
+    const leaving = this.activeOf(side);
+    const entering = this.teams[side][index];
+    if (!entering || entering.fainted || index === this.active[side]) return;
+    leaving.stages = { atk: 0, def: 0, spd: 0 };
+    leaving.shielded = false;
+    this.active[side] = index;
+    events.push({
+      kind: 'switch',
+      side,
+      slot: index,
+      from: leaving.character.name,
+      text: `${side === 'player' ? 'Go' : 'The rival sends out'} ${entering.character.name}!`,
+    });
+  }
+
+  _performMove(side, moveId, events) {
+    const attacker = this.activeOf(side);
+    const foeSide = this.foeSide(side);
+    const defender = this.activeOf(foeSide);
+    const move = getMove(moveId);
+
+    const status = attacker.status && STATUSES[attacker.status.id];
+    if (status?.skipChance && this.rng() < status.skipChance) {
+      events.push({
+        kind: 'blocked',
+        side,
+        text: `${attacker.character.name} is stunned and can't move!`,
+      });
+      return;
+    }
+
+    if (move.cooldown > 0) attacker.cooldowns[move.id] = move.cooldown + 1; // ticked down this same turn
+    if (Number.isFinite(attacker.usesLeft[move.id])) attacker.usesLeft[move.id] -= 1;
+    events.push({ kind: 'move', side, moveId: move.id, text: `${attacker.character.name} used ${move.name}!` });
+
+    if (this.rng() * 100 >= move.accuracy) {
+      events.push({ kind: 'miss', side, text: `It missed!` });
+      return;
+    }
+
+    if (move.power > 0) {
+      if (defender.shielded) {
+        events.push({ kind: 'blocked', side: foeSide, text: `${defender.character.name} blocked it!` });
+        return;
+      }
+      const hitCount = move.hits ? this._randomInt(move.hits[0], move.hits[1]) : 1;
+      let total = 0;
+      let typeMult = 1;
+      for (let hit = 0; hit < hitCount && !defender.fainted; hit += 1) {
+        const crit = this.rng() < CRIT_CHANCE;
+        const variance = 0.9 + this.rng() * 0.15;
+        const result = computeDamage(attacker, defender, move, { variance, crit });
+        typeMult = result.typeMult;
+        total += this._damage(defender, result.damage, events, { crit: result.crit, source: side });
+      }
+      if (hitCount > 1) events.push({ kind: 'text', text: `Hit ${hitCount} times!` });
+      const label = effectivenessLabel(typeMult);
+      if (label) events.push({ kind: 'text', text: label, typeMult });
+      if (move.effect?.drain && total > 0) {
+        this._heal(attacker, Math.round(total * move.effect.drain), events, `${attacker.character.name} drained health!`);
+      }
+      if (move.effect?.recoil && total > 0) {
+        this._damage(attacker, Math.round(total * move.effect.recoil), events, { recoil: true });
+      }
+    }
+
+    this._applyEffect(move, attacker, defender, events);
+  }
+
+  _applyEffect(move, attacker, defender, events) {
+    const effect = move.effect;
+    if (!effect) return;
+    if (effect.shield) {
+      attacker.shielded = true;
+      events.push({ kind: 'status', side: attacker.side, text: `${attacker.character.name} braced for impact!` });
+    }
+    if (effect.heal) {
+      this._heal(attacker, Math.round(attacker.maxHp * effect.heal), events, `${attacker.character.name} recovered health!`);
+    }
+    if (effect.cure && attacker.status) {
+      const cured = STATUSES[attacker.status.id].name;
+      attacker.status = null;
+      events.push({ kind: 'status', side: attacker.side, text: `${attacker.character.name} shook off its ${cured}!` });
+    }
+    if (effect.stat) {
+      const target = effect.target === 'self' ? attacker : defender;
+      if (!target.fainted && this.rng() * 100 < (effect.chance ?? 100)) {
+        this._changeStage(target, effect.stat, effect.stages, events);
+      }
+    }
+    if (effect.status) {
+      const target = effect.target === 'self' ? attacker : defender;
+      if (!target.fainted && this.rng() * 100 < (effect.chance ?? 100)) {
+        this._applyStatus(target, effect.status, events);
+      }
+    }
+  }
+
+  _changeStage(fighter, stat, stages, events) {
+    const before = fighter.stages[stat];
+    fighter.stages[stat] = Math.max(-MAX_STAGE, Math.min(MAX_STAGE, before + stages));
+    if (fighter.stages[stat] === before) {
+      events.push({ kind: 'text', text: `${fighter.character.name}'s ${stat.toUpperCase()} won't budge!` });
+      return;
+    }
+    const direction = stages > 0 ? 'rose' : 'fell';
+    const amount = Math.abs(stages) > 1 ? 'sharply ' : '';
+    events.push({
+      kind: 'stat',
+      side: fighter.side,
+      stat,
+      stages,
+      text: `${fighter.character.name}'s ${stat.toUpperCase()} ${amount}${direction}!`,
+    });
+  }
+
+  _applyStatus(fighter, statusId, events) {
+    const status = STATUSES[statusId];
+    if (fighter.status?.id === statusId) {
+      events.push({ kind: 'text', text: `${fighter.character.name} is already ${status.name.toLowerCase()}ed.` });
+      return;
+    }
+    fighter.status = { id: statusId, turns: status.turns };
+    events.push({
+      kind: 'status',
+      side: fighter.side,
+      status: statusId,
+      text: `${fighter.character.name} ${status.onApply}`,
+    });
+  }
+
+  _damage(fighter, amount, events, meta = {}) {
+    const dealt = Math.min(fighter.hp, Math.max(0, amount));
+    fighter.hp -= dealt;
+    events.push({
+      kind: 'damage',
+      side: fighter.side,
+      slot: fighter.slot,
+      amount: dealt,
+      hpAfter: fighter.hp,
+      maxHp: fighter.maxHp,
+      crit: Boolean(meta.crit),
+      recoil: Boolean(meta.recoil),
+      text: meta.crit ? 'A critical hit!' : meta.recoil ? `${fighter.character.name} is hurt by the recoil!` : null,
+    });
+    return dealt;
+  }
+
+  _heal(fighter, amount, events, text) {
+    const healed = Math.min(fighter.maxHp - fighter.hp, Math.max(0, amount));
+    fighter.hp += healed;
+    events.push({
+      kind: 'heal',
+      side: fighter.side,
+      slot: fighter.slot,
+      amount: healed,
+      hpAfter: fighter.hp,
+      maxHp: fighter.maxHp,
+      text: healed > 0 ? text : `${fighter.character.name} is already at full health.`,
+    });
+  }
+
+  _checkFaints(events) {
+    for (const side of SIDES) {
+      const fighter = this.activeOf(side);
+      if (fighter.hp > 0 || fighter.fainted) continue;
+      fighter.fainted = true;
+      fighter.status = null;
+      fighter.stages = { atk: 0, def: 0, spd: 0 };
+      const foe = this.activeOf(this.foeSide(side));
+      if (!foe.fainted) foe.kos += 1;
+      events.push({
+        kind: 'faint',
+        side,
+        slot: fighter.slot,
+        text: `${fighter.character.name} is out of the fight!`,
+      });
+    }
+    this._checkGameOver(events);
+    if (this.over) return;
+    for (const side of SIDES) {
+      this.pendingSwitch[side] = this.activeOf(side).fainted;
+    }
+  }
+
+  /** Out of time: the side with more health left standing takes it. */
+  _callTheMatch(events) {
+    const health = (side) =>
+      this.teams[side].reduce((total, fighter) => total + fighter.hp / fighter.maxHp, 0);
+    const playerHealth = health('player');
+    const enemyHealth = health('enemy');
+    this.over = true;
+    this.winner = playerHealth === enemyHealth ? null : playerHealth > enemyHealth ? 'player' : 'enemy';
+    events.push({
+      kind: 'end',
+      side: this.winner,
+      timeout: true,
+      text:
+        this.winner === 'player'
+          ? 'Time! You had the healthier team - you win!'
+          : this.winner === 'enemy'
+            ? 'Time! The rival team was in better shape...'
+            : 'Time! Neither team could finish it.',
+    });
+  }
+
+  _checkGameOver(events) {
+    for (const side of SIDES) {
+      if (this.teams[side].every((fighter) => fighter.fainted)) {
+        this.over = true;
+        this.winner = this.foeSide(side);
+        events.push({
+          kind: 'end',
+          side: this.winner,
+          text: this.winner === 'player' ? 'You win the battle!' : 'Your team is out of fighters...',
+        });
+        return;
+      }
+    }
+  }
+
+  _endOfTurn(events) {
+    for (const side of SIDES) {
+      const fighter = this.activeOf(side);
+      fighter.shielded = false;
+      if (fighter.fainted || !fighter.status) continue;
+      const status = STATUSES[fighter.status.id];
+      if (status.dot) {
+        this._damage(fighter, Math.max(1, Math.round(fighter.maxHp * status.dot)), events);
+        if (status.tick) events.push({ kind: 'text', text: `${fighter.character.name} ${status.tick}` });
+      }
+      fighter.status.turns -= 1;
+      if (fighter.status.turns <= 0) {
+        fighter.status = null;
+        events.push({ kind: 'status', side, text: `${fighter.character.name} shook off its ${status.name.toLowerCase()}.` });
+      }
+    }
+    for (const side of SIDES) {
+      for (const fighter of this.teams[side]) {
+        for (const moveId of Object.keys(fighter.cooldowns)) {
+          fighter.cooldowns[moveId] = Math.max(0, fighter.cooldowns[moveId] - 1);
+        }
+      }
+    }
+    this._checkFaints(events);
+  }
+
+  /** Sends in a replacement after a faint. */
+  applyForcedSwitch(side, index) {
+    const entering = this.teams[side][index];
+    if (!entering || entering.fainted) throw new Error('That fighter cannot be sent out');
+    this.active[side] = index;
+    this.pendingSwitch[side] = false;
+    return {
+      kind: 'switch',
+      side,
+      slot: index,
+      text: `${side === 'player' ? 'Go' : 'The rival sends out'} ${entering.character.name}!`,
+    };
+  }
+
+  _randomInt(min, max) {
+    return min + Math.floor(this.rng() * (max - min + 1));
+  }
+}
+
+/** Deterministic RNG so tests (and replays) can pin a battle down. */
+function makeRng(seed = 1) {
+  let state = seed >>> 0 || 1;
+  return () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    state >>>= 0;
+    return state / 4294967296;
+  };
+}
+
+// ---- src/games/catchmon/ai.js --------------------------------------
+/**
+ * The rival trainer. Drafts a team that answers yours, then plays a
+ * score-the-options turn: finish a foe if it can, heal or buff when it is safe,
+ * and switch out of a matchup it is losing badly.
+ */
+
+/**
+ * Drafts the rival team before the player picks, with one fighter per type and
+ * no repeated role, so the player can counter-pick what they can see.
+ */
+function draftTeam(rng = Math.random) {
+  const picked = [];
+  const usedTypes = new Set();
+  const usedRoles = new Set();
+  while (picked.length < TEAM_SIZE) {
+    const pool = ROSTER.filter(
+      (character) =>
+        !usedTypes.has(character.type) &&
+        !usedRoles.has(character.role) &&
+        !picked.includes(character)
+    );
+    const choices = pool.length ? pool : ROSTER.filter((character) => !picked.includes(character));
+    const pick = choices[Math.floor(rng() * choices.length)];
+    picked.push(pick);
+    usedTypes.add(pick.type);
+    usedRoles.add(pick.role);
+  }
+  return picked;
+}
+
+/** A random legal team, used for the "surprise me" button. */
+function randomTeam(rng = Math.random, exclude = []) {
+  const banned = new Set(exclude);
+  const picked = [];
+  while (picked.length < TEAM_SIZE) {
+    const pool = ROSTER.filter((character) => !banned.has(character.id));
+    const pick = pool[Math.floor(rng() * pool.length)];
+    picked.push(pick);
+    banned.add(pick.id);
+  }
+  return picked;
+}
+
+function scoreMove(battle, side, moveId) {
+  const attacker = battle.activeOf(side);
+  const defender = battle.activeOf(battle.foeSide(side));
+  const move = getMove(moveId);
+  const hpRatio = attacker.hp / attacker.maxHp;
+
+  if (move.power > 0) {
+    const damage = previewDamage(attacker, defender, move);
+    let score = (damage / defender.maxHp) * 100;
+    if (damage >= defender.hp) score += 90; // take the knockout
+    return score;
+  }
+
+  const effect = move.effect || {};
+  let score = 0;
+  if (effect.heal) {
+    const missing = 1 - hpRatio;
+    score = missing > 0.45 ? 55 + missing * 40 : missing * 25;
+    if (effect.cure && attacker.status) score += 15;
+  }
+  if (effect.shield) {
+    score = 18 + (hpRatio < 0.35 ? 22 : 0);
+  }
+  if (effect.stat) {
+    const target = effect.target === 'self' ? attacker : defender;
+    const room = effect.stages > 0 ? 3 - target.stages[effect.stat] : 3 + target.stages[effect.stat];
+    score = room <= 0 ? 0 : 26 + room * 5;
+    if (hpRatio < 0.35) score *= 0.5; // no time for setup
+  }
+  if (effect.status) {
+    const status = STATUSES[effect.status];
+    score = defender.status?.id === effect.status ? 0 : 34;
+    if (status.blocksSwitch && battle.benchOf(battle.foeSide(side)).length === 0) score = 8;
+  }
+  return score;
+}
+
+function switchScore(battle, side, index) {
+  const current = battle.activeOf(side);
+  const foe = battle.activeOf(battle.foeSide(side));
+  const candidate = battle.teams[side][index];
+  const currentMatchup = effectiveness(foe.character.type, current.character.type);
+  const candidateMatchup = effectiveness(foe.character.type, candidate.character.type);
+  const offense = effectiveness(candidate.character.type, foe.character.type);
+
+  let score = 0;
+  if (currentMatchup > 1) score += 26;           // currently being walloped
+  if (candidateMatchup < 1) score += 22;         // the bench answers it
+  if (offense > 1) score += 18;
+  if (current.hp / current.maxHp < 0.25) score += 14;
+  score *= candidate.hp / candidate.maxHp;       // do not send in a near-dead fighter
+  if (effectiveStat(current, 'spd') < effectiveStat(foe, 'spd')) score -= 8; // eating a free hit
+  return score;
+}
+
+/** Chooses the rival's action for the turn. */
+function chooseAction(battle, side = 'enemy', rng = Math.random) {
+  const options = battle.availableActions(side).map((action) => {
+    const score =
+      action.kind === 'move'
+        ? scoreMove(battle, side, action.moveId)
+        : switchScore(battle, side, action.index);
+    return { action, score: score + rng() * 6 }; // a little noise so it is not perfectly predictable
+  });
+  options.sort((a, b) => b.score - a.score);
+  return options[0].action;
+}
+
+/** Chooses a replacement after a knockout. */
+function chooseReplacement(battle, side = 'enemy') {
+  const foe = battle.activeOf(battle.foeSide(side));
+  let best = null;
+  let bestScore = -Infinity;
+  for (const [index, fighter] of battle.teams[side].entries()) {
+    if (fighter.fainted) continue;
+    const defense = effectiveness(foe.character.type, fighter.character.type);
+    const offense = effectiveness(fighter.character.type, foe.character.type);
+    const score = (offense - defense) * 40 + (fighter.hp / fighter.maxHp) * 30;
+    if (score > bestScore) {
+      bestScore = score;
+      best = index;
+    }
+  }
+  return best;
+}
+
+// ---- src/games/catchmon/art.js -------------------------------------
+/**
+ * Every fighter is drawn from code - five body plans crossed with six type
+ * palettes and crests. `drawCharacter` works in a unit space roughly 120px
+ * tall standing on y = 0, so callers only deal with position and scale.
+ */
+
+const SHAPES = ['quad', 'biped', 'serpent', 'winged', 'orb'];
+
+function mix(hex, target, amount) {
+  const value = parseInt(hex.slice(1), 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  const t = target === 'light' ? 255 : 0;
+  const blend = (channel) => Math.round(channel + (t - channel) * amount);
+  return `rgb(${blend(r)}, ${blend(g)}, ${blend(b)})`;
+}
+
+function paletteFor(character) {
+  return {
+    body: character.color,
+    dark: character.accent,
+    light: mix(character.color, 'light', 0.45),
+    shade: mix(character.color, 'dark', 0.25),
+    outline: 'rgba(20, 22, 40, 0.9)',
+  };
+}
+
+/** A stable pseudo-random number for a character, so its quirks never change. */
+function seedOf(character) {
+  let hash = 0;
+  for (let i = 0; i < character.id.length; i += 1) hash = (hash * 31 + character.id.charCodeAt(i)) >>> 0;
+  return (hash % 1000) / 1000;
+}
+
+function drawCharacter(ctx, character, options = {}) {
+  const {
+    x = 0,
+    y = 0,
+    scale = 1,
+    facing = 1,
+    bob = 0,
+    flash = 0,
+    alpha = 1,
+    shadow = true,
+    time = 0,
+  } = options;
+  const palette = paletteFor(character);
+  const seed = seedOf(character);
+
+  ctx.save();
+  ctx.globalAlpha = alpha * (1 - 0.6 * clamp(flash, 0, 1));
+  if (shadow) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 46 * scale, 12 * scale, 0, 0, TAU);
+    ctx.fill();
+  }
+
+  ctx.translate(x, y - bob);
+  ctx.scale(facing * scale, scale);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = palette.outline;
+  ctx.lineJoin = 'round';
+
+  const shape = SHAPES.includes(character.shape) ? character.shape : 'quad';
+  const context = { palette, seed, time, character };
+  if (shape === 'quad') drawQuad(ctx, context);
+  else if (shape === 'biped') drawBiped(ctx, context);
+  else if (shape === 'serpent') drawSerpent(ctx, context);
+  else if (shape === 'winged') drawWinged(ctx, context);
+  else drawOrb(ctx, context);
+
+  ctx.restore();
+}
+
+/* --------------------------------------------------------------- bodies */
+
+function blob(ctx, x, y, rx, ry, fill) {
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, 0, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+}
+
+function leg(ctx, x, y, w, h, fill) {
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.roundRect?.(x - w / 2, y - h, w, h, w / 2);
+  if (!ctx.roundRect) ctx.rect(x - w / 2, y - h, w, h);
+  ctx.fill();
+  ctx.stroke();
+}
+
+function drawQuad(ctx, { palette, seed, time, character }) {
+  const sway = Math.sin(time * 2 + seed * 6) * 2;
+  leg(ctx, -26, 0, 15, 34, palette.shade);
+  leg(ctx, 20, 0, 15, 34, palette.shade);
+  leg(ctx, -14, 0, 16, 36, palette.body);
+  leg(ctx, 30, 0, 16, 36, palette.body);
+
+  // Tail
+  ctx.strokeStyle = palette.outline;
+  ctx.fillStyle = palette.dark;
+  ctx.beginPath();
+  ctx.moveTo(-30, -46);
+  ctx.quadraticCurveTo(-62, -54 + sway, -56, -84 + sway);
+  ctx.lineTo(-44, -74);
+  ctx.quadraticCurveTo(-48, -56, -26, -40);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  blob(ctx, 0, -52, 44, 30, palette.body);
+  blob(ctx, 4, -44, 26, 16, palette.light);
+  blob(ctx, 34, -80, 25, 23, palette.body);        // head
+  blob(ctx, 52, -74, 12, 9, palette.light);        // snout
+
+  // Ears
+  ctx.fillStyle = palette.dark;
+  for (const dx of [22, 40]) {
+    ctx.beginPath();
+    ctx.moveTo(dx, -98);
+    ctx.lineTo(dx + 12, -122);
+    ctx.lineTo(dx + 18, -96);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  drawFace(ctx, palette, 40, -84, 1);
+  drawCrest(ctx, character, palette, 30, -118, 1, time, seed);
+}
+
+function drawBiped(ctx, { palette, seed, time, character }) {
+  const sway = Math.sin(time * 2.4 + seed * 5) * 2;
+  leg(ctx, -12, 0, 16, 40, palette.shade);
+  leg(ctx, 14, 0, 16, 40, palette.body);
+
+  ctx.fillStyle = palette.body;
+  ctx.beginPath();
+  ctx.ellipse(2, -62, 30, 34, 0, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+  blob(ctx, 6, -56, 17, 22, palette.light);
+
+  // Arms
+  ctx.fillStyle = palette.shade;
+  for (const [ax, ay, angle] of [[-22, -76, 0.5 + sway * 0.05], [24, -76, -0.4 - sway * 0.05]]) {
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.ellipse(0, 12, 8, 20, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  blob(ctx, 8, -108, 26, 24, palette.body);
+  blob(ctx, 26, -104, 11, 8, palette.light);
+  ctx.fillStyle = palette.dark;
+  for (const dx of [-2, 16]) {
+    ctx.beginPath();
+    ctx.moveTo(dx, -126);
+    ctx.lineTo(dx + 8, -148);
+    ctx.lineTo(dx + 16, -124);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  drawFace(ctx, palette, 14, -110, 1);
+  drawCrest(ctx, character, palette, 6, -146, 1, time, seed);
+}
+
+function drawSerpent(ctx, { palette, seed, time, character }) {
+  const wave = Math.sin(time * 2 + seed * 4) * 4;
+  ctx.strokeStyle = palette.outline;
+  ctx.lineWidth = 3;
+
+  // Coiled body drawn as a thick tapering stroke
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (const [width, colour] of [[46, palette.outline], [40, palette.body]]) {
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(-46, -16);
+    ctx.quadraticCurveTo(-4, -6 + wave, 20, -40);
+    ctx.quadraticCurveTo(40, -70 - wave, 6, -84);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.strokeStyle = palette.outline;
+  ctx.lineWidth = 3;
+  blob(ctx, -4, -96, 27, 22, palette.body);
+  blob(ctx, 16, -92, 12, 9, palette.light);
+
+  // Fins
+  ctx.fillStyle = palette.dark;
+  ctx.beginPath();
+  ctx.moveTo(-24, -108);
+  ctx.lineTo(-42, -128);
+  ctx.lineTo(-14, -118);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  drawFace(ctx, palette, 4, -98, 1);
+  drawCrest(ctx, character, palette, -8, -128, 0.95, time, seed);
+}
+
+function drawWinged(ctx, { palette, seed, time, character }) {
+  const flap = Math.sin(time * 4 + seed * 7) * 0.35;
+
+  ctx.save();
+  ctx.translate(-6, -74);
+  for (const dir of [-1, 1]) {
+    ctx.save();
+    ctx.rotate(dir * (0.5 + flap));
+    ctx.fillStyle = dir < 0 ? palette.shade : palette.dark;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(-30, -46, -66, -34);
+    ctx.quadraticCurveTo(-40, -8, 0, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+
+  leg(ctx, -8, 0, 11, 26, palette.shade);
+  leg(ctx, 12, 0, 11, 26, palette.shade);
+
+  blob(ctx, 2, -50, 30, 28, palette.body);
+  blob(ctx, 8, -44, 16, 17, palette.light);
+  blob(ctx, 16, -88, 24, 22, palette.body);
+  blob(ctx, 34, -84, 11, 8, palette.dark);         // beak
+
+  // Tail feathers
+  ctx.fillStyle = palette.dark;
+  for (const angle of [-0.35, 0, 0.35]) {
+    ctx.save();
+    ctx.translate(-26, -52);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.ellipse(-20, 0, 22, 6, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawFace(ctx, palette, 22, -90, 0.95);
+  drawCrest(ctx, character, palette, 14, -122, 0.95, time, seed);
+}
+
+function drawOrb(ctx, { palette, seed, time, character }) {
+  const float = Math.sin(time * 1.8 + seed * 5) * 4;
+  ctx.save();
+  ctx.translate(0, -18 + float);
+
+  // Orbiting shards
+  ctx.fillStyle = palette.dark;
+  for (let i = 0; i < 3; i += 1) {
+    const angle = time * 1.1 + seed * 6 + (i * TAU) / 3;
+    const ox = Math.cos(angle) * 56;
+    const oy = Math.sin(angle) * 20 - 40;
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(0, -10);
+    ctx.lineTo(8, 0);
+    ctx.lineTo(0, 10);
+    ctx.lineTo(-8, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  blob(ctx, 0, -46, 44, 44, palette.body);
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  blob(ctx, -12, -60, 16, 12, palette.light);
+  ctx.restore();
+  blob(ctx, 4, -30, 24, 12, palette.shade);
+  drawFace(ctx, palette, 8, -50, 1.15);
+  ctx.restore();
+  drawCrest(ctx, character, palette, 0, -104 + float, 1, time, seed);
+}
+
+/* ---------------------------------------------------------- face + crest */
+
+function drawFace(ctx, palette, x, y, scale) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  for (const dx of [-12, 6]) {
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.ellipse(dx, 0, 7, 8, 0, 0, TAU);
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#171a2b';
+    ctx.beginPath();
+    ctx.arc(dx + 2, 1, 3.4, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawCrest(ctx, character, palette, x, y, scale, time, seed) {
+  const type = TYPE_BY_ID.get(character.type);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = type.color;
+  ctx.strokeStyle = palette.outline;
+  ctx.lineWidth = 2.5;
+
+  switch (type.glyph) {
+    case 'flame': {
+      const flicker = 1 + Math.sin(time * 8 + seed * 9) * 0.1;
+      ctx.beginPath();
+      ctx.moveTo(0, -26 * flicker);
+      ctx.quadraticCurveTo(16, -6, 0, 6);
+      ctx.quadraticCurveTo(-16, -6, 0, -26 * flicker);
+      ctx.fill();
+      ctx.stroke();
+      break;
+    }
+    case 'leaf': {
+      ctx.save();
+      ctx.rotate(Math.sin(time * 1.8 + seed * 4) * 0.15);
+      ctx.beginPath();
+      ctx.ellipse(0, -12, 9, 18, 0.4, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
+    case 'rock': {
+      ctx.beginPath();
+      ctx.moveTo(-14, 4);
+      ctx.lineTo(-8, -16);
+      ctx.lineTo(6, -20);
+      ctx.lineTo(15, -4);
+      ctx.lineTo(4, 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      break;
+    }
+    case 'swirl': {
+      ctx.save();
+      ctx.rotate(Math.sin(time * 2.2 + seed * 5) * 0.2);
+      ctx.strokeStyle = type.color;
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      for (const [offset, radius] of [[-14, 9], [0, 12], [12, 7]]) {
+        ctx.beginPath();
+        ctx.arc(0, offset - 6, radius, Math.PI * 0.15, Math.PI * 1.55);
+        ctx.stroke();
+      }
+      ctx.restore();
+      break;
+    }
+    case 'drop': {
+      ctx.beginPath();
+      ctx.moveTo(0, -24);
+      ctx.quadraticCurveTo(12, -6, 0, 4);
+      ctx.quadraticCurveTo(-12, -6, 0, -24);
+      ctx.fill();
+      ctx.stroke();
+      break;
+    }
+    default: {
+      ctx.beginPath();
+      ctx.arc(0, -10, 13, 0.35 * Math.PI, 1.75 * Math.PI);
+      ctx.arc(4, -14, 11, 1.75 * Math.PI, 0.35 * Math.PI, true);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      break;
+    }
+  }
+  ctx.restore();
+}
+
+/** Small square portrait for roster cards and team pips. */
+function drawPortrait(ctx, character, size) {
+  const scale = size / 190;
+  ctx.save();
+  ctx.translate(size / 2, size * 0.92);
+  drawCharacter(ctx, character, { x: 0, y: 0, scale, facing: 1, shadow: false, time: 0.6 });
+  ctx.restore();
+}
+
+// ---- src/games/catchmon/scene.js -----------------------------------
+const W = 960;
+const H = 540;
+
+// The bottom third of the stage belongs to the DOM log and command panel, so
+// the whole fight is staged in the top ~360px.
+const SLOTS = {
+  enemy: { x: 690, y: 214, scale: 0.82, facing: -1 },
+  player: { x: 246, y: 338, scale: 1.02, facing: 1 },
+};
+
+const HORIZON = 186;
+const PANEL_WIDTH = 340;
+
+const PANELS = {
+  enemy: { x: 36, y: 66 },
+  player: { x: W - 36 - PANEL_WIDTH, y: 236 },
+};
+
+/* ------------------------------------------------------------------ arena */
+
+function drawArena(ctx, time) {
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#2b3a72');
+  sky.addColorStop(HORIZON / H - 0.001, '#8492d4');
+  sky.addColorStop(HORIZON / H, '#79ab68');
+  sky.addColorStop(1, '#357044');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H);
+
+  // Sun band sitting on the horizon
+  ctx.save();
+  ctx.globalAlpha = 0.3 + Math.sin(time * 0.6) * 0.04;
+  ctx.fillStyle = '#ffe9a8';
+  ctx.beginPath();
+  ctx.ellipse(690, HORIZON, 96, 40, 0, Math.PI, TAU);
+  ctx.fill();
+  ctx.restore();
+
+  // Distant ridge
+  ctx.fillStyle = 'rgba(38, 52, 96, 0.45)';
+  for (const [x, w, h] of [[120, 300, 86], [430, 380, 124], [810, 320, 96]]) {
+    ctx.beginPath();
+    ctx.ellipse(x, HORIZON, w / 2, h / 2, 0, Math.PI, TAU);
+    ctx.fill();
+  }
+
+  drawPlatform(ctx, SLOTS.enemy.x, SLOTS.enemy.y, 132, 30, '#5c9a5a');
+  drawPlatform(ctx, SLOTS.player.x, SLOTS.player.y, 200, 44, '#54925a');
+}
+
+function drawPlatform(ctx, x, y, rx, ry, color) {
+  ctx.fillStyle = 'rgba(24, 40, 30, 0.35)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 8, rx, ry, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+  ctx.beginPath();
+  ctx.ellipse(x - rx * 0.25, y - ry * 0.3, rx * 0.5, ry * 0.35, 0, 0, TAU);
+  ctx.fill();
+}
+
+/* --------------------------------------------------------------- fighters */
+
+function drawFighter(ctx, side, fighter, display, time) {
+  if (!fighter) return;
+  const slot = SLOTS[side];
+  const lunge = display.lunge * (side === 'player' ? 60 : -60);
+  const shake = display.shake > 0 ? (Math.random() - 0.5) * display.shake * 14 : 0;
+  const bob = Math.sin(time * 2 + (side === 'player' ? 0 : 1)) * 3;
+
+  drawCharacter(ctx, fighter.character, {
+    x: slot.x + lunge + shake,
+    y: slot.y + (side === 'player' ? 6 : 2),
+    scale: slot.scale * (display.entering ? 0.6 + display.entering * 0.4 : 1),
+    facing: slot.facing,
+    bob: bob + display.hop,
+    flash: display.flash,
+    alpha: display.alpha,
+    time,
+  });
+
+  if (fighter.shielded) {
+    ctx.save();
+    ctx.globalAlpha = 0.35 + Math.sin(time * 6) * 0.1;
+    ctx.strokeStyle = '#cfe8ff';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(slot.x, slot.y - 60 * slot.scale, 74 * slot.scale, 88 * slot.scale, 0, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/* ----------------------------------------------------------------- panels */
+
+function drawPanels(ctx, battle, display) {
+  drawPanel(ctx, battle, 'enemy', display.enemy.hpShown);
+  drawPanel(ctx, battle, 'player', display.player.hpShown);
+}
+
+function drawPanel(ctx, battle, side, hpShown) {
+  const fighter = battle.activeOf(side);
+  const panel = PANELS[side];
+  const width = PANEL_WIDTH;
+  const height = 84;
+  const type = TYPE_BY_ID.get(fighter.character.type);
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(14, 18, 38, 0.82)';
+  roundedRect(ctx, panel.x, panel.y, width, height, 14);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 20px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(fighter.character.name, panel.x + 16, panel.y + 22);
+
+  // Type chip
+  const chipText = type.name.toUpperCase();
+  ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
+  const chipWidth = ctx.measureText(chipText).width + 16;
+  const chipX = panel.x + width - 16 - chipWidth;
+  ctx.fillStyle = type.color;
+  roundedRect(ctx, chipX, panel.y + 13, chipWidth, 18, 9);
+  ctx.fill();
+  ctx.fillStyle = '#15182b';
+  ctx.textAlign = 'center';
+  ctx.fillText(chipText, chipX + chipWidth / 2, panel.y + 23);
+
+  // HP bar
+  const barX = panel.x + 16;
+  const barY = panel.y + 40;
+  const barW = width - 32;
+  const ratio = clamp(hpShown / fighter.maxHp, 0, 1);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
+  roundedRect(ctx, barX, barY, barW, 12, 6);
+  ctx.fill();
+  ctx.fillStyle = ratio > 0.5 ? '#6ee7a8' : ratio > 0.22 ? '#ffd166' : '#ff6b6b';
+  if (ratio > 0) {
+    roundedRect(ctx, barX, barY, Math.max(6, barW * ratio), 12, 6);
+    ctx.fill();
+  }
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+  ctx.font = '600 13px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(`${Math.max(0, Math.round(hpShown))} / ${fighter.maxHp}`, barX, barY + 26);
+
+  // Status and stat-stage chips
+  let chipRight = panel.x + width - 16;
+  if (fighter.status) {
+    const status = STATUSES[fighter.status.id];
+    chipRight = drawMiniChip(ctx, chipRight, barY + 20, status.short, '#ff9f6b');
+  }
+  for (const stat of ['atk', 'def', 'spd']) {
+    const stage = fighter.stages[stat];
+    if (!stage) continue;
+    const label = `${stat.toUpperCase()}${stage > 0 ? '+' : ''}${stage}`;
+    chipRight = drawMiniChip(ctx, chipRight, barY + 20, label, stage > 0 ? '#8ee7ff' : '#ff8ea8');
+  }
+
+  drawTeamPips(ctx, battle, side, panel, width);
+  ctx.restore();
+}
+
+function drawMiniChip(ctx, right, y, text, color) {
+  ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
+  const width = ctx.measureText(text).width + 12;
+  const x = right - width;
+  ctx.fillStyle = color;
+  roundedRect(ctx, x, y - 8, width, 16, 8);
+  ctx.fill();
+  ctx.fillStyle = '#15182b';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, x + width / 2, y);
+  ctx.textAlign = 'left';
+  return x - 6;
+}
+
+function drawTeamPips(ctx, battle, side, panel, width) {
+  const team = battle.teams[side];
+  const y = panel.y - 12;
+  const startX = panel.x + width - 16 - (team.length - 1) * 18;
+  team.forEach((fighter, index) => {
+    const x = startX + index * 18;
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, TAU);
+    ctx.fillStyle = fighter.fainted
+      ? 'rgba(255, 255, 255, 0.2)'
+      : index === battle.active[side]
+        ? fighter.character.color
+        : 'rgba(255, 255, 255, 0.7)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(10, 14, 30, 0.7)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+}
+
+/* ---------------------------------------------------------------- effects */
+
+function drawPopups(ctx, popups) {
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const popup of popups) {
+    const life = clamp(popup.life / popup.maxLife, 0, 1);
+    ctx.globalAlpha = life;
+    ctx.font = `700 ${popup.size}px "Trebuchet MS", system-ui, sans-serif`;
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = 'rgba(16, 18, 34, 0.85)';
+    ctx.strokeText(popup.text, popup.x, popup.y);
+    ctx.fillStyle = popup.color;
+    ctx.fillText(popup.text, popup.x, popup.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawParticles(ctx, particles) {
+  for (const particle of particles) {
+    ctx.globalAlpha = clamp(particle.life / particle.maxLife, 0, 1);
+    ctx.fillStyle = particle.color;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, particle.size, 0, TAU);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawBanner(ctx, text, alpha) {
+  if (!text || alpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = clamp(alpha, 0, 1);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 46px "Trebuchet MS", system-ui, sans-serif';
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = 'rgba(12, 14, 30, 0.8)';
+  ctx.strokeText(text, W / 2, 150);
+  ctx.fillStyle = '#ffe07a';
+  ctx.fillText(text, W / 2, 150);
+  ctx.restore();
+}
+
+function drawTurnBadge(ctx, turn, limit) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(14, 18, 38, 0.75)';
+  roundedRect(ctx, W / 2 - 58, 16, 116, 30, 15);
+  ctx.fill();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 14px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = turn > limit - 6 ? '#ffb3b3' : '#ffffff';
+  ctx.fillText(`TURN ${turn} / ${limit}`, W / 2, 32);
+  ctx.restore();
+}
+
+// ---- src/games/catchmon/ui.js --------------------------------------
+/**
+ * The DOM half of Catchmon: the team-select screen and the battle command
+ * panel. Both live in the layer the shell hands the game, and both hand every
+ * decision back through callbacks so `game.js` keeps the state machine.
+ */
+
+const MAX_STAT = 160;
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
+function portrait(character, size) {
+  const canvas = el('canvas', 'cm-portrait');
+  const scale = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = size * scale;
+  canvas.height = size * scale;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  drawPortrait(ctx, character, size);
+  return canvas;
+}
+
+function typeChip(character) {
+  const chip = el('span', 'cm-chip', character.typeName);
+  chip.style.background = character.color;
+  return chip;
+}
+
+function statBar(label, value) {
+  const row = el('div', 'cm-stat');
+  row.append(el('span', 'cm-stat-label', label));
+  const track = el('span', 'cm-stat-track');
+  const fill = el('span', 'cm-stat-fill');
+  fill.style.width = `${Math.min(100, (value / MAX_STAT) * 100)}%`;
+  track.append(fill);
+  row.append(track, el('span', 'cm-stat-value', String(value)));
+  return row;
+}
+
+/* ------------------------------------------------------------ team select */
+
+class TeamSelect {
+  constructor(container, { rivalTeam, onStart, onRandom }) {
+    this.container = container;
+    this.rivalTeam = rivalTeam;
+    this.onStart = onStart;
+    this.onRandom = onRandom;
+    this.selected = [];
+    this.filter = 'all';
+    this.root = el('div', 'cm-select');
+    container.append(this.root);
+    this._build();
+  }
+
+  _build() {
+    const header = el('div', 'cm-select-head');
+    const title = el('div', 'cm-select-title');
+    title.append(el('h2', null, 'Pick your team of three'));
+    title.append(el('p', null, 'Every Catchmon is a final evolution. Counter the rival types you can see.'));
+    header.append(title);
+
+    const rival = el('div', 'cm-rival');
+    rival.append(el('span', 'cm-rival-label', 'Rival team'));
+    const rivalList = el('div', 'cm-rival-list');
+    for (const character of this.rivalTeam) {
+      const card = el('div', 'cm-rival-card');
+      card.style.borderColor = character.color;
+      card.append(portrait(character, 44));
+      const meta = el('div', 'cm-rival-meta');
+      meta.append(el('strong', null, character.name), typeChip(character));
+      card.append(meta);
+      rivalList.append(card);
+    }
+    rival.append(rivalList);
+    header.append(rival);
+    this.root.append(header);
+
+    const filters = el('div', 'cm-filters');
+    for (const option of [{ id: 'all', name: 'All types', color: '#8b93c7' }, ...TYPES]) {
+      const button = el('button', 'cm-filter', option.name);
+      button.type = 'button';
+      button.dataset.type = option.id;
+      button.style.setProperty('--chip', option.color);
+      button.addEventListener('click', () => {
+        this.filter = option.id;
+        this._renderGrid();
+        for (const other of filters.querySelectorAll('.cm-filter')) {
+          other.classList.toggle('is-active', other.dataset.type === option.id);
+        }
+      });
+      if (option.id === 'all') button.classList.add('is-active');
+      filters.append(button);
+    }
+    this.root.append(filters);
+
+    this.grid = el('div', 'cm-grid');
+    this.root.append(this.grid);
+
+    const footer = el('div', 'cm-select-foot');
+    this.tray = el('div', 'cm-tray');
+    footer.append(this.tray);
+
+    const actions = el('div', 'cm-select-actions');
+    const randomButton = el('button', 'btn', 'Surprise me');
+    randomButton.type = 'button';
+    randomButton.addEventListener('click', () => {
+      this.selected = this.onRandom().slice(0, TEAM_SIZE);
+      this._renderGrid();
+      this._renderTray();
+    });
+    this.startButton = el('button', 'btn btn--primary', 'Battle!');
+    this.startButton.type = 'button';
+    this.startButton.disabled = true;
+    this.startButton.addEventListener('click', () => {
+      if (this.selected.length === TEAM_SIZE) this.onStart(this.selected);
+    });
+    actions.append(randomButton, this.startButton);
+    footer.append(actions);
+    this.root.append(footer);
+
+    this._renderGrid();
+    this._renderTray();
+  }
+
+  _toggle(character) {
+    const index = this.selected.indexOf(character);
+    if (index >= 0) this.selected.splice(index, 1);
+    else if (this.selected.length < TEAM_SIZE) this.selected.push(character);
+    else return;
+    this._renderGrid();
+    this._renderTray();
+  }
+
+  /** How this fighter fares against the three rivals, as a quick hint. */
+  _matchupHint(character) {
+    let good = 0;
+    let bad = 0;
+    for (const rival of this.rivalTeam) {
+      if (effectiveness(character.type, rival.type) > 1) good += 1;
+      if (effectiveness(rival.type, character.type) > 1) bad += 1;
+    }
+    if (good > bad) return { text: `Strong vs ${good}`, tone: 'good' };
+    if (bad > good) return { text: `Weak vs ${bad}`, tone: 'bad' };
+    return { text: 'Even matchup', tone: 'even' };
+  }
+
+  _renderGrid() {
+    this.grid.replaceChildren();
+    const list = this.filter === 'all' ? ROSTER : ROSTER.filter((c) => c.type === this.filter);
+    for (const character of list) {
+      const card = el('button', 'cm-card');
+      card.type = 'button';
+      card.style.setProperty('--type', character.color);
+      if (this.selected.includes(character)) card.classList.add('is-picked');
+
+      card.append(portrait(character, 74));
+      const body = el('div', 'cm-card-body');
+      const nameRow = el('div', 'cm-card-name');
+      nameRow.append(el('strong', null, character.name), typeChip(character));
+      body.append(nameRow);
+      body.append(el('span', 'cm-card-role', `${character.roleName} - evolved from ${character.evolvesFrom}`));
+
+      const stats = el('div', 'cm-stats');
+      stats.append(
+        statBar('HP', character.stats.hp),
+        statBar('ATK', character.stats.atk),
+        statBar('DEF', character.stats.def),
+        statBar('SPD', character.stats.spd)
+      );
+      body.append(stats);
+
+      const hint = this._matchupHint(character);
+      body.append(el('span', `cm-hint cm-hint--${hint.tone}`, hint.text));
+      card.append(body);
+
+      card.title = `${character.blurb}\nMoves: ${character.moves.length}`;
+      card.addEventListener('click', () => this._toggle(character));
+      this.grid.append(card);
+    }
+  }
+
+  _renderTray() {
+    this.tray.replaceChildren();
+    for (let slot = 0; slot < TEAM_SIZE; slot += 1) {
+      const character = this.selected[slot];
+      const cell = el('div', 'cm-tray-cell');
+      if (character) {
+        cell.classList.add('is-filled');
+        cell.style.borderColor = character.color;
+        cell.append(portrait(character, 40));
+        cell.append(el('span', null, character.name));
+        cell.addEventListener('click', () => this._toggle(character));
+      } else {
+        cell.append(el('span', 'cm-tray-empty', `Slot ${slot + 1}`));
+      }
+      this.tray.append(cell);
+    }
+    this.startButton.disabled = this.selected.length !== TEAM_SIZE;
+  }
+
+  destroy() {
+    this.root.remove();
+  }
+}
+
+/* ----------------------------------------------------------- battle panel */
+
+class BattlePanel {
+  constructor(container, { onMove, onSwitch, onSkip }) {
+    this.onMove = onMove;
+    this.onSwitch = onSwitch;
+    this.onSkip = onSkip;
+    this.root = el('div', 'cm-battle');
+
+    this.log = el('div', 'cm-log');
+    this.commands = el('div', 'cm-commands');
+    this.root.append(this.log, this.commands);
+    container.append(this.root);
+
+    this._onLogClick = () => this.onSkip?.();
+    this.log.addEventListener('click', this._onLogClick);
+  }
+
+  setLog(lines) {
+    this.log.replaceChildren();
+    for (const line of lines) this.log.append(el('p', 'cm-log-line', line));
+    this.log.scrollTop = this.log.scrollHeight;
+  }
+
+  setBusy(text) {
+    this.commands.replaceChildren();
+    this.commands.classList.add('is-busy');
+    this.commands.append(el('p', 'cm-busy', text));
+  }
+
+  /** The four move buttons plus the switch button. */
+  showCommands(battle) {
+    this.commands.replaceChildren();
+    this.commands.classList.remove('is-busy');
+    const grid = el('div', 'cm-moves');
+    const foe = battle.activeOf('enemy');
+
+    for (const option of battle.moveOptions('player')) {
+      const { move, ready, cooldown, usesLeft, limited } = option;
+      const button = el('button', 'cm-move');
+      button.type = 'button';
+      button.disabled = !ready;
+      button.style.setProperty('--type', move.type ? `var(--type-${move.type})` : '#8b93c7');
+
+      const head = el('div', 'cm-move-head');
+      head.append(el('strong', null, move.name));
+      head.append(el('span', 'cm-move-power', move.power > 0 ? `PWR ${move.power}` : 'SUPPORT'));
+      button.append(head);
+
+      const meta = el('div', 'cm-move-meta');
+      if (move.type && move.power > 0) {
+        const multiplier = effectiveness(move.type, foe.character.type);
+        if (multiplier > 1) meta.append(el('span', 'cm-tag cm-tag--good', 'Super effective'));
+        else if (multiplier < 1) meta.append(el('span', 'cm-tag cm-tag--bad', 'Resisted'));
+      }
+      if (cooldown > 0) meta.append(el('span', 'cm-tag', `Ready in ${cooldown}`));
+      else if (limited) meta.append(el('span', 'cm-tag', `${usesLeft} left`));
+      if (move.priority > 0) meta.append(el('span', 'cm-tag', 'Priority'));
+      button.append(meta);
+
+      button.title = move.description;
+      button.addEventListener('click', () => this.onMove(move.id));
+      grid.append(button);
+    }
+    this.commands.append(grid);
+
+    const side = el('div', 'cm-side-actions');
+    const switchButton = el('button', 'btn', 'Switch');
+    switchButton.type = 'button';
+    switchButton.disabled = !battle.canSwitch('player');
+    if (switchButton.disabled) switchButton.title = 'Rooted, or nobody left on the bench.';
+    switchButton.addEventListener('click', () => this.showBench(battle, { forced: false }));
+    side.append(switchButton);
+    this.commands.append(side);
+  }
+
+  /** Bench list, used both for a voluntary switch and after a knockout. */
+  showBench(battle, { forced }) {
+    this.commands.replaceChildren();
+    this.commands.classList.remove('is-busy');
+    const list = el('div', 'cm-bench');
+    list.append(el('p', 'cm-bench-title', forced ? 'Choose who steps up.' : 'Switch to:'));
+
+    for (const [index, fighter] of battle.teams.player.entries()) {
+      if (index === battle.active.player || fighter.fainted) continue;
+      const button = el('button', 'cm-bench-card');
+      button.type = 'button';
+      button.style.setProperty('--type', fighter.character.color);
+      button.append(portrait(fighter.character, 44));
+      const meta = el('div', 'cm-bench-meta');
+      meta.append(el('strong', null, fighter.character.name));
+      meta.append(el('span', null, `${fighter.character.typeName} - ${fighter.hp}/${fighter.maxHp} HP`));
+      button.append(meta);
+      button.addEventListener('click', () => this.onSwitch(index));
+      list.append(button);
+    }
+
+    if (!forced) {
+      const cancel = el('button', 'btn btn--ghost', 'Back');
+      cancel.type = 'button';
+      cancel.addEventListener('click', () => this.showCommands(battle));
+      list.append(cancel);
+    }
+    this.commands.append(list);
+  }
+
+  destroy() {
+    this.log.removeEventListener('click', this._onLogClick);
+    this.root.remove();
+  }
+}
+
+// ---- src/games/catchmon/game.js ------------------------------------
+const GAME_ID = 'catchmon';
+
+/** How long each kind of event is held on screen before the next one plays. */
+const EVENT_DELAY = {
+  move: 0.55,
+  damage: 0.45,
+  heal: 0.6,
+  status: 0.7,
+  stat: 0.7,
+  miss: 0.7,
+  blocked: 0.7,
+  text: 0.55,
+  switch: 0.7,
+  faint: 0.9,
+  end: 1.1,
+};
+
+const LOG_LINES = 3;
+
+function newDisplay() {
+  return {
+    hpShown: 0,
+    hpTarget: 0,
+    flash: 0,
+    shake: 0,
+    lunge: 0,
+    hop: 0,
+    alpha: 1,
+    entering: 0,
+  };
+}
+
+class CatchmonGame {
+  constructor(context) {
+    this.context = context;
+    this.time = 0;
+    this.phase = 'select';
+    this.rivalTeam = draftTeam();
+    this.battle = null;
+    this.panel = null;
+    this.display = { player: newDisplay(), enemy: newDisplay() };
+    this.popups = [];
+    this.particles = [];
+    this.queue = [];
+    this.eventTimer = 0;
+    this.logLines = [];
+    this.banner = { text: '', life: 0 };
+    this.finished = false;
+
+    this.select = new TeamSelect(context.ui, {
+      rivalTeam: this.rivalTeam,
+      onStart: (team) => this._startBattle(team),
+      onRandom: () => randomTeam(),
+    });
+  }
+
+  /* -------------------------------------------------------------- battle */
+
+  _startBattle(playerTeam) {
+    this.select.destroy();
+    this.select = null;
+    this.phase = 'battle';
+    this.battle = new Battle({ playerTeam, enemyTeam: this.rivalTeam });
+
+    for (const side of ['player', 'enemy']) {
+      const fighter = this.battle.activeOf(side);
+      this.display[side] = { ...newDisplay(), hpShown: fighter.hp, hpTarget: fighter.hp, entering: 1 };
+    }
+
+    this.panel = new BattlePanel(this.context.ui, {
+      onMove: (moveId) => this._commit({ kind: 'move', moveId }),
+      onSwitch: (index) => this._chooseSwitch(index),
+      onSkip: () => this._skipPlayback(),
+    });
+
+    this._log(`The rival sends out ${this.battle.activeOf('enemy').character.name}!`);
+    this._log(`Go, ${this.battle.activeOf('player').character.name}!`);
+    this._showCommands();
+  }
+
+  _showCommands() {
+    if (this.finished) return;
+    if (this.battle.pendingSwitch.player) {
+      this.panel.showBench(this.battle, { forced: true });
+      return;
+    }
+    this.panel.showCommands(this.battle);
+  }
+
+  /** A player action: pair it with the rival's and resolve the turn. */
+  _commit(action) {
+    if (this.queue.length || this.finished) return;
+    this.battle.setAction('player', action);
+    this.battle.setAction('enemy', chooseAction(this.battle, 'enemy'));
+    this.panel.setBusy('...');
+    this._enqueue(this.battle.resolveTurn());
+  }
+
+  _chooseSwitch(index) {
+    if (this.finished) return;
+    if (this.battle.pendingSwitch.player) {
+      this.panel.setBusy('...');
+      this._enqueue([this.battle.applyForcedSwitch('player', index)]);
+      return;
+    }
+    this._commit({ kind: 'switch', index });
+  }
+
+  _enqueue(events) {
+    this.queue.push(...events);
+    if (this.eventTimer <= 0) this.eventTimer = 0.05;
+  }
+
+  /** Called once the queue drains: forced switches, then hand control back. */
+  _afterPlayback() {
+    if (this.finished) return;
+    if (this.battle.over) {
+      this._reportResult();
+      return;
+    }
+    if (this.battle.pendingSwitch.enemy) {
+      const index = chooseReplacement(this.battle, 'enemy');
+      this._enqueue([this.battle.applyForcedSwitch('enemy', index)]);
+      return;
+    }
+    this._showCommands();
+  }
+
+  /* ---------------------------------------------------------- playback */
+
+  _playEvent(event, instant = false) {
+    if (event.text) this._log(event.text);
+    const side = event.side;
+    const display = side ? this.display[side] : null;
+
+    switch (event.kind) {
+      case 'move': {
+        const move = getMove(event.moveId);
+        const attacker = this.display[side];
+        attacker.lunge = 1;
+        this._spawnBurst(side === 'player' ? 'enemy' : 'player', move.type);
+        break;
+      }
+      case 'damage': {
+        display.hpTarget = event.hpAfter;
+        display.flash = 1;
+        display.shake = 1;
+        this._popup(side, `-${event.amount}`, event.crit ? '#ffd166' : '#ff8080', event.crit ? 34 : 28);
+        break;
+      }
+      case 'heal': {
+        display.hpTarget = event.hpAfter;
+        if (event.amount > 0) this._popup(side, `+${event.amount}`, '#7bf0a8', 28);
+        break;
+      }
+      case 'status':
+      case 'stat': {
+        if (display) display.hop = 8;
+        break;
+      }
+      case 'faint': {
+        display.alpha = 0.001;
+        display.hpTarget = 0;
+        break;
+      }
+      case 'switch': {
+        const fighter = this.battle.teams[side][event.slot ?? this.battle.active[side]];
+        this.display[side] = { ...newDisplay(), hpShown: fighter.hp, hpTarget: fighter.hp, entering: 1 };
+        break;
+      }
+      case 'end': {
+        this.banner = { text: event.side === 'player' ? 'Victory!' : 'Defeat', life: 2.4 };
+        break;
+      }
+      default:
+        break;
+    }
+    if (instant) this._snapDisplays();
+  }
+
+  _skipPlayback() {
+    while (this.queue.length) this._playEvent(this.queue.shift(), true);
+    this.eventTimer = 0;
+    this._afterPlayback();
+  }
+
+  _snapDisplays() {
+    for (const side of ['player', 'enemy']) {
+      const display = this.display[side];
+      display.hpShown = display.hpTarget;
+      display.flash = 0;
+      display.shake = 0;
+      display.lunge = 0;
+    }
+    this.popups.length = 0;
+  }
+
+  _log(text) {
+    this.logLines.push(text);
+    if (this.logLines.length > 40) this.logLines.shift();
+    this.panel?.setLog(this.logLines.slice(-LOG_LINES));
+  }
+
+  _popup(side, text, color, size) {
+    const slot = SLOTS[side];
+    this.popups.push({
+      x: slot.x + (Math.random() - 0.5) * 30,
+      y: slot.y - 120,
+      text,
+      color,
+      size,
+      life: 0.9,
+      maxLife: 0.9,
+    });
+  }
+
+  _spawnBurst(targetSide, typeId) {
+    const slot = SLOTS[targetSide];
+    const color = typeId ? TYPE_BY_ID.get(typeId).color : '#ffffff';
+    for (let i = 0; i < 16; i += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 60 + Math.random() * 150;
+      this.particles.push({
+        x: slot.x,
+        y: slot.y - 70,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 0.35 + Math.random() * 0.35,
+        maxLife: 0.7,
+        size: 3 + Math.random() * 4,
+        color,
+      });
+    }
+  }
+
+  /* ---------------------------------------------------------------- loop */
+
+  update(dt, input) {
+    this.time += dt;
+    this._updateEffects(dt);
+
+    if (this.phase !== 'battle') return;
+
+    if (this.queue.length > 0) {
+      if (input.justPressed || input.wasKeyPressed('Space', 'Enter')) {
+        this._skipPlayback();
+      } else {
+        this.eventTimer -= dt;
+        if (this.eventTimer <= 0) {
+          const event = this.queue.shift();
+          this._playEvent(event);
+          this.eventTimer = EVENT_DELAY[event.kind] ?? 0.5;
+          if (this.queue.length === 0) this.eventTimer = Math.max(this.eventTimer, 0.35);
+        }
+      }
+    } else if (this.eventTimer > 0) {
+      this.eventTimer -= dt;
+      if (this.eventTimer <= 0) this._afterPlayback();
+    }
+  }
+
+  _updateEffects(dt) {
+    for (const side of ['player', 'enemy']) {
+      const display = this.display[side];
+      const speed = Math.max(40, Math.abs(display.hpTarget - display.hpShown) * 4);
+      if (display.hpShown < display.hpTarget) display.hpShown = Math.min(display.hpTarget, display.hpShown + speed * dt);
+      else if (display.hpShown > display.hpTarget) display.hpShown = Math.max(display.hpTarget, display.hpShown - speed * dt);
+      display.flash = Math.max(0, display.flash - dt * 3.5);
+      display.shake = Math.max(0, display.shake - dt * 3.5);
+      display.lunge = Math.max(0, display.lunge - dt * 3.2);
+      display.hop = Math.max(0, display.hop - dt * 24);
+      display.entering = Math.max(0, display.entering - dt * 2.6);
+      display.alpha = display.alpha < 1 && this.battle && !this.battle.teams[side][this.battle.active[side]].fainted
+        ? Math.min(1, display.alpha + dt * 3)
+        : display.alpha;
+    }
+
+    for (const popup of this.popups) {
+      popup.life -= dt;
+      popup.y -= dt * 34;
+    }
+    this.popups = this.popups.filter((popup) => popup.life > 0);
+
+    for (const particle of this.particles) {
+      particle.life -= dt;
+      particle.x += particle.vx * dt;
+      particle.y += particle.vy * dt;
+      particle.vy += 260 * dt;
+    }
+    this.particles = this.particles.filter((particle) => particle.life > 0);
+
+    if (this.banner.life > 0) this.banner.life -= dt;
+  }
+
+  render(ctx) {
+    drawArena(ctx, this.time);
+    if (this.phase === 'select') {
+      this._renderSelectBackdrop(ctx);
+      return;
+    }
+
+    drawFighter(ctx, 'enemy', this.battle.activeOf('enemy'), this.display.enemy, this.time);
+    drawFighter(ctx, 'player', this.battle.activeOf('player'), this.display.player, this.time);
+    drawParticles(ctx, this.particles);
+    drawPanels(ctx, this.battle, this.display);
+    drawTurnBadge(ctx, Math.min(this.battle.turn, this.battle.turnLimit), this.battle.turnLimit);
+    drawPopups(ctx, this.popups);
+    drawBanner(ctx, this.banner.text, clamp(this.banner.life, 0, 1));
+  }
+
+  _renderSelectBackdrop(ctx) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(10, 12, 28, 0.55)';
+    ctx.fillRect(0, 0, this.context.width, this.context.height);
+    ctx.restore();
+  }
+
+  /* -------------------------------------------------------------- result */
+
+  _reportResult() {
+    if (this.finished) return;
+    this.finished = true;
+    const battle = this.battle;
+    const team = battle.teams.player;
+    const won = battle.winner === 'player';
+    const healthLeft = team.reduce((total, fighter) => total + fighter.hp / fighter.maxHp, 0);
+    const kos = team.reduce((total, fighter) => total + fighter.kos, 0);
+    const speedBonus = won ? Math.max(0, (20 - battle.turn) * 40) : 0;
+    const score = won
+      ? Math.round(1200 + healthLeft * 500 + speedBonus)
+      : Math.round(kos * 250 + healthLeft * 150);
+
+    const known = getCollection(GAME_ID);
+    const discovered = new Set(
+      addToCollection(GAME_ID, Object.fromEntries(team.map((fighter) => [fighter.character.id, 1])))
+    );
+
+    this.context.finish({
+      score,
+      title: won ? 'Victory!' : 'Defeated...',
+      detailTitle: won
+        ? `Won on turn ${battle.turn} with ${team.filter((f) => !f.fainted).length}/${TEAM_SIZE} standing`
+        : `Your team managed ${kos} knockout${kos === 1 ? '' : 's'}`,
+      collected: team.map((fighter) => ({
+        name: fighter.character.name,
+        color: fighter.character.color,
+        count: fighter.kos,
+        label: `${fighter.kos} KO${fighter.kos === 1 ? '' : 's'}`,
+        isNew: discovered.has(fighter.character.id) || !known[fighter.character.id],
+      })),
+    });
+  }
+
+  destroy() {
+    this.select?.destroy();
+    this.panel?.destroy();
+  }
+}
+
+function createCatchmon(context) {
+  return new CatchmonGame(context);
+}
+
+// ---- src/games/catchmon/index.js -----------------------------------
+registerGame({
+  id: GAME_ID,
+  name: 'Catchmon',
+  tagline: 'Three-on-three type battles with a roster of thirty final evolutions.',
+  description: 'Draft three Catchmon against the rival team, then out-think it in a turn-based battle.',
+  howTo: [
+    'Six types in a cycle: each one is <strong>strong against the next two</strong> and <strong>resisted by the previous two</strong>.',
+    'Pick <strong>three of the thirty</strong> fighters. The rival team is shown first, so counter it.',
+    'Each turn, choose a <strong>move</strong> or <strong>switch</strong>. Higher speed acts first; priority moves jump the queue.',
+    'Heavy moves need to <strong>recharge</strong>, and heals are <strong>limited</strong> - do not plan on stalling.',
+    'Win by knocking out all three rivals. Faster, healthier wins score more.',
+  ],
+  create: createCatchmon,
+});
+
+// ---- src/main.js ---------------------------------------------------
+// Placeholders so the menu shows where the collection is heading.
+registerGame({
+  id: 'stackomat',
+  name: 'Stack-o-Mat',
+  tagline: 'Time your drops and build the tallest tower.',
+  status: 'coming-soon',
+  create: () => {
+    throw new Error('Not implemented yet');
+  },
+});
+
+const shell = new Shell();
+shell.showMenu();
+
+// Handy while developing in the browser console.
+window.minigameMania = shell;
+
+</script>
+</body>
+</html>
