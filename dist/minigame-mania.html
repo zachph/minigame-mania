@@ -790,6 +790,81 @@ canvas {
   .np-log { display: none; }
 }
 
+/* --- Shubat --- */
+
+.sb-setup {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1em;
+  background: rgba(8, 20, 16, 0.9);
+  overflow: auto;
+}
+
+.sb-setup-card {
+  width: min(34em, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  padding: 1.2em 1.4em;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius);
+  background: #16302a;
+  box-shadow: var(--shadow);
+}
+
+.sb-setup-card h2 { margin: 0; font-size: 1.9em; letter-spacing: 0.02em; }
+.sb-lede { margin: 0; color: #a9c6b8; }
+
+.sb-herds { display: flex; gap: 0.5em; flex-wrap: wrap; }
+
+.sb-herd {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.25em 0.7em 0.25em 0.25em;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 0.9em;
+}
+
+.sb-suit { display: block; }
+
+.sb-rules {
+  margin: 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: 0.3em;
+  color: #d5e6dc;
+  font-size: 0.92em;
+}
+
+.sb-rules strong { color: var(--accent); }
+
+.sb-choice { display: flex; align-items: center; justify-content: space-between; gap: 0.7em; }
+.sb-choice-label { color: #a9c6b8; font-size: 0.9em; }
+.sb-choice-options { display: flex; gap: 0.35em; }
+
+.sb-option {
+  padding: 0.35em 0.9em;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: #cfe3d8;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sb-option.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1400;
+  font-weight: 700;
+}
+
+.sb-start { align-self: stretch; }
+
 /* ---------- Footer ---------- */
 
 .footer {
@@ -5183,6 +5258,1164 @@ registerGame({
     'Win by <strong>capturing every enemy piece</strong>. If 25 turns pass with no capture, the bigger army takes it.',
   ],
   create: createNopoly,
+});
+
+  return {  };
+})();
+
+// ---- src/games/shubat/cards.js -----------------------------------
+__modules["src/games/shubat/cards.js"] = (function () {
+/**
+ * The Shubat deck: four herds of eight, thirty-two cards.
+ *
+ * A card's rank is also its point value, so the strong cards are the ones worth
+ * taking - an eight wins the trick and is worth eight when you collect it.
+ */
+
+const SUITS = [
+  { id: 'camel', name: 'Camels', color: '#e8b45c', dark: '#8a5b12', glyph: 'camel' },
+  { id: 'horse', name: 'Horses', color: '#e2694a', dark: '#8f2f16', glyph: 'horse' },
+  { id: 'falcon', name: 'Falcons', color: '#63a8e8', dark: '#15517f', glyph: 'falcon' },
+  { id: 'yurt', name: 'Yurts', color: '#6fc48a', dark: '#1f7040', glyph: 'yurt' },
+];
+
+const SUIT_BY_ID = new Map(SUITS.map((suit) => [suit.id, suit]));
+const RANKS = [1, 2, 3, 4, 5, 6, 7, 8];
+const DECK_SIZE = SUITS.length * RANKS.length;
+const TOTAL_POINTS = SUITS.length * RANKS.reduce((sum, rank) => sum + rank, 0);
+
+const cardId = (suit, rank) => `${suit}-${rank}`;
+const cardName = (card) => `${card.rank} of ${SUIT_BY_ID.get(card.suit).name}`;
+
+function createDeck() {
+  const deck = [];
+  for (const suit of SUITS) {
+    for (const rank of RANKS) deck.push({ id: cardId(suit.id, rank), suit: suit.id, rank, points: rank });
+  }
+  return deck;
+}
+
+/** Fisher-Yates with an injectable source, so a deal can be replayed exactly. */
+function shuffle(cards, random = Math.random) {
+  const deck = cards.slice();
+  for (let i = deck.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+
+/**
+ * Who takes the trick. The follower only wins by beating the led card in its
+ * own suit, or by trumping a plain-suit lead.
+ */
+function trickWinner(led, followed, trumpSuit) {
+  if (followed.suit === led.suit) return followed.rank > led.rank ? 'follower' : 'leader';
+  if (followed.suit === trumpSuit) return 'follower';
+  return 'leader';
+}
+
+const trickValue = (...cards) => cards.reduce((total, card) => total + (card?.points ?? 0), 0);
+
+  return { SUITS, SUIT_BY_ID, RANKS, DECK_SIZE, TOTAL_POINTS, cardId, cardName, createDeck, shuffle, trickWinner, trickValue };
+})();
+
+// ---- src/games/shubat/rules.js -----------------------------------
+__modules["src/games/shubat/rules.js"] = (function () {
+  const { DECK_SIZE, SUIT_BY_ID, TOTAL_POINTS, createDeck, shuffle, trickWinner, trickValue } = __modules["src/games/shubat/cards.js"];
+
+/**
+ * Shubat rules. Pure logic - no canvas, no DOM; every shuffle comes from the
+ * injected random source so a match can be replayed.
+ *
+ * A deal is thirty-two cards. Both players hold five; one card is turned up to
+ * set the trump herd and sits at the bottom of the stock as the last card
+ * anyone will draw. Winner of a trick leads the next and draws first.
+ *
+ * Leading the first trick is worth about six points over a deal, so a match is
+ * two deals - each side leads one - and the totals decide it.
+ *
+ * While the stock lasts you may play anything - that is what keeps it quick.
+ * Once the stock is empty you must follow the led suit if you can, which is
+ * what makes the last five tricks a real endgame.
+ */
+
+const HAND_SIZE = 5;
+const PLAYERS = ['you', 'rival'];
+const opponentOf = (player) => (player === 'you' ? 'rival' : 'you');
+
+const DEALS_PER_MATCH = 2;
+
+function createDeal({ random = Math.random, leader = 'you' } = {}) {
+  const deck = shuffle(createDeck(), random);
+  const hands = {
+    you: deck.slice(0, HAND_SIZE),
+    rival: deck.slice(HAND_SIZE, HAND_SIZE * 2),
+  };
+  const rest = deck.slice(HAND_SIZE * 2);
+  const trumpCard = rest[rest.length - 1]; // the last card anyone draws
+
+  return {
+    hands,
+    stock: rest,                  // drawn from the front; the trump card is last
+    trumpCard,
+    trumpSuit: trumpCard.suit,
+    leader,
+    turn: leader,
+    table: { you: null, rival: null },
+    pendingTrick: null,           // a completed trick waiting to be swept up
+    won: { you: [], rival: [] },  // cards each player has collected
+    tricks: [],
+    trickNumber: 1,
+    over: false,
+    winner: null,
+    reason: null,
+  };
+}
+
+const scoreOf = (state, player) => state.won[player].reduce((total, card) => total + card.points, 0);
+const stockLeft = (state) => state.stock.length;
+const mustFollowSuit = (state) => state.stock.length === 0;
+
+/** The cards `player` may legally play right now. */
+function legalPlays(state, player) {
+  if (state.over || state.pendingTrick || state.turn !== player) return [];
+  const hand = state.hands[player];
+  const led = state.table[state.leader];
+  if (!led || player === state.leader) return hand.slice();
+  if (!mustFollowSuit(state)) return hand.slice();
+  const following = hand.filter((card) => card.suit === led.suit);
+  return following.length > 0 ? following : hand.slice();
+}
+
+function isLegalPlay(state, player, cardId) {
+  return legalPlays(state, player).some((card) => card.id === cardId);
+}
+
+/**
+ * Plays one card. When it completes a trick the trick is resolved, both players
+ * draw, and the lead passes to the winner.
+ */
+function playCard(state, player, cardId) {
+  if (state.over) throw new Error('The match is over');
+  if (state.pendingTrick) throw new Error('The trick on the table has not been settled');
+  if (state.turn !== player) throw new Error(`It is ${state.turn}'s turn`);
+  if (!isLegalPlay(state, player, cardId)) throw new Error(`${player} cannot play ${cardId}`);
+
+  const hand = state.hands[player];
+  const card = hand.find((entry) => entry.id === cardId);
+  const next = {
+    ...state,
+    hands: { ...state.hands, [player]: hand.filter((entry) => entry.id !== cardId) },
+    table: { ...state.table, [player]: card },
+  };
+
+  if (player === state.leader) {
+    next.turn = opponentOf(state.leader);
+    return next;
+  }
+
+  // Both cards are down. Work out who took it, but leave the cards on the table
+  // and nobody to move until the trick is settled.
+  const leader = state.leader;
+  const follower = player;
+  const led = next.table[leader];
+  const followed = next.table[follower];
+  const winner = trickWinner(led, followed, state.trumpSuit) === 'leader' ? leader : follower;
+  next.turn = null;
+  next.pendingTrick = {
+    number: state.trickNumber,
+    leader,
+    winner,
+    value: trickValue(led, followed),
+    cards: { [leader]: led, [follower]: followed },
+  };
+  return next;
+}
+
+/** Sweeps a completed trick to its winner, draws for both, and passes the lead. */
+function settleTrick(state) {
+  const trick = state.pendingTrick;
+  if (!trick) return state;
+  const winner = trick.winner;
+  const loser = opponentOf(winner);
+  const led = trick.cards[trick.leader];
+  const followed = trick.cards[opponentOf(trick.leader)];
+
+  // The winner draws first, so the last card of the stock - the trump - goes to
+  // whoever lost the final draw.
+  const stock = state.stock.slice();
+  const hands = { ...state.hands };
+  for (const player of [winner, loser]) {
+    if (stock.length === 0) break;
+    hands[player] = [...hands[player], stock.shift()];
+  }
+
+  const next = {
+    ...state,
+    hands,
+    stock,
+    won: { ...state.won, [winner]: [...state.won[winner], led, followed] },
+    table: { you: null, rival: null },
+    pendingTrick: null,
+    tricks: [...state.tricks, trick],
+    trickNumber: state.trickNumber + 1,
+    leader: winner,
+    turn: winner,
+  };
+
+  if (next.hands.you.length === 0 && next.hands.rival.length === 0) return finish(next);
+  return next;
+}
+
+/** Play a card and sweep the trick if it completed one - for search and tests. */
+function playAndSettle(state, player, cardId) {
+  const next = playCard(state, player, cardId);
+  return next.pendingTrick ? settleTrick(next) : next;
+}
+
+function finish(state) {
+  const you = scoreOf(state, 'you');
+  const rival = scoreOf(state, 'rival');
+  return {
+    ...state,
+    over: true,
+    winner: you === rival ? null : you > rival ? 'you' : 'rival',
+    reason: you === rival ? `dead level at ${you} each` : `${Math.max(you, rival)} to ${Math.min(you, rival)}`,
+  };
+}
+
+/** Cards nobody can hold any more: played, collected, or the face-up trump. */
+function seenCards(state, viewer) {
+  const seen = new Set();
+  for (const trick of state.tricks) {
+    for (const card of Object.values(trick.cards)) seen.add(card.id);
+  }
+  for (const card of Object.values(state.table)) if (card) seen.add(card.id);
+  if (state.pendingTrick) for (const card of Object.values(state.pendingTrick.cards)) seen.add(card.id);
+  for (const card of state.hands[viewer]) seen.add(card.id);
+  if (state.stock.length > 0) seen.add(state.trumpCard.id);
+  return seen;
+}
+
+/** Cards that could still be in the opponent's hand or the stock. */
+function unseenCards(state, viewer) {
+  const seen = seenCards(state, viewer);
+  return createDeck().filter((card) => !seen.has(card.id));
+}
+
+function describeTrick(trick) {
+  const cards = Object.entries(trick.cards)
+    .map(([player, card]) => `${player === 'you' ? 'You' : 'Rival'} ${card.rank}${SUIT_BY_ID.get(card.suit).name[0]}`)
+    .join(' v ');
+  return `${cards} - ${trick.winner === 'you' ? 'you take' : 'rival takes'} ${trick.value}`;
+}
+
+  return { HAND_SIZE, PLAYERS, opponentOf, DEALS_PER_MATCH, createDeal, scoreOf, stockLeft, mustFollowSuit, legalPlays, isLegalPlay, playCard, settleTrick, playAndSettle, seenCards, unseenCards, describeTrick, DECK_SIZE, TOTAL_POINTS };
+})();
+
+// ---- src/games/shubat/ai.js --------------------------------------
+__modules["src/games/shubat/ai.js"] = (function () {
+  const { SUIT_BY_ID, trickWinner } = __modules["src/games/shubat/cards.js"];
+  const { HAND_SIZE, legalPlays, mustFollowSuit, opponentOf, playAndSettle, scoreOf, unseenCards } = __modules["src/games/shubat/rules.js"];
+
+/**
+ * The rival. It never looks at your hand while cards are hidden: it plays off
+ * its own hand plus what everyone has seen.
+ *
+ * Once the stock is empty, though, every remaining card is public by counting -
+ * whatever is unseen is in your hand - so at that point Hard switches to a full
+ * search of the last few tricks. That is deduction, not peeking.
+ */
+const DIFFICULTIES = {
+  easy: { id: 'easy', name: 'Easy', counts: false, solves: false, sloppiness: 0.45, blurb: 'Plays by feel, and often the wrong card.' },
+  normal: { id: 'normal', name: 'Normal', counts: false, solves: false, sloppiness: 0.12, blurb: 'Wins tricks worth winning, dumps the rest.' },
+  hard: { id: 'hard', name: 'Hard', counts: true, solves: true, sloppiness: 0, blurb: 'Counts the cards and plays the endgame out exactly.' },
+};
+
+const VALUABLE_TRICK = 5; // a led card worth this much is worth fighting for
+
+const lowest = (cards) => cards.reduce((best, card) => (card.points < best.points ? card : best), cards[0]);
+const highest = (cards) => cards.reduce((best, card) => (card.points > best.points ? card : best), cards[0]);
+
+/** Cards of `suit` that could still be against us, from what we have seen. */
+function outstanding(state, player, suit) {
+  return unseenCards(state, player).filter((card) => card.suit === suit);
+}
+
+function beats(candidate, led, trumpSuit) {
+  return trickWinner(led, candidate, trumpSuit) === 'follower';
+}
+
+/* ------------------------------------------------------------- heuristics */
+
+function chooseLead(state, player, level) {
+  const hand = state.hands[player];
+  const trump = state.trumpSuit;
+  const plain = hand.filter((card) => card.suit !== trump);
+  const trumps = hand.filter((card) => card.suit === trump);
+
+  // Cash a high plain card only once nothing can trump it. A card no rank can
+  // beat is still worth nothing if the other side is void in the suit and
+  // holding a trump - which is exactly how leading "winners" loses points.
+  if (level.counts && outstanding(state, player, trump).length === 0) {
+    const winners = plain.filter((card) => {
+      const higher = outstanding(state, player, card.suit).filter((other) => other.rank > card.rank);
+      return higher.length === 0 && card.points >= 4;
+    });
+    if (winners.length > 0) return highest(winners);
+  }
+
+  // Trumps are for taking other people's points, not for leading.
+  if (plain.length > 0) return lowest(plain);
+  return lowest(trumps);
+}
+
+function chooseFollow(state, player, level) {
+  const options = legalPlays(state, player);
+  const led = state.table[state.leader];
+  const trump = state.trumpSuit;
+  const pot = led.points;
+
+  const winners = options.filter((card) => beats(card, led, trump));
+  const losers = options.filter((card) => !beats(card, led, trump));
+
+  if (winners.length > 0) {
+    const cheapest = lowest(winners);
+    const worthIt = pot >= VALUABLE_TRICK || cheapest.points <= 2 || losers.length === 0;
+    // Do not burn a valuable trump on a cheap trick when a discard is available.
+    const overpaying = cheapest.suit === trump && led.suit !== trump
+      && cheapest.points >= VALUABLE_TRICK && pot < VALUABLE_TRICK;
+    if (worthIt && !(overpaying && losers.length > 0)) return cheapest;
+  }
+  return lowest(losers.length > 0 ? losers : options);
+}
+
+/* ----------------------------------------------------------- endgame solve */
+
+/**
+ * With the stock gone, both hands are known by counting, so the last tricks can
+ * be played out exactly. Returns the best card for `player` by final points.
+ */
+function solveEndgame(state, player) {
+  const best = search(state, player, -Infinity, Infinity);
+  return best.card;
+}
+
+function search(state, player, alpha, beta) {
+  if (state.over) return { score: scoreOf(state, player), card: null };
+  const mover = state.turn;
+  const options = legalPlays(state, mover);
+  if (options.length === 0) return { score: scoreOf(state, player), card: null };
+
+  const maximizing = mover === player;
+  let bestScore = maximizing ? -Infinity : Infinity;
+  let bestCard = options[0];
+
+  for (const card of options) {
+    const { score } = search(playAndSettle(state, mover, card.id), player, alpha, beta);
+    if (maximizing ? score > bestScore : score < bestScore) {
+      bestScore = score;
+      bestCard = card;
+    }
+    if (maximizing) alpha = Math.max(alpha, bestScore);
+    else beta = Math.min(beta, bestScore);
+    if (beta <= alpha) break;
+  }
+  return { score: bestScore, card: bestCard };
+}
+
+/* --------------------------------------------------------------- entry point */
+
+function chooseCard(state, player = 'rival', difficulty = 'normal', random = Math.random) {
+  const level = DIFFICULTIES[difficulty] || DIFFICULTIES.normal;
+  const options = legalPlays(state, player);
+  if (options.length === 0) return null;
+  if (options.length === 1) return options[0];
+
+  if (level.sloppiness > 0 && random() < level.sloppiness) {
+    return options[Math.floor(random() * options.length)];
+  }
+
+  // Everything left is public once the stock is empty: play it out exactly.
+  if (level.solves && mustFollowSuit(state) && state.hands[opponentOf(player)].length <= HAND_SIZE) {
+    return solveEndgame(state, player);
+  }
+
+  return player === state.leader ? chooseLead(state, player, level) : chooseFollow(state, player, level);
+}
+
+  return { DIFFICULTIES, chooseCard, SUIT_BY_ID };
+})();
+
+// ---- src/games/shubat/render.js ----------------------------------
+__modules["src/games/shubat/render.js"] = (function () {
+  const { TAU, clamp, roundedRect } = __modules["src/core/utils.js"];
+  const { SUIT_BY_ID } = __modules["src/games/shubat/cards.js"];
+
+/**
+ * The Shubat table: a felt mat, two hands, the trick in the middle and the
+ * stock with the trump card showing under it. Cards are drawn from code.
+ */
+
+const CARD = { w: 74, h: 104, radius: 10 };
+
+const LAYOUT = {
+  hand: { x: 480, y: 452, spread: 84, lift: 18 },
+  rival: { x: 480, y: 92, spread: 52, scale: 0.72 },
+  trick: { you: { x: 520, y: 300 }, rival: { x: 440, y: 236 } },
+  stock: { x: 118, y: 268 },
+  discard: { x: 852, y: 268 },
+};
+
+const FELT_TOP = '#1d3b34';
+const FELT_BOTTOM = '#12261f';
+
+function drawTable(ctx, width, height, time) {
+  const felt = ctx.createLinearGradient(0, 0, 0, height);
+  felt.addColorStop(0, FELT_TOP);
+  felt.addColorStop(1, FELT_BOTTOM);
+  ctx.fillStyle = felt;
+  ctx.fillRect(0, 0, width, height);
+
+  // A woven band across the middle, so the mat reads as cloth rather than void.
+  ctx.save();
+  ctx.globalAlpha = 0.07;
+  ctx.strokeStyle = '#a8e6c8';
+  ctx.lineWidth = 2;
+  for (let i = -6; i < 26; i += 1) {
+    const offset = i * 46 + Math.sin(time * 0.25 + i) * 3;
+    ctx.beginPath();
+    ctx.moveTo(offset, 0);
+    ctx.lineTo(offset + 180, height);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.strokeStyle = '#0b1a15';
+  ctx.lineWidth = 3;
+  roundedRect(ctx, 24, 24, width - 48, height - 48, 18);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* ------------------------------------------------------------------ cards */
+
+function drawCard(ctx, card, x, y, options = {}) {
+  const { scale = 1, rotation = 0, faceUp = true, glow = 0, dim = false, alpha = 1 } = options;
+  const w = CARD.w * scale;
+  const h = CARD.h * scale;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+
+  ctx.fillStyle = 'rgba(6, 14, 12, 0.4)';
+  roundedRect(ctx, -w / 2 + 2, -h / 2 + 5, w, h, CARD.radius * scale);
+  ctx.fill();
+
+  if (!faceUp) {
+    drawCardBack(ctx, w, h, scale);
+    ctx.restore();
+    return;
+  }
+
+  const suit = SUIT_BY_ID.get(card.suit);
+  ctx.fillStyle = dim ? '#c9c6bd' : '#f7f3e8';
+  roundedRect(ctx, -w / 2, -h / 2, w, h, CARD.radius * scale);
+  ctx.fill();
+  ctx.strokeStyle = glow > 0 ? '#ffd166' : 'rgba(20, 26, 24, 0.55)';
+  ctx.lineWidth = (glow > 0 ? 3 : 1.5) * scale;
+  ctx.stroke();
+
+  // Suit band down the left edge
+  ctx.save();
+  ctx.beginPath();
+  roundedRect(ctx, -w / 2, -h / 2, w, h, CARD.radius * scale);
+  ctx.clip();
+  ctx.fillStyle = suit.color;
+  ctx.fillRect(-w / 2, -h / 2, 7 * scale, h);
+  ctx.restore();
+
+  ctx.fillStyle = dim ? '#7b7568' : suit.dark;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = `700 ${Math.round(22 * scale)}px "Trebuchet MS", system-ui, sans-serif`;
+  ctx.fillText(String(card.rank), -w / 2 + 13 * scale, -h / 2 + 8 * scale);
+
+  drawSuitGlyph(ctx, suit, 4 * scale, 6 * scale, 22 * scale, dim);
+
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'bottom';
+  ctx.font = `700 ${Math.round(14 * scale)}px "Trebuchet MS", system-ui, sans-serif`;
+  ctx.fillStyle = dim ? '#8b8577' : suit.dark;
+  ctx.fillText(`${card.rank} pts`, w / 2 - 8 * scale, h / 2 - 7 * scale);
+
+  if (glow > 0) {
+    ctx.strokeStyle = `rgba(255, 209, 102, ${glow})`;
+    ctx.lineWidth = 4 * scale;
+    roundedRect(ctx, -w / 2 - 3, -h / 2 - 3, w + 6, h + 6, (CARD.radius + 3) * scale);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawCardBack(ctx, w, h, scale) {
+  ctx.fillStyle = '#3b2f5c';
+  roundedRect(ctx, -w / 2, -h / 2, w, h, CARD.radius * scale);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+  ctx.lineWidth = 1.5 * scale;
+  ctx.stroke();
+
+  ctx.save();
+  ctx.beginPath();
+  roundedRect(ctx, -w / 2 + 5 * scale, -h / 2 + 5 * scale, w - 10 * scale, h - 10 * scale, 7 * scale);
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(180, 160, 235, 0.55)';
+  ctx.lineWidth = 1.5 * scale;
+  for (let i = -4; i < 8; i += 1) {
+    ctx.beginPath();
+    ctx.moveTo(-w / 2 + i * 14 * scale, -h / 2);
+    ctx.lineTo(-w / 2 + i * 14 * scale + h, h / 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.fillStyle = 'rgba(255, 233, 168, 0.9)';
+  ctx.beginPath();
+  ctx.arc(0, 0, 9 * scale, 0, TAU);
+  ctx.fill();
+}
+
+/** Each herd gets a silhouette: a camel, a horse, a falcon, a yurt. */
+function drawSuitGlyph(ctx, suit, x, y, size, dim = false) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(size / 24, size / 24);
+  ctx.fillStyle = dim ? '#9a9488' : suit.color;
+  ctx.strokeStyle = dim ? '#6f6a5f' : suit.dark;
+  ctx.lineWidth = 1.6;
+  ctx.lineJoin = 'round';
+
+  switch (suit.glyph) {
+    case 'camel':
+      ctx.beginPath();
+      ctx.moveTo(-10, 8);
+      ctx.lineTo(-8, 0);
+      ctx.quadraticCurveTo(-6, -7, -2, -1);
+      ctx.quadraticCurveTo(2, -8, 6, -1);
+      ctx.lineTo(8, 2);
+      ctx.quadraticCurveTo(11, 2, 10, -4);
+      ctx.lineTo(12, -6);
+      ctx.lineTo(11, 2);
+      ctx.lineTo(9, 8);
+      ctx.lineTo(6, 3);
+      ctx.lineTo(-4, 3);
+      ctx.lineTo(-6, 8);
+      ctx.closePath();
+      break;
+    case 'horse':
+      ctx.beginPath();
+      ctx.moveTo(-9, 9);
+      ctx.lineTo(-6, -1);
+      ctx.quadraticCurveTo(-4, -8, 3, -9);
+      ctx.lineTo(6, -12);
+      ctx.lineTo(8, -8);
+      ctx.quadraticCurveTo(11, -4, 7, 1);
+      ctx.lineTo(8, 9);
+      ctx.lineTo(4, 9);
+      ctx.lineTo(2, 2);
+      ctx.lineTo(-3, 2);
+      ctx.lineTo(-5, 9);
+      ctx.closePath();
+      break;
+    case 'falcon':
+      ctx.beginPath();
+      ctx.moveTo(0, -9);
+      ctx.quadraticCurveTo(9, -6, 12, 3);
+      ctx.quadraticCurveTo(5, 0, 2, 8);
+      ctx.lineTo(0, 3);
+      ctx.lineTo(-2, 8);
+      ctx.quadraticCurveTo(-5, 0, -12, 3);
+      ctx.quadraticCurveTo(-9, -6, 0, -9);
+      ctx.closePath();
+      break;
+    default: // yurt
+      ctx.beginPath();
+      ctx.moveTo(-11, 9);
+      ctx.lineTo(-9, -1);
+      ctx.quadraticCurveTo(0, -11, 9, -1);
+      ctx.lineTo(11, 9);
+      ctx.closePath();
+      break;
+  }
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* -------------------------------------------------------------------- hud */
+
+function handPositions(count, layout = LAYOUT.hand) {
+  const positions = [];
+  const spread = Math.min(layout.spread, 420 / Math.max(1, count));
+  const start = -((count - 1) * spread) / 2;
+  for (let i = 0; i < count; i += 1) {
+    const offset = start + i * spread;
+    positions.push({
+      x: layout.x + offset,
+      y: layout.y + Math.abs(offset) * 0.035,
+      rotation: offset * 0.0016,
+    });
+  }
+  return positions;
+}
+
+/** Which hand card is under a point, topmost first. */
+function cardAt(x, y, positions, scale = 1) {
+  for (let i = positions.length - 1; i >= 0; i -= 1) {
+    const spot = positions[i];
+    if (
+      x >= spot.x - (CARD.w * scale) / 2 && x <= spot.x + (CARD.w * scale) / 2 &&
+      y >= spot.y - (CARD.h * scale) / 2 && y <= spot.y + (CARD.h * scale) / 2
+    ) return i;
+  }
+  return -1;
+}
+
+function drawStock(ctx, state, time) {
+  const { x, y } = LAYOUT.stock;
+  if (state.stock.length > 0) {
+    drawCard(ctx, state.trumpCard, x + 26, y + 30, { rotation: Math.PI / 2, scale: 0.82 });
+    for (let i = Math.min(4, state.stock.length - 1); i >= 0; i -= 1) {
+      drawCard(ctx, null, x - i * 1.5, y - i * 2, { faceUp: false, scale: 0.82 });
+    }
+  }
+
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = '600 13px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(226, 240, 232, 0.75)';
+  ctx.fillText(
+    state.stock.length > 0 ? `${state.stock.length} in the stock` : 'Stock empty - follow suit',
+    x + 10,
+    y + 78
+  );
+  ctx.restore();
+  void time;
+}
+
+function drawHud(ctx, width, hud) {
+  const suit = SUIT_BY_ID.get(hud.trumpSuit);
+  ctx.save();
+  ctx.fillStyle = 'rgba(8, 20, 16, 0.72)';
+  roundedRect(ctx, 24, 24, 268, 74, 12);
+  ctx.fill();
+
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.font = '700 13px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(226, 240, 232, 0.7)';
+  ctx.fillText(`DEAL ${hud.dealNumber} OF ${hud.dealCount}`, 40, 43);
+
+  ctx.font = '700 26px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = '#ffe07a';
+  ctx.fillText(`${hud.you}`, 40, 74);
+  ctx.font = '600 14px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(226, 240, 232, 0.75)';
+  ctx.fillText('you', 40 + ctx.measureText(`${hud.you}`).width + 26, 76);
+
+  ctx.textAlign = 'right';
+  ctx.font = '700 26px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = '#f2f6ff';
+  ctx.fillText(`${hud.rival}`, 276, 74);
+  ctx.font = '600 14px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(226, 240, 232, 0.75)';
+  ctx.fillText('rival', 276 - ctx.measureText(`${hud.rival}`).width - 26, 76);
+
+  // Trump herd chip
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(8, 20, 16, 0.72)';
+  roundedRect(ctx, width - 236, 24, 212, 44, 12);
+  ctx.fill();
+  drawSuitGlyph(ctx, suit, width - 210, 46, 26);
+  ctx.fillStyle = '#f2f6ff';
+  ctx.font = '700 16px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`${suit.name} are trumps`, width - 188, 47);
+  ctx.restore();
+}
+
+/** Sits under the score panel, clear of the cards flying through the middle. */
+function drawMessage(ctx, width, text, tone = 'plain') {
+  if (!text) return;
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.font = '600 16px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = tone === 'good' ? '#8ef0b4' : tone === 'bad' ? '#ffb3b3' : 'rgba(232, 244, 236, 0.88)';
+  ctx.fillText(text, 26, 122);
+  ctx.restore();
+  void width;
+}
+
+function drawBanner(ctx, width, text, subtext, alpha) {
+  if (!text || alpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = clamp(alpha, 0, 1);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 42px "Trebuchet MS", system-ui, sans-serif';
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = 'rgba(6, 16, 12, 0.85)';
+  ctx.strokeText(text, width / 2, 196);
+  ctx.fillStyle = '#ffe07a';
+  ctx.fillText(text, width / 2, 196);
+  if (subtext) {
+    ctx.font = '600 18px "Trebuchet MS", system-ui, sans-serif';
+    ctx.lineWidth = 5;
+    ctx.strokeText(subtext, width / 2, 234);
+    ctx.fillStyle = '#eaf3ee';
+    ctx.fillText(subtext, width / 2, 234);
+  }
+  ctx.restore();
+}
+
+  return { CARD, LAYOUT, drawTable, drawCard, drawSuitGlyph, handPositions, cardAt, drawStock, drawHud, drawMessage, drawBanner };
+})();
+
+// ---- src/games/shubat/ui.js --------------------------------------
+__modules["src/games/shubat/ui.js"] = (function () {
+  const { SUITS } = __modules["src/games/shubat/cards.js"];
+  const { DIFFICULTIES } = __modules["src/games/shubat/ai.js"];
+  const { drawSuitGlyph } = __modules["src/games/shubat/render.js"];
+
+/** The pre-match panel. Everything in a match itself is drawn on the table. */
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
+function suitChip(suit) {
+  const canvas = el('canvas', 'sb-suit');
+  const scale = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = 34 * scale;
+  canvas.height = 34 * scale;
+  canvas.style.width = '34px';
+  canvas.style.height = '34px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  drawSuitGlyph(ctx, suit, 17, 17, 26);
+  canvas.title = suit.name;
+  return canvas;
+}
+
+class SetupPanel {
+  constructor(container, { onStart }) {
+    this.difficulty = 'normal';
+    this.root = el('div', 'sb-setup');
+    container.append(this.root);
+
+    const card = el('div', 'sb-setup-card');
+    card.append(el('h2', null, 'Shubat'));
+    card.append(el('p', 'sb-lede', 'A duel over thirty-two cards. Take the tricks worth taking.'));
+
+    const herds = el('div', 'sb-herds');
+    for (const suit of SUITS) {
+      const chip = el('div', 'sb-herd');
+      chip.append(suitChip(suit), el('span', null, suit.name));
+      herds.append(chip);
+    }
+    card.append(herds);
+
+    const rules = el('ul', 'sb-rules');
+    for (const line of [
+      'Four herds of eight. <strong>A card’s number is both its strength and its worth</strong> — an eight wins the trick and scores eight.',
+      'One card is turned up to set the <strong>trump herd</strong>. Trumps beat any other herd.',
+      'Play any card you like while the stock lasts; the higher card of the led herd takes the trick, and a trump takes it outright.',
+      'Winner of a trick leads the next and draws first. <strong>Once the stock runs out you must follow the led herd</strong> if you can.',
+      '<strong>Two deals a match</strong> — you lead one, the rival leads the other, because leading first is worth about six points. Most points over both wins.',
+    ]) {
+      const item = el('li');
+      item.innerHTML = line;
+      rules.append(item);
+    }
+    card.append(rules);
+
+    const choice = el('div', 'sb-choice');
+    choice.append(el('span', 'sb-choice-label', 'Rival'));
+    const options = el('div', 'sb-choice-options');
+    const buttons = [];
+    for (const level of Object.values(DIFFICULTIES)) {
+      const button = el('button', 'sb-option', level.name);
+      button.type = 'button';
+      button.title = level.blurb;
+      button.classList.toggle('is-active', level.id === this.difficulty);
+      button.addEventListener('click', () => {
+        this.difficulty = level.id;
+        for (const other of buttons) other.classList.toggle('is-active', other.textContent === level.name);
+      });
+      buttons.push(button);
+      options.append(button);
+    }
+    choice.append(options);
+    card.append(choice);
+
+    const start = el('button', 'btn btn--primary sb-start', 'Deal');
+    start.type = 'button';
+    start.addEventListener('click', () => onStart({ difficulty: this.difficulty }));
+    card.append(start);
+
+    this.root.append(card);
+  }
+
+  destroy() {
+    this.root.remove();
+  }
+}
+
+  return { SetupPanel };
+})();
+
+// ---- src/games/shubat/game.js ------------------------------------
+__modules["src/games/shubat/game.js"] = (function () {
+  const { clamp } = __modules["src/core/utils.js"];
+  const { SUIT_BY_ID, TOTAL_POINTS, cardName } = __modules["src/games/shubat/cards.js"];
+  const { DEALS_PER_MATCH, createDeal, describeTrick, legalPlays, mustFollowSuit, playCard, scoreOf, settleTrick } = __modules["src/games/shubat/rules.js"];
+  const { chooseCard } = __modules["src/games/shubat/ai.js"];
+  const { SetupPanel } = __modules["src/games/shubat/ui.js"];
+  const { CARD, LAYOUT, cardAt, drawBanner, drawCard, drawHud, drawMessage, drawStock, drawTable, handPositions } = __modules["src/games/shubat/render.js"];
+
+const GAME_ID = 'shubat';
+
+const RIVAL_THINK = 0.65;   // pause before the rival plays, so a turn reads
+const TRICK_HOLD = 1.15;    // how long both cards sit on the table
+const DEAL_HOLD = 2.6;      // the pause between deals
+const FLIGHT = 0.32;        // seconds a card takes to reach the table
+
+class ShubatGame {
+  constructor(context) {
+    this.context = context;
+    this.time = 0;
+    this.phase = 'setup';
+    this.difficulty = 'normal';
+
+    this.state = null;
+    this.dealNumber = 1;
+    this.totals = { you: 0, rival: 0 };
+    this.dealScores = [];
+
+    this.selected = 0;
+    this.flights = [];
+    this.timer = 0;
+    this.pending = null;      // what happens when the timer runs out
+    this.message = { text: '', tone: 'plain' };
+    this.banner = { text: '', subtext: '', life: 0 };
+    this.finished = false;
+
+    this.setup = new SetupPanel(context.ui, { onStart: ({ difficulty }) => this._start(difficulty) });
+  }
+
+  _start(difficulty) {
+    this.setup.destroy();
+    this.setup = null;
+    this.difficulty = difficulty;
+    this.phase = 'play';
+    this._deal(1);
+  }
+
+  _deal(number) {
+    this.dealNumber = number;
+    // You lead the first deal, the rival leads the second.
+    this.state = createDeal({ leader: number === 1 ? 'you' : 'rival' });
+    this.selected = 0;
+    this.flights = [];
+    this.banner = {
+      text: `Deal ${number}`,
+      subtext: `${SUIT_BY_ID.get(this.state.trumpSuit).name} are trumps - ${
+        this.state.leader === 'you' ? 'you lead' : 'the rival leads'
+      }`,
+      life: 2.2,
+    };
+    this._setMessage();
+    if (this.state.turn === 'rival') this._scheduleRival();
+  }
+
+  /* --------------------------------------------------------------- flow */
+
+  _setMessage() {
+    const state = this.state;
+    if (!state || state.over) return;
+    if (state.turn === 'rival') {
+      this.message = { text: 'The rival is choosing...', tone: 'plain' };
+      return;
+    }
+    const following = state.table[state.leader] && state.leader !== 'you';
+    if (following && mustFollowSuit(state)) {
+      const led = SUIT_BY_ID.get(state.table[state.leader].suit).name;
+      this.message = { text: `Stock is empty - follow ${led} if you can.`, tone: 'plain' };
+    } else if (following) {
+      this.message = { text: 'Beat it, trump it, or throw a low card away.', tone: 'plain' };
+    } else {
+      this.message = { text: 'Your lead.', tone: 'plain' };
+    }
+  }
+
+  _scheduleRival() {
+    this.timer = RIVAL_THINK;
+    this.pending = 'rival';
+  }
+
+  _playCard(player, card) {
+    const from = player === 'you'
+      ? handPositions(this.state.hands.you.length)[this.state.hands.you.indexOf(card)]
+      : { x: LAYOUT.rival.x, y: LAYOUT.rival.y, rotation: 0 };
+    const to = LAYOUT.trick[player];
+
+    this.state = playCard(this.state, player, card.id);
+    this.flights.push({ card, from, to, t: 0, player });
+    this.selected = Math.min(this.selected, Math.max(0, this.state.hands.you.length - 1));
+
+    if (this.state.pendingTrick) {
+      // Both cards are down: leave them there to be read, then sweep up.
+      this.timer = TRICK_HOLD;
+      this.pending = 'trick';
+      const trick = this.state.pendingTrick;
+      this.message = {
+        text: describeTrick(trick),
+        tone: trick.winner === 'you' ? 'good' : 'bad',
+      };
+    } else if (this.state.turn === 'rival') {
+      this._scheduleRival();
+    } else {
+      this._setMessage();
+    }
+  }
+
+  _resolvePending() {
+    const pending = this.pending;
+    this.pending = null;
+    if (pending === 'rival') {
+      const card = chooseCard(this.state, 'rival', this.difficulty);
+      if (card) this._playCard('rival', card);
+      return;
+    }
+    if (pending === 'trick') {
+      this.state = settleTrick(this.state);
+      if (this.state.over) {
+        this._endDeal();
+        return;
+      }
+      if (this.state.turn === 'rival') this._scheduleRival();
+      else this._setMessage();
+      return;
+    }
+    if (pending === 'next-deal') {
+      this._deal(this.dealNumber + 1);
+      return;
+    }
+    if (pending === 'finish') this._finish();
+  }
+
+  _endDeal() {
+    const you = scoreOf(this.state, 'you');
+    const rival = scoreOf(this.state, 'rival');
+    this.totals.you += you;
+    this.totals.rival += rival;
+    this.dealScores.push({ you, rival });
+
+    this.banner = {
+      text: `Deal ${this.dealNumber}: ${you} - ${rival}`,
+      subtext: this.dealNumber < DEALS_PER_MATCH
+        ? 'The rival leads the next deal.'
+        : `Match: ${this.totals.you} - ${this.totals.rival}`,
+      life: DEAL_HOLD,
+    };
+    this.timer = DEAL_HOLD;
+    this.pending = this.dealNumber < DEALS_PER_MATCH ? 'next-deal' : 'finish';
+  }
+
+  /* -------------------------------------------------------------- input */
+
+  update(dt, input) {
+    this.time += dt;
+    if (this.banner.life > 0) this.banner.life -= dt;
+
+    for (const flight of this.flights) flight.t += dt / FLIGHT;
+    this.flights = this.flights.filter((flight) => flight.t < 1);
+
+    if (this.phase !== 'play') return;
+
+    if (this.timer > 0) {
+      this.timer -= dt;
+      if (this.timer <= 0) this._resolvePending();
+      return;
+    }
+    if (this.state.over || this.state.turn !== 'you') return;
+
+    const hand = this.state.hands.you;
+    const legal = legalPlays(this.state, 'you');
+    const positions = handPositions(hand.length);
+
+    // When following suit is forced, do not leave the highlight on a card that
+    // cannot be played - the keyboard would have nothing to press.
+    if (legal.length > 0 && !legal.some((card) => card.id === hand[this.selected]?.id)) {
+      this.selected = hand.findIndex((card) => legal.some((option) => option.id === card.id));
+    }
+
+    if (input.usingPointer) {
+      const hovered = cardAt(input.x, input.y, positions);
+      if (hovered >= 0) this.selected = hovered;
+    }
+    const stepSelection = (direction) => {
+      const playable = hand
+        .map((card, index) => ({ card, index }))
+        .filter(({ card }) => legal.some((option) => option.id === card.id));
+      if (playable.length === 0) return;
+      const current = playable.findIndex(({ index }) => index === this.selected);
+      const next = (current + direction + playable.length) % playable.length;
+      this.selected = playable[next].index;
+    };
+    if (input.wasKeyPressed('ArrowLeft', 'KeyA')) stepSelection(-1);
+    if (input.wasKeyPressed('ArrowRight', 'KeyD')) stepSelection(1);
+
+    const play = (index) => {
+      const card = hand[index];
+      if (!card) return;
+      if (!legal.some((option) => option.id === card.id)) {
+        this.message = { text: `You must follow ${SUIT_BY_ID.get(this.state.table[this.state.leader].suit).name}.`, tone: 'bad' };
+        return;
+      }
+      this._playCard('you', card);
+    };
+
+    if (input.justPressed) {
+      const clicked = cardAt(input.x, input.y, positions);
+      if (clicked >= 0) play(clicked);
+    }
+    if (input.wasKeyPressed('Space', 'Enter')) play(this.selected);
+  }
+
+  /* ------------------------------------------------------------ drawing */
+
+  render(ctx) {
+    const { width, height } = this.context;
+    drawTable(ctx, width, height, this.time);
+    if (this.phase === 'setup') return;
+
+    const state = this.state;
+    drawStock(ctx, state, this.time);
+
+    // Rival hand, face down
+    const rivalPositions = handPositions(state.hands.rival.length, LAYOUT.rival);
+    rivalPositions.forEach((spot) => {
+      drawCard(ctx, null, spot.x, spot.y, { faceUp: false, scale: LAYOUT.rival.scale, rotation: spot.rotation });
+    });
+
+    // Cards on the table
+    for (const player of ['rival', 'you']) {
+      const card = state.table[player];
+      if (!card || this.flights.some((flight) => flight.card === card)) continue;
+      const spot = LAYOUT.trick[player];
+      drawCard(ctx, card, spot.x, spot.y, { rotation: player === 'you' ? 0.06 : -0.05 });
+    }
+
+    // Your hand
+    const legal = state.turn === 'you' && !state.over ? legalPlays(state, 'you') : [];
+    const positions = handPositions(state.hands.you.length);
+    state.hands.you.forEach((card, index) => {
+      const spot = positions[index];
+      const playable = legal.some((option) => option.id === card.id);
+      const chosen = index === this.selected && state.turn === 'you' && !state.over;
+      drawCard(ctx, card, spot.x, spot.y - (chosen ? LAYOUT.hand.lift : 0), {
+        rotation: spot.rotation,
+        glow: chosen && playable ? 0.9 : 0,
+        dim: legal.length > 0 && !playable,
+      });
+    });
+
+    // Cards mid-flight
+    for (const flight of this.flights) {
+      const ease = flight.t < 0.5 ? 2 * flight.t * flight.t : 1 - ((-2 * flight.t + 2) ** 2) / 2;
+      const x = flight.from.x + (flight.to.x - flight.from.x) * ease;
+      const y = flight.from.y + (flight.to.y - flight.from.y) * ease;
+      drawCard(ctx, flight.card, x, y, {
+        faceUp: true,
+        rotation: (flight.from.rotation || 0) * (1 - ease),
+        scale: 1 + Math.sin(Math.PI * flight.t) * 0.06,
+      });
+    }
+
+    drawHud(ctx, width, {
+      you: scoreOf(state, 'you') + this.totals.you,
+      rival: scoreOf(state, 'rival') + this.totals.rival,
+      dealNumber: this.dealNumber,
+      dealCount: DEALS_PER_MATCH,
+      trumpSuit: state.trumpSuit,
+    });
+    drawMessage(ctx, width, this.message.text, this.message.tone);
+    drawBanner(ctx, width, this.banner.text, this.banner.subtext, clamp(this.banner.life, 0, 1));
+  }
+
+  /* ------------------------------------------------------------- result */
+
+  _finish() {
+    if (this.finished) return;
+    this.finished = true;
+    const { you, rival } = this.totals;
+    const won = you > rival;
+    const drawn = you === rival;
+    const margin = Math.abs(you - rival);
+
+    this.context.finish({
+      score: won ? 1000 + margin * 12 : drawn ? 400 : Math.round(you * 3),
+      title: won ? 'You take the match' : drawn ? 'Dead level' : 'The rival takes it',
+      detailTitle: `${you} - ${rival} over ${DEALS_PER_MATCH} deals (${TOTAL_POINTS * DEALS_PER_MATCH} on the table)`,
+      collected: this.dealScores.map((deal, index) => ({
+        name: `Deal ${index + 1}`,
+        color: deal.you > deal.rival ? '#8ef0b4' : deal.you === deal.rival ? '#ffd166' : '#ff9d94',
+        count: deal.you,
+        label: `${deal.you} - ${deal.rival}`,
+      })),
+    });
+  }
+
+  destroy() {
+    this.setup?.destroy();
+  }
+}
+
+function createShubat(context) {
+  return new ShubatGame(context);
+}
+
+  return { GAME_ID, createShubat, ShubatGame, cardName };
+})();
+
+// ---- src/games/shubat/index.js -----------------------------------
+__modules["src/games/shubat/index.js"] = (function () {
+  const { registerGame } = __modules["src/core/registry.js"];
+  const { createShubat, GAME_ID } = __modules["src/games/shubat/game.js"];
+
+registerGame({
+  id: GAME_ID,
+  name: 'Shubat',
+  tagline: 'A card duel over four herds. Take the tricks worth taking.',
+  description: 'Thirty-two cards, two deals, one rival. The biggest cards win tricks and score the most.',
+  howTo: [
+    'Four herds of eight. A card’s number is <strong>both its strength and its worth</strong> - an eight wins the trick and scores eight.',
+    'One card is turned up to set the <strong>trump herd</strong>, which beats any other herd.',
+    'Play <strong>any card</strong> while the stock lasts. The higher card of the led herd takes the trick; a trump takes it outright.',
+    'The winner leads the next trick and draws first. <strong>Once the stock is empty you must follow the led herd</strong> if you can.',
+    '<strong>Two deals a match</strong> - you lead one, the rival leads the other. Most points over both wins.',
+  ],
+  create: createShubat,
 });
 
   return {  };

@@ -3,8 +3,8 @@
 A browser collection of small games. No build step, no dependencies — plain ES
 modules, a canvas and a `<script type="module">`.
 
-**The games: [Catchmon](#catchmon) (3v3 type battles) and [Nopoly](#nopoly)
-(Red vs Blue on a chess board).**
+**The games: [Catchmon](#catchmon) (3v3 type battles), [Nopoly](#nopoly)
+(Red vs Blue on a chess board) and [Shubat](#shubat) (a card duel).**
 
 ## Play
 
@@ -164,6 +164,33 @@ Hard four — each capped by a time budget, so a crowded position costs a
 shallower search rather than a frozen screen) or hand the same screen to a second player. Click a piece and then a
 highlighted square, or drive it with the arrow keys and Enter.
 
+## Shubat
+
+A trick duel over thirty-two cards against the rival — four herds of eight:
+**Camels, Horses, Falcons, Yurts**.
+
+- **A card's number is both its strength and its worth.** An eight wins the
+  trick and scores eight when you collect it. 144 points a deal.
+- One card is turned up to set the **trump herd**, and sits under the stock as
+  the last card anyone draws. A trump beats any other herd.
+- Both players hold five. **Play anything you like while the stock lasts** — the
+  higher card of the led herd takes the trick, a trump takes it outright.
+- The winner leads the next trick and **draws first**.
+- **Once the stock is empty you must follow the led herd** if you can, which
+  turns the last five tricks into a real endgame.
+- A match is **two deals**: you lead one, the rival leads the other. Most points
+  over both wins.
+
+Two deals rather than one because leading the first trick is worth about six
+points a deal — measured over 300 self-play matches, the side that led first won
+57% of them. One deal could not be fair; alternating the lead is.
+
+The rival plays off its own hand and what everyone has seen — it never looks at
+yours. Once the stock is empty that stops mattering: every remaining card is
+public by counting, so **Hard** switches to searching the last tricks exactly.
+Easy plays by feel and often the wrong card; Normal wins the tricks worth
+winning and dumps the rest.
+
 ## Making it yours
 
 Names and type assignments all live in one table — `ENTRIES` in
@@ -202,6 +229,13 @@ src/
     input.js           pointer + keyboard -> per-frame snapshot
     storage.js         localStorage with a memory fallback
     utils.js           maths and canvas helpers
+  games/shubat/
+    cards.js           the deck, card values, who takes a trick
+    rules.js           deals, legal plays, drawing, scoring (pure logic)
+    ai.js              the rival: heuristics, counting, an exact endgame
+    render.js          the table, the cards, the hand fan
+    ui.js              the pre-match panel
+    game.js            turn flow, animation, two-deal match
   games/nopoly/
     rules.js           board, moves, captures, the verdict (pure logic)
     ai.js              alpha-beta search, three difficulties
@@ -258,7 +292,7 @@ stores the high score and shows the results screen.
 npm test    # node --test
 ```
 
-65 cases. For Catchmon: the type chart (symmetry, two strengths and two weaknesses
+89 cases. For Catchmon: the type chart (symmetry, two strengths and two weaknesses
 each), the roster (thirty final evolutions, equal stat budgets, every move
 used), the battle engine (turn order, cooldowns, limited uses, status effects,
 knockouts, the turn cap, seeded replay determinism), the AI (legal actions,
@@ -268,4 +302,8 @@ Nopoly: the opening position (eighteen pieces, reflected), how each piece moves
 including the dragon's asymmetry from both sides,
 that nothing jumps, captures, immutability of a position after a move, illegal
 moves being refused, every way a match can end, and an AI that only plays legal
-moves and takes a free golem. No browser needed.
+moves and takes a free golem. For Shubat: the deck and its point total, who
+takes a trick in every combination, the follow-suit rule appearing only when the
+stock empties, drawing order, that a deal is sixteen tricks with all 144 points
+accounted for, that the rival never sees your hand, and that it plays a stronger
+game on Hard than on Easy. No browser needed.
