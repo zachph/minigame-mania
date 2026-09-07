@@ -1,321 +1,312 @@
 import { clamp } from '../../core/utils.js';
-import { SUIT_BY_ID, TOTAL_POINTS, cardName } from './cards.js';
+import { FACTIONS, otherFaction } from './cards.js';
 import {
-  DEALS_PER_MATCH,
-  createDeal,
-  describeTrick,
+  LANES,
+  boardOf,
+  canAttack,
+  createMatch,
+  endTurn,
   legalPlays,
-  mustFollowSuit,
+  opponentOf,
   playCard,
-  scoreOf,
-  settleTrick,
 } from './rules.js';
-import { chooseCard } from './ai.js';
+import { DIFFICULTIES, takeTurn } from './ai.js';
 import { SetupPanel } from './ui.js';
 import {
-  CARD,
-  LAYOUT,
-  cardAt,
   drawBanner,
-  drawCard,
-  drawHud,
+  drawEndTurn,
+  drawEnergy,
+  drawFighter,
+  drawHandCard,
+  drawLanes,
   drawMessage,
-  drawStock,
+  drawPopups,
+  drawRivalHand,
+  drawSideBar,
   drawTable,
+  drawTraps,
+  handCardAt,
   handPositions,
+  inEndTurn,
+  laneAt,
+  laneRect,
 } from './render.js';
 
 export const GAME_ID = 'shubat';
 
-const RIVAL_THINK = 0.65;   // pause before the rival plays, so a turn reads
-const TRICK_HOLD = 1.15;    // how long both cards sit on the table
-const DEAL_HOLD = 2.6;      // the pause between deals
-const FLIGHT = 0.32;        // seconds a card takes to reach the table
+const RIVAL_DELAY = 0.9;
 
 class ShubatGame {
   constructor(context) {
     this.context = context;
     this.time = 0;
     this.phase = 'setup';
+    this.state = null;
+    this.faction = 'iron';
     this.difficulty = 'normal';
 
-    this.state = null;
-    this.dealNumber = 1;
-    this.totals = { you: 0, rival: 0 };
-    this.dealScores = [];
-
-    this.selected = 0;
-    this.flights = [];
-    this.timer = 0;
-    this.pending = null;      // what happens when the timer runs out
+    this.selected = -1;
+    this.popups = [];
+    this.flashes = new Map();
     this.message = { text: '', tone: 'plain' };
     this.banner = { text: '', subtext: '', life: 0 };
+    this.timer = 0;
     this.finished = false;
+    this.hover = { lane: null, endTurn: false };
 
-    this.setup = new SetupPanel(context.ui, { onStart: ({ difficulty }) => this._start(difficulty) });
+    this.setup = new SetupPanel(context.ui, { onStart: (options) => this._start(options) });
   }
 
-  _start(difficulty) {
+  _start({ faction, difficulty }) {
     this.setup.destroy();
     this.setup = null;
+    this.faction = faction;
     this.difficulty = difficulty;
-    this.phase = 'play';
-    this._deal(1);
-  }
+    const level = DIFFICULTIES[difficulty];
 
-  _deal(number) {
-    this.dealNumber = number;
-    // You lead the first deal, the rival leads the second.
-    this.state = createDeal({ leader: number === 1 ? 'you' : 'rival' });
-    this.selected = 0;
-    this.flights = [];
+    this.phase = 'play';
+    this.state = createMatch({
+      playerFaction: faction,
+      recipes: { you: 'core', rival: level.recipe },
+      handicaps: { you: 0, rival: level.handicap },
+      first: Math.random() < 0.5 ? 'you' : 'rival',
+    });
     this.banner = {
-      text: `Deal ${number}`,
-      subtext: `${SUIT_BY_ID.get(this.state.trumpSuit).name} are trumps - ${
-        this.state.leader === 'you' ? 'you lead' : 'the rival leads'
-      }`,
-      life: 2.2,
+      text: FACTIONS[faction].name,
+      subtext: `${FACTIONS[otherFaction(faction)].name} opposite - ${level.deckName}${this.state.turn === 'you' ? ' - you open' : ' - the rival opens'}`,
+      life: 2.4,
     };
     this._setMessage();
-    if (this.state.turn === 'rival') this._scheduleRival();
+    if (this.state.turn === 'rival') this.timer = RIVAL_DELAY;
   }
 
-  /* --------------------------------------------------------------- flow */
+  /* ---------------------------------------------------------------- input */
+
+  get yourTurn() {
+    return this.state && !this.state.over && this.state.turn === 'you' && this.timer <= 0;
+  }
 
   _setMessage() {
-    const state = this.state;
-    if (!state || state.over) return;
-    if (state.turn === 'rival') {
-      this.message = { text: 'The rival is choosing...', tone: 'plain' };
+    if (!this.state || this.state.over) return;
+    if (this.state.turn !== 'you') {
+      this.message = { text: 'The rival is thinking...', tone: 'plain' };
       return;
     }
-    const following = state.table[state.leader] && state.leader !== 'you';
-    if (following && mustFollowSuit(state)) {
-      const led = SUIT_BY_ID.get(state.table[state.leader].suit).name;
-      this.message = { text: `Stock is empty - follow ${led} if you can.`, tone: 'plain' };
-    } else if (following) {
-      this.message = { text: 'Beat it, trump it, or throw a low card away.', tone: 'plain' };
-    } else {
-      this.message = { text: 'Your lead.', tone: 'plain' };
-    }
+    const card = this.state.players.you.hand[this.selected];
+    if (card && card.kind === 'fighter') this.message = { text: `Pick a lane for ${card.name}.`, tone: 'plain' };
+    else if (card && card.target !== 'none') this.message = { text: `Pick a target for ${card.name}.`, tone: 'plain' };
+    else this.message = { text: 'Play cards, then attack.', tone: 'plain' };
   }
 
-  _scheduleRival() {
-    this.timer = RIVAL_THINK;
-    this.pending = 'rival';
+  /** Every lane a click could legally send the selected card to. */
+  _targets() {
+    if (this.selected < 0 || !this.yourTurn) return [];
+    return legalPlays(this.state, 'you')
+      .filter((play) => play.index === this.selected && play.lane != null)
+      .map((play) => ({ side: play.targetSide === 'rival' ? 'rival' : play.card.kind === 'fighter' ? 'you' : play.targetSide || 'you', lane: play.lane }));
   }
 
-  _playCard(player, card) {
-    const from = player === 'you'
-      ? handPositions(this.state.hands.you.length)[this.state.hands.you.indexOf(card)]
-      : { x: LAYOUT.rival.x, y: LAYOUT.rival.y, rotation: 0 };
-    const to = LAYOUT.trick[player];
+  _play(play) {
+    const before = this._snapshot();
+    this.state = playCard(this.state, 'you', play);
+    this._reactTo(before);
+    this.selected = -1;
+    this._setMessage();
+  }
 
-    this.state = playCard(this.state, player, card.id);
-    this.flights.push({ card, from, to, t: 0, player });
-    this.selected = Math.min(this.selected, Math.max(0, this.state.hands.you.length - 1));
-
-    if (this.state.pendingTrick) {
-      // Both cards are down: leave them there to be read, then sweep up.
-      this.timer = TRICK_HOLD;
-      this.pending = 'trick';
-      const trick = this.state.pendingTrick;
-      this.message = {
-        text: describeTrick(trick),
-        tone: trick.winner === 'you' ? 'good' : 'bad',
-      };
-    } else if (this.state.turn === 'rival') {
-      this._scheduleRival();
-    } else {
+  _endTurn() {
+    const before = this._snapshot();
+    this.state = endTurn(this.state, 'you');
+    this._reactTo(before);
+    this.selected = -1;
+    if (!this.state.over) {
+      this.timer = RIVAL_DELAY;
       this._setMessage();
     }
   }
 
-  _resolvePending() {
-    const pending = this.pending;
-    this.pending = null;
-    if (pending === 'rival') {
-      const card = chooseCard(this.state, 'rival', this.difficulty);
-      if (card) this._playCard('rival', card);
-      return;
+  _snapshot() {
+    const cores = {};
+    const fighters = new Map();
+    for (const side of ['you', 'rival']) {
+      cores[side] = this.state.players[side].core;
+      boardOf(this.state, side).forEach((fighter, lane) => {
+        if (fighter) fighters.set(`${side}-${lane}`, fighter.hp);
+      });
     }
-    if (pending === 'trick') {
-      this.state = settleTrick(this.state);
-      if (this.state.over) {
-        this._endDeal();
-        return;
+    return { cores, fighters, log: this.state.log.length };
+  }
+
+  /** Turns whatever just happened into damage numbers and a status line. */
+  _reactTo(before) {
+    for (const side of ['you', 'rival']) {
+      const delta = before.cores[side] - this.state.players[side].core;
+      if (delta > 0) {
+        this._popup(140, side === 'rival' ? 46 : 346, `-${delta}`, '#ff8b8b', 26);
       }
-      if (this.state.turn === 'rival') this._scheduleRival();
-      else this._setMessage();
-      return;
+      boardOf(this.state, side).forEach((fighter, lane) => {
+        if (!fighter) return;
+        const was = before.fighters.get(`${side}-${lane}`);
+        if (was == null || was === fighter.hp) return;
+        const rect = laneRect(side, lane);
+        const change = was - fighter.hp;
+        this._popup(rect.x + rect.w / 2, rect.y + 40, change > 0 ? `-${change}` : `+${-change}`,
+          change > 0 ? '#ff8b8b' : '#8ef0b4', 20);
+        if (change > 0) this.flashes.set(`${side}-${lane}`, 1);
+      });
     }
-    if (pending === 'next-deal') {
-      this._deal(this.dealNumber + 1);
-      return;
-    }
-    if (pending === 'finish') this._finish();
+    const fresh = this.state.log.slice(before.log);
+    if (fresh.length > 0) this.message = { text: fresh[fresh.length - 1], tone: 'plain' };
   }
 
-  _endDeal() {
-    const you = scoreOf(this.state, 'you');
-    const rival = scoreOf(this.state, 'rival');
-    this.totals.you += you;
-    this.totals.rival += rival;
-    this.dealScores.push({ you, rival });
-
-    this.banner = {
-      text: `Deal ${this.dealNumber}: ${you} - ${rival}`,
-      subtext: this.dealNumber < DEALS_PER_MATCH
-        ? 'The rival leads the next deal.'
-        : `Match: ${this.totals.you} - ${this.totals.rival}`,
-      life: DEAL_HOLD,
-    };
-    this.timer = DEAL_HOLD;
-    this.pending = this.dealNumber < DEALS_PER_MATCH ? 'next-deal' : 'finish';
+  _popup(x, y, text, color, size) {
+    this.popups.push({ x, y, text, color, size, life: 1, maxLife: 1 });
   }
-
-  /* -------------------------------------------------------------- input */
 
   update(dt, input) {
     this.time += dt;
     if (this.banner.life > 0) this.banner.life -= dt;
-
-    for (const flight of this.flights) flight.t += dt / FLIGHT;
-    this.flights = this.flights.filter((flight) => flight.t < 1);
+    for (const popup of this.popups) {
+      popup.life -= dt;
+      popup.y -= dt * 26;
+    }
+    this.popups = this.popups.filter((popup) => popup.life > 0);
+    for (const [key, value] of this.flashes) {
+      const next = value - dt * 2.6;
+      if (next <= 0) this.flashes.delete(key);
+      else this.flashes.set(key, next);
+    }
 
     if (this.phase !== 'play') return;
 
     if (this.timer > 0) {
       this.timer -= dt;
-      if (this.timer <= 0) this._resolvePending();
+      if (this.timer <= 0 && !this.state.over && this.state.turn === 'rival') {
+        const before = this._snapshot();
+        this.state = takeTurn(this.state, 'rival', this.difficulty);
+        this._reactTo(before);
+        if (!this.state.over) this._setMessage();
+      }
       return;
     }
-    if (this.state.over || this.state.turn !== 'you') return;
 
-    const hand = this.state.hands.you;
-    const legal = legalPlays(this.state, 'you');
+    if (this.state.over) {
+      this._finish();
+      return;
+    }
+    if (this.state.turn !== 'you') return;
+
+    this.hover.lane = laneAt(input.x, input.y);
+    this.hover.endTurn = inEndTurn(input.x, input.y);
+
+    const hand = this.state.players.you.hand;
     const positions = handPositions(hand.length);
+    if (input.wasKeyPressed('ArrowLeft', 'KeyA')) this.selected = Math.max(0, this.selected - 1);
+    if (input.wasKeyPressed('ArrowRight', 'KeyD')) this.selected = Math.min(hand.length - 1, this.selected + 1);
+    if (input.wasKeyPressed('Enter')) this._endTurn();
 
-    // When following suit is forced, do not leave the highlight on a card that
-    // cannot be played - the keyboard would have nothing to press.
-    if (legal.length > 0 && !legal.some((card) => card.id === hand[this.selected]?.id)) {
-      this.selected = hand.findIndex((card) => legal.some((option) => option.id === card.id));
+    if (!input.justPressed) return;
+
+    if (inEndTurn(input.x, input.y)) {
+      this._endTurn();
+      return;
     }
 
-    if (input.usingPointer) {
-      const hovered = cardAt(input.x, input.y, positions);
-      if (hovered >= 0) this.selected = hovered;
-    }
-    const stepSelection = (direction) => {
-      const playable = hand
-        .map((card, index) => ({ card, index }))
-        .filter(({ card }) => legal.some((option) => option.id === card.id));
-      if (playable.length === 0) return;
-      const current = playable.findIndex(({ index }) => index === this.selected);
-      const next = (current + direction + playable.length) % playable.length;
-      this.selected = playable[next].index;
-    };
-    if (input.wasKeyPressed('ArrowLeft', 'KeyA')) stepSelection(-1);
-    if (input.wasKeyPressed('ArrowRight', 'KeyD')) stepSelection(1);
-
-    const play = (index) => {
-      const card = hand[index];
-      if (!card) return;
-      if (!legal.some((option) => option.id === card.id)) {
-        this.message = { text: `You must follow ${SUIT_BY_ID.get(this.state.table[this.state.leader].suit).name}.`, tone: 'bad' };
+    const clicked = handCardAt(input.x, input.y, positions);
+    if (clicked >= 0) {
+      const plays = legalPlays(this.state, 'you').filter((play) => play.index === clicked);
+      if (plays.length === 0) {
+        const card = hand[clicked];
+        this.message = { text: `${card.name} costs ${card.cost} - you have ${this.state.players.you.energy}.`, tone: 'bad' };
         return;
       }
-      this._playCard('you', card);
-    };
-
-    if (input.justPressed) {
-      const clicked = cardAt(input.x, input.y, positions);
-      if (clicked >= 0) play(clicked);
+      const needsTarget = plays.some((play) => play.lane != null);
+      if (!needsTarget) this._play(plays[0]);
+      else {
+        this.selected = clicked;
+        this._setMessage();
+      }
+      return;
     }
-    if (input.wasKeyPressed('Space', 'Enter')) play(this.selected);
+
+    const spot = laneAt(input.x, input.y);
+    if (spot && this.selected >= 0) {
+      const play = legalPlays(this.state, 'you').find(
+        (option) => option.index === this.selected && option.lane === spot.lane &&
+          (option.card.kind === 'fighter' ? spot.side === 'you' : (option.targetSide || 'you') === spot.side)
+      );
+      if (play) this._play(play);
+      else this.message = { text: 'Not a legal target for that card.', tone: 'bad' };
+      return;
+    }
+    this.selected = -1;
+    this._setMessage();
   }
 
-  /* ------------------------------------------------------------ drawing */
+  /* -------------------------------------------------------------- drawing */
 
   render(ctx) {
-    const { width, height } = this.context;
-    drawTable(ctx, width, height, this.time);
+    drawTable(ctx, this.time);
     if (this.phase === 'setup') return;
-
     const state = this.state;
-    drawStock(ctx, state, this.time);
 
-    // Rival hand, face down
-    const rivalPositions = handPositions(state.hands.rival.length, LAYOUT.rival);
-    rivalPositions.forEach((spot) => {
-      drawCard(ctx, null, spot.x, spot.y, { faceUp: false, scale: LAYOUT.rival.scale, rotation: spot.rotation });
-    });
-
-    // Cards on the table
-    for (const player of ['rival', 'you']) {
-      const card = state.table[player];
-      if (!card || this.flights.some((flight) => flight.card === card)) continue;
-      const spot = LAYOUT.trick[player];
-      drawCard(ctx, card, spot.x, spot.y, { rotation: player === 'you' ? 0.06 : -0.05 });
+    drawLanes(ctx, state, this._targets());
+    for (const side of ['rival', 'you']) {
+      boardOf(state, side).forEach((fighter, lane) => {
+        if (!fighter) return;
+        drawFighter(ctx, fighter, side, lane, {
+          flash: this.flashes.get(`${side}-${lane}`) || 0,
+          ready: canAttack(state, side, fighter),
+        });
+      });
+      drawTraps(ctx, state.players[side].traps.length, side);
+      drawSideBar(ctx, state, side, state.players[side], state.players[side].faction);
     }
 
-    // Your hand
-    const legal = state.turn === 'you' && !state.over ? legalPlays(state, 'you') : [];
-    const positions = handPositions(state.hands.you.length);
-    state.hands.you.forEach((card, index) => {
-      const spot = positions[index];
-      const playable = legal.some((option) => option.id === card.id);
-      const chosen = index === this.selected && state.turn === 'you' && !state.over;
-      drawCard(ctx, card, spot.x, spot.y - (chosen ? LAYOUT.hand.lift : 0), {
-        rotation: spot.rotation,
-        glow: chosen && playable ? 0.9 : 0,
-        dim: legal.length > 0 && !playable,
+    drawRivalHand(ctx, state.players.rival.hand.length);
+    drawEnergy(ctx, state.players.you);
+    drawEndTurn(ctx, this.yourTurn, this.hover.endTurn);
+
+    const hand = state.players.you.hand;
+    const positions = handPositions(hand.length);
+    const playable = new Set(legalPlays(state, 'you').map((play) => play.index));
+    hand.forEach((card, index) => {
+      drawHandCard(ctx, card, positions[index].x, positions[index].y, {
+        selected: index === this.selected,
+        playable: playable.has(index),
       });
     });
 
-    // Cards mid-flight
-    for (const flight of this.flights) {
-      const ease = flight.t < 0.5 ? 2 * flight.t * flight.t : 1 - ((-2 * flight.t + 2) ** 2) / 2;
-      const x = flight.from.x + (flight.to.x - flight.from.x) * ease;
-      const y = flight.from.y + (flight.to.y - flight.from.y) * ease;
-      drawCard(ctx, flight.card, x, y, {
-        faceUp: true,
-        rotation: (flight.from.rotation || 0) * (1 - ease),
-        scale: 1 + Math.sin(Math.PI * flight.t) * 0.06,
-      });
-    }
-
-    drawHud(ctx, width, {
-      you: scoreOf(state, 'you') + this.totals.you,
-      rival: scoreOf(state, 'rival') + this.totals.rival,
-      dealNumber: this.dealNumber,
-      dealCount: DEALS_PER_MATCH,
-      trumpSuit: state.trumpSuit,
-    });
-    drawMessage(ctx, width, this.message.text, this.message.tone);
-    drawBanner(ctx, width, this.banner.text, this.banner.subtext, clamp(this.banner.life, 0, 1));
+    drawMessage(ctx, this.message.text, this.message.tone);
+    drawPopups(ctx, this.popups);
+    drawBanner(ctx, this.banner.text, this.banner.subtext, clamp(this.banner.life, 0, 1));
   }
 
-  /* ------------------------------------------------------------- result */
+  /* --------------------------------------------------------------- result */
 
   _finish() {
     if (this.finished) return;
     this.finished = true;
-    const { you, rival } = this.totals;
-    const won = you > rival;
-    const drawn = you === rival;
-    const margin = Math.abs(you - rival);
+    const state = this.state;
+    const won = state.winner === 'you';
+    const you = state.players.you;
+    const rival = state.players.rival;
+
+    this.banner = {
+      text: won ? 'Core secured' : state.winner ? 'Your core is down' : 'Stalemate',
+      subtext: state.reason || '',
+      life: 3,
+    };
 
     this.context.finish({
-      score: won ? 1000 + margin * 12 : drawn ? 400 : Math.round(you * 3),
-      title: won ? 'You take the match' : drawn ? 'Dead level' : 'The rival takes it',
-      detailTitle: `${you} - ${rival} over ${DEALS_PER_MATCH} deals (${TOTAL_POINTS * DEALS_PER_MATCH} on the table)`,
-      collected: this.dealScores.map((deal, index) => ({
-        name: `Deal ${index + 1}`,
-        color: deal.you > deal.rival ? '#8ef0b4' : deal.you === deal.rival ? '#ffd166' : '#ff9d94',
-        count: deal.you,
-        label: `${deal.you} - ${deal.rival}`,
-      })),
+      score: won ? Math.round(900 + you.core * 0.6 + Math.max(0, (25 - state.turnNumber) * 25)) : Math.round((rival.maxCore - rival.core) * 0.3),
+      title: won ? 'You win the duel' : state.winner ? 'Beaten' : 'Stalemate',
+      detailTitle: `${FACTIONS[you.faction].name} vs ${FACTIONS[rival.faction].name} - ${state.turnNumber} turns, ${state.reason}`,
+      collected: [
+        { name: 'Your core', color: FACTIONS[you.faction].color, count: you.core, label: `${you.core} / ${you.maxCore}` },
+        { name: 'Rival core', color: FACTIONS[rival.faction].color, count: rival.core, label: `${rival.core} / ${rival.maxCore}` },
+        { name: 'Fighters lost', color: '#ff9d94', count: you.fallen.length, label: `${you.fallen.length} of yours, ${rival.fallen.length} of theirs` },
+      ],
     });
   }
 
@@ -328,4 +319,4 @@ export function createShubat(context) {
   return new ShubatGame(context);
 }
 
-export { ShubatGame, cardName };
+export { ShubatGame, LANES, opponentOf };

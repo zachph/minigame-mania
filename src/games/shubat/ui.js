@@ -1,8 +1,8 @@
-import { SUITS } from './cards.js';
+import { FACTIONS, FIGHTERS, DECK_SHAPE, RECIPES, buildDeck } from './cards.js';
 import { DIFFICULTIES } from './ai.js';
-import { drawSuitGlyph } from './render.js';
+import { drawFighterArt } from './render.js';
 
-/** The pre-match panel. Everything in a match itself is drawn on the table. */
+/** The deck-choice screen. Everything in a match itself is drawn on the table. */
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -10,80 +10,112 @@ function el(tag, className, text) {
   return node;
 }
 
-function suitChip(suit) {
-  const canvas = el('canvas', 'sb-suit');
+function sigil(faction, art, size = 30) {
+  const canvas = el('canvas', 'sh-sigil');
   const scale = Math.min(2, window.devicePixelRatio || 1);
-  canvas.width = 34 * scale;
-  canvas.height = 34 * scale;
-  canvas.style.width = '34px';
-  canvas.style.height = '34px';
+  canvas.width = size * scale;
+  canvas.height = size * scale;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
   const ctx = canvas.getContext('2d');
   ctx.scale(scale, scale);
-  drawSuitGlyph(ctx, suit, 17, 17, 26);
-  canvas.title = suit.name;
+  drawFighterArt(ctx, art, faction, size / 2, size / 2, size * 0.8);
   return canvas;
 }
 
 export class SetupPanel {
   constructor(container, { onStart }) {
+    this.faction = 'iron';
     this.difficulty = 'normal';
-    this.root = el('div', 'sb-setup');
+    this.onStart = onStart;
+    this.root = el('div', 'sh-setup');
     container.append(this.root);
 
-    const card = el('div', 'sb-setup-card');
+    const card = el('div', 'sh-setup-card');
     card.append(el('h2', null, 'Shubat'));
-    card.append(el('p', 'sb-lede', 'A duel over thirty-two cards. Take the tricks worth taking.'));
+    card.append(el('p', 'sh-lede', 'Pick a starter deck. Twenty cards: five fighters, ten supports, two instants, three traps. Three lanes, one core each, and whatever gets through is what counts.'));
 
-    const herds = el('div', 'sb-herds');
-    for (const suit of SUITS) {
-      const chip = el('div', 'sb-herd');
-      chip.append(suitChip(suit), el('span', null, suit.name));
-      herds.append(chip);
+    this.decks = el('div', 'sh-decks');
+    for (const faction of Object.values(FACTIONS)) {
+      this.decks.append(this._deckCard(faction));
     }
-    card.append(herds);
+    card.append(this.decks);
 
-    const rules = el('ul', 'sb-rules');
-    for (const line of [
-      'Four herds of eight. <strong>A card’s number is both its strength and its worth</strong> — an eight wins the trick and scores eight.',
-      'One card is turned up to set the <strong>trump herd</strong>. Trumps beat any other herd.',
-      'Play any card you like while the stock lasts; the higher card of the led herd takes the trick, and a trump takes it outright.',
-      'Winner of a trick leads the next and draws first. <strong>Once the stock runs out you must follow the led herd</strong> if you can.',
-      '<strong>Two deals a match</strong> — you lead one, the rival leads the other, because leading first is worth about six points. Most points over both wins.',
-    ]) {
-      const item = el('li');
-      item.innerHTML = line;
-      rules.append(item);
-    }
-    card.append(rules);
-
-    const choice = el('div', 'sb-choice');
-    choice.append(el('span', 'sb-choice-label', 'Rival'));
-    const options = el('div', 'sb-choice-options');
-    const buttons = [];
+    const choice = el('div', 'sh-choice');
+    choice.append(el('span', 'sh-choice-label', 'Rival'));
+    const options = el('div', 'sh-choice-options');
+    this.levelButtons = [];
     for (const level of Object.values(DIFFICULTIES)) {
-      const button = el('button', 'sb-option', level.name);
+      const button = el('button', 'sh-option', level.name);
       button.type = 'button';
       button.title = level.blurb;
       button.classList.toggle('is-active', level.id === this.difficulty);
       button.addEventListener('click', () => {
         this.difficulty = level.id;
-        for (const other of buttons) other.classList.toggle('is-active', other.textContent === level.name);
+        for (const other of this.levelButtons) other.classList.toggle('is-active', other.textContent === level.name);
+        this.note.textContent = level.blurb;
       });
-      buttons.push(button);
+      this.levelButtons.push(button);
       options.append(button);
     }
     choice.append(options);
     card.append(choice);
 
-    const start = el('button', 'btn btn--primary sb-start', 'Deal');
-    start.type = 'button';
-    start.addEventListener('click', () => onStart({ difficulty: this.difficulty }));
-    card.append(start);
+    this.note = el('p', 'sh-note', DIFFICULTIES.normal.blurb);
+    card.append(this.note);
 
+    const start = el('button', 'btn btn--primary sh-start', 'Start the duel');
+    start.type = 'button';
+    start.addEventListener('click', () => this.onStart({ faction: this.faction, difficulty: this.difficulty }));
+    card.append(start);
     this.root.append(card);
+    this._paint();
+  }
+
+  _deckCard(faction) {
+    const node = el('button', 'sh-deck');
+    node.type = 'button';
+    node.dataset.faction = faction.id;
+    node.style.setProperty('--faction', faction.color);
+
+    const head = el('div', 'sh-deck-head');
+    head.append(el('strong', null, faction.name));
+    head.append(el('span', 'sh-passive', faction.passive.name));
+    node.append(head);
+    node.append(el('p', 'sh-deck-lede', faction.tagline));
+    node.append(el('p', 'sh-deck-passive', faction.passive.blurb));
+
+    const roster = el('div', 'sh-roster');
+    for (const fighter of FIGHTERS.filter((entry) => entry.faction === faction.id)) {
+      const row = el('div', 'sh-fighter');
+      row.append(sigil(faction, fighter.art, 26));
+      const meta = el('div', 'sh-fighter-meta');
+      meta.append(el('strong', null, fighter.name));
+      meta.append(el('span', null, `${fighter.hp} HP · ${fighter.damage} dmg · costs ${fighter.cost}`));
+      row.append(meta);
+      roster.append(row);
+    }
+    node.append(roster);
+
+    const shape = Object.entries(DECK_SHAPE).map(([kind, count]) => `${count} ${kind}${count > 1 ? 's' : ''}`).join(' · ');
+    node.append(el('span', 'sh-deck-shape', shape));
+
+    node.addEventListener('click', () => {
+      this.faction = faction.id;
+      this._paint();
+    });
+    return node;
+  }
+
+  _paint() {
+    for (const node of this.decks.querySelectorAll('.sh-deck')) {
+      node.classList.toggle('is-picked', node.dataset.faction === this.faction);
+    }
   }
 
   destroy() {
     this.root.remove();
   }
 }
+
+export { RECIPES, buildDeck };

@@ -4,7 +4,7 @@ A browser collection of small games. No build step, no dependencies — plain ES
 modules, a canvas and a `<script type="module">`.
 
 **The games: [Catchmon](#catchmon) (3v3 type battles), [Nopoly](#nopoly)
-(Red vs Blue on a chess board) and [Shubat](#shubat) (a card duel).**
+(Red vs Blue on a chess board) and [Shubat](#shubat) (a lane-and-deck duel).**
 
 ## Play
 
@@ -166,30 +166,67 @@ highlighted square, or drive it with the arrow keys and Enter.
 
 ## Shubat
 
-A trick duel over thirty-two cards against the rival — four herds of eight:
-**Camels, Horses, Falcons, Yurts**.
+A deck duel across three lanes — a card game and a board game at once. Pick a
+starter deck; the rival takes the other one.
 
-- **A card's number is both its strength and its worth.** An eight wins the
-  trick and scores eight when you collect it. 144 points a deal.
-- One card is turned up to set the **trump herd**, and sits under the stock as
-  the last card anyone draws. A trump beats any other herd.
-- Both players hold five. **Play anything you like while the stock lasts** — the
-  higher card of the led herd takes the trick, a trump takes it outright.
-- The winner leads the next trick and **draws first**.
-- **Once the stock is empty you must follow the led herd** if you can, which
-  turns the last five tricks into a real endgame.
-- A match is **two deals**: you lead one, the rival leads the other. Most points
-  over both wins.
+| Deck | Feel | Passive |
+| --- | --- | --- |
+| **Iron Warrior** | Cheap, fast, relentless | **Breakthrough** — damage past a kill carries into the core |
+| **String Brain** | Slow, enormous, outlasts you | **Foresight** — flavour for now; the deck's edge is its raw stats |
 
-Two deals rather than one because leading the first trick is worth about six
-points a deal — measured over 300 self-play matches, the side that led first won
-57% of them. One deal could not be fair; alternating the lead is.
+Twenty cards each: **5 fighters, 10 supports, 2 instant damage cards, 3 traps.**
 
-The rival plays off its own hand and what everyone has seen — it never looks at
-yours. Once the stock is empty that stops mattering: every remaining card is
-public by counting, so **Hard** switches to searching the last tricks exactly.
-Easy plays by feel and often the wrong card; Normal wins the tricks worth
-winning and dumps the rest.
+### The fighters
+
+HP and damage are fixed by hand; **cost is derived** —
+`round(((hp + damage) / 200) ** 1.3)` — so a fighter's price is whatever its
+numbers are worth, and the curve is what keeps the two decks honest.
+
+| Iron Warrior | HP | Damage | Cost | | String Brain | HP | Damage | Cost |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Scrapper | 120 | 180 | 2 | | Brainer | 380 | 20 | 2 |
+| Magnet Bot | 290 | 70 | 2 | | Calculator | 314 | 790 | 6 |
+| Overdrive | 160 | 210 | 2 | | Coden | 1010 | 7 | 5 |
+| Iron-Forge | 135 | 177 | 2 | | Puppeteer | 248 | 157 | 2 |
+| Criptmetal | 401 | 101 | 3 | | Grand | 560 | 129 | 3 |
+
+Calculator's numbers are written in the source as `297 + 17` and `1000 - 210`,
+which is the arithmetic a card called Calculator ought to be doing.
+
+### A turn
+
+- You gain **one more energy each turn** (capped at 10) and draw a card.
+- Play what you can afford: deploy a fighter into an empty lane, aim a support,
+  fire an instant, or set a trap face down (three at a time).
+- Then **attack**: every fighter that has been in play since your last turn
+  strikes the lane opposite it. A blocked lane hits the blocker and nothing hits
+  back; an **empty lane is a straight road to the core**.
+- Traps fire on their own during the rival's turn — when a fighter lands, when
+  your core is hit, when they cast an instant or a support.
+- First core to zero loses. A match runs a little over twenty turns.
+
+### How it is balanced
+
+The fighter stats are a fixed spec, and on their own String Brain wins **75%**
+of matches — it fields more than twice Iron Warrior's total HP. So the balance
+lives in the parts around them, and each number below was measured over hundreds
+of simulated matches rather than guessed:
+
+- **The cost curve** (exponent 1.3) prices String's monsters out of the early
+  game: Calculator and Coden do not land until turn five or six.
+- **Breakthrough** gives Iron an answer to a 1010-HP wall.
+- **Core HP, 1850** is the clock the aggressive deck races. At 1200 Iron wins
+  76% of matches; at 2000 it wins 44%. At 1850 the decks are level.
+- **Moving second** is worth an extra card and an extra energy, which takes the
+  first-move advantage from 24 points down to about 5.
+
+Each difficulty brings its own twenty: a **Trainee** deck (the same few cheap
+cards over and over), the **Standard** deck, or a **Prototype** deck (one of
+everything). Measured head to head the three builds are near enough equal, so
+the ladder comes from how the rival plays and where its energy curve starts —
+Easy is a turn behind you and misplays half the time, Hard is a turn ahead and
+does not. Against a straight-playing opponent the player wins 96% on Easy, 54%
+on Normal and 34% on Hard.
 
 ## Making it yours
 
@@ -230,12 +267,12 @@ src/
     storage.js         localStorage with a memory fallback
     utils.js           maths and canvas helpers
   games/shubat/
-    cards.js           the deck, card values, who takes a trick
-    rules.js           deals, legal plays, drawing, scoring (pure logic)
-    ai.js              the rival: heuristics, counting, an exact endgame
-    render.js          the table, the cards, the hand fan
-    ui.js              the pre-match panel
-    game.js            turn flow, animation, two-deal match
+    cards.js           both decks: fighters, supports, instants, traps
+    rules.js           lanes, energy, combat, traps, the win (pure logic)
+    ai.js              the rival: one scoring pass, three difficulties
+    render.js          the board, the cards, the hand
+    ui.js              the deck-choice screen
+    game.js            turn flow, targeting, scoring
   games/nopoly/
     rules.js           board, moves, captures, the verdict (pure logic)
     ai.js              alpha-beta search, three difficulties
@@ -292,7 +329,7 @@ stores the high score and shows the results screen.
 npm test    # node --test
 ```
 
-89 cases. For Catchmon: the type chart (symmetry, two strengths and two weaknesses
+91 cases. For Catchmon: the type chart (symmetry, two strengths and two weaknesses
 each), the roster (thirty final evolutions, equal stat budgets, every move
 used), the battle engine (turn order, cooldowns, limited uses, status effects,
 knockouts, the turn cap, seeded replay determinism), the AI (legal actions,
@@ -302,8 +339,8 @@ Nopoly: the opening position (eighteen pieces, reflected), how each piece moves
 including the dragon's asymmetry from both sides,
 that nothing jumps, captures, immutability of a position after a move, illegal
 moves being refused, every way a match can end, and an AI that only plays legal
-moves and takes a free golem. For Shubat: the deck and its point total, who
-takes a trick in every combination, the follow-suit rule appearing only when the
-stock empties, drawing order, that a deal is sixteen tricks with all 144 points
-accounted for, that the rival never sees your hand, and that it plays a stronger
-game on Hard than on Easy. No browser needed.
+moves and takes a free golem. For Shubat: that every fighter carries exactly the
+stats it was given, that all six decks are twenty cards in the right shape,
+energy, deployment, combat in and out of a lane, Breakthrough belonging to Iron
+alone, buffs, shields, tangling, instants, traps firing and cancelling, and that
+the difficulty ladder actually climbs. No browser needed.

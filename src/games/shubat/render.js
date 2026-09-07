@@ -1,334 +1,429 @@
 import { TAU, clamp, roundedRect } from '../../core/utils.js';
-import { SUIT_BY_ID } from './cards.js';
+import { FACTIONS } from './cards.js';
+import { LANES } from './rules.js';
 
-/**
- * The Shubat table: a felt mat, two hands, the trick in the middle and the
- * stock with the trump card showing under it. Cards are drawn from code.
- */
+/** Board geometry, shared by the renderer and the click handling. */
+export const VIEW = { width: 960, height: 540 };
+export const LANE = { width: 132, height: 92, gap: 22, top: { rival: 74, you: 208 } };
+export const HAND = { y: 452, spread: 96, width: 88, height: 120 };
+export const END_TURN = { x: 760, y: 318, w: 180, h: 46 };
 
-export const CARD = { w: 74, h: 104, radius: 10 };
+export const laneX = (lane) => 306 + lane * (LANE.width + LANE.gap);
 
-export const LAYOUT = {
-  hand: { x: 480, y: 452, spread: 84, lift: 18 },
-  rival: { x: 480, y: 92, spread: 52, scale: 0.72 },
-  trick: { you: { x: 520, y: 300 }, rival: { x: 440, y: 236 } },
-  stock: { x: 118, y: 268 },
-  discard: { x: 852, y: 268 },
-};
-
-const FELT_TOP = '#1d3b34';
-const FELT_BOTTOM = '#12261f';
-
-export function drawTable(ctx, width, height, time) {
-  const felt = ctx.createLinearGradient(0, 0, 0, height);
-  felt.addColorStop(0, FELT_TOP);
-  felt.addColorStop(1, FELT_BOTTOM);
-  ctx.fillStyle = felt;
-  ctx.fillRect(0, 0, width, height);
-
-  // A woven band across the middle, so the mat reads as cloth rather than void.
-  ctx.save();
-  ctx.globalAlpha = 0.07;
-  ctx.strokeStyle = '#a8e6c8';
-  ctx.lineWidth = 2;
-  for (let i = -6; i < 26; i += 1) {
-    const offset = i * 46 + Math.sin(time * 0.25 + i) * 3;
-    ctx.beginPath();
-    ctx.moveTo(offset, 0);
-    ctx.lineTo(offset + 180, height);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  ctx.save();
-  ctx.globalAlpha = 0.35;
-  ctx.strokeStyle = '#0b1a15';
-  ctx.lineWidth = 3;
-  roundedRect(ctx, 24, 24, width - 48, height - 48, 18);
-  ctx.stroke();
-  ctx.restore();
+export function laneRect(side, lane) {
+  return { x: laneX(lane), y: LANE.top[side], w: LANE.width, h: LANE.height };
 }
 
-/* ------------------------------------------------------------------ cards */
-
-export function drawCard(ctx, card, x, y, options = {}) {
-  const { scale = 1, rotation = 0, faceUp = true, glow = 0, dim = false, alpha = 1 } = options;
-  const w = CARD.w * scale;
-  const h = CARD.h * scale;
-
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.translate(x, y);
-  ctx.rotate(rotation);
-
-  ctx.fillStyle = 'rgba(6, 14, 12, 0.4)';
-  roundedRect(ctx, -w / 2 + 2, -h / 2 + 5, w, h, CARD.radius * scale);
-  ctx.fill();
-
-  if (!faceUp) {
-    drawCardBack(ctx, w, h, scale);
-    ctx.restore();
-    return;
+export function laneAt(x, y) {
+  for (const side of ['rival', 'you']) {
+    for (let lane = 0; lane < LANES; lane += 1) {
+      const rect = laneRect(side, lane);
+      if (x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h) return { side, lane };
+    }
   }
-
-  const suit = SUIT_BY_ID.get(card.suit);
-  ctx.fillStyle = dim ? '#c9c6bd' : '#f7f3e8';
-  roundedRect(ctx, -w / 2, -h / 2, w, h, CARD.radius * scale);
-  ctx.fill();
-  ctx.strokeStyle = glow > 0 ? '#ffd166' : 'rgba(20, 26, 24, 0.55)';
-  ctx.lineWidth = (glow > 0 ? 3 : 1.5) * scale;
-  ctx.stroke();
-
-  // Suit band down the left edge
-  ctx.save();
-  ctx.beginPath();
-  roundedRect(ctx, -w / 2, -h / 2, w, h, CARD.radius * scale);
-  ctx.clip();
-  ctx.fillStyle = suit.color;
-  ctx.fillRect(-w / 2, -h / 2, 7 * scale, h);
-  ctx.restore();
-
-  ctx.fillStyle = dim ? '#7b7568' : suit.dark;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.font = `700 ${Math.round(22 * scale)}px "Trebuchet MS", system-ui, sans-serif`;
-  ctx.fillText(String(card.rank), -w / 2 + 13 * scale, -h / 2 + 8 * scale);
-
-  drawSuitGlyph(ctx, suit, 4 * scale, 6 * scale, 22 * scale, dim);
-
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'bottom';
-  ctx.font = `700 ${Math.round(14 * scale)}px "Trebuchet MS", system-ui, sans-serif`;
-  ctx.fillStyle = dim ? '#8b8577' : suit.dark;
-  ctx.fillText(`${card.rank} pts`, w / 2 - 8 * scale, h / 2 - 7 * scale);
-
-  if (glow > 0) {
-    ctx.strokeStyle = `rgba(255, 209, 102, ${glow})`;
-    ctx.lineWidth = 4 * scale;
-    roundedRect(ctx, -w / 2 - 3, -h / 2 - 3, w + 6, h + 6, (CARD.radius + 3) * scale);
-    ctx.stroke();
-  }
-  ctx.restore();
+  return null;
 }
 
-function drawCardBack(ctx, w, h, scale) {
-  ctx.fillStyle = '#3b2f5c';
-  roundedRect(ctx, -w / 2, -h / 2, w, h, CARD.radius * scale);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-  ctx.lineWidth = 1.5 * scale;
-  ctx.stroke();
-
-  ctx.save();
-  ctx.beginPath();
-  roundedRect(ctx, -w / 2 + 5 * scale, -h / 2 + 5 * scale, w - 10 * scale, h - 10 * scale, 7 * scale);
-  ctx.clip();
-  ctx.strokeStyle = 'rgba(180, 160, 235, 0.55)';
-  ctx.lineWidth = 1.5 * scale;
-  for (let i = -4; i < 8; i += 1) {
-    ctx.beginPath();
-    ctx.moveTo(-w / 2 + i * 14 * scale, -h / 2);
-    ctx.lineTo(-w / 2 + i * 14 * scale + h, h / 2);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  ctx.fillStyle = 'rgba(255, 233, 168, 0.9)';
-  ctx.beginPath();
-  ctx.arc(0, 0, 9 * scale, 0, TAU);
-  ctx.fill();
+export function handPositions(count) {
+  const spread = Math.min(HAND.spread, 620 / Math.max(1, count));
+  const start = 470 - ((count - 1) * spread) / 2;
+  return Array.from({ length: count }, (_, i) => ({ x: start + i * spread, y: HAND.y }));
 }
 
-/** Each herd gets a silhouette: a camel, a horse, a falcon, a yurt. */
-export function drawSuitGlyph(ctx, suit, x, y, size, dim = false) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(size / 24, size / 24);
-  ctx.fillStyle = dim ? '#9a9488' : suit.color;
-  ctx.strokeStyle = dim ? '#6f6a5f' : suit.dark;
-  ctx.lineWidth = 1.6;
-  ctx.lineJoin = 'round';
-
-  switch (suit.glyph) {
-    case 'camel':
-      ctx.beginPath();
-      ctx.moveTo(-10, 8);
-      ctx.lineTo(-8, 0);
-      ctx.quadraticCurveTo(-6, -7, -2, -1);
-      ctx.quadraticCurveTo(2, -8, 6, -1);
-      ctx.lineTo(8, 2);
-      ctx.quadraticCurveTo(11, 2, 10, -4);
-      ctx.lineTo(12, -6);
-      ctx.lineTo(11, 2);
-      ctx.lineTo(9, 8);
-      ctx.lineTo(6, 3);
-      ctx.lineTo(-4, 3);
-      ctx.lineTo(-6, 8);
-      ctx.closePath();
-      break;
-    case 'horse':
-      ctx.beginPath();
-      ctx.moveTo(-9, 9);
-      ctx.lineTo(-6, -1);
-      ctx.quadraticCurveTo(-4, -8, 3, -9);
-      ctx.lineTo(6, -12);
-      ctx.lineTo(8, -8);
-      ctx.quadraticCurveTo(11, -4, 7, 1);
-      ctx.lineTo(8, 9);
-      ctx.lineTo(4, 9);
-      ctx.lineTo(2, 2);
-      ctx.lineTo(-3, 2);
-      ctx.lineTo(-5, 9);
-      ctx.closePath();
-      break;
-    case 'falcon':
-      ctx.beginPath();
-      ctx.moveTo(0, -9);
-      ctx.quadraticCurveTo(9, -6, 12, 3);
-      ctx.quadraticCurveTo(5, 0, 2, 8);
-      ctx.lineTo(0, 3);
-      ctx.lineTo(-2, 8);
-      ctx.quadraticCurveTo(-5, 0, -12, 3);
-      ctx.quadraticCurveTo(-9, -6, 0, -9);
-      ctx.closePath();
-      break;
-    default: // yurt
-      ctx.beginPath();
-      ctx.moveTo(-11, 9);
-      ctx.lineTo(-9, -1);
-      ctx.quadraticCurveTo(0, -11, 9, -1);
-      ctx.lineTo(11, 9);
-      ctx.closePath();
-      break;
-  }
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-}
-
-/* -------------------------------------------------------------------- hud */
-
-export function handPositions(count, layout = LAYOUT.hand) {
-  const positions = [];
-  const spread = Math.min(layout.spread, 420 / Math.max(1, count));
-  const start = -((count - 1) * spread) / 2;
-  for (let i = 0; i < count; i += 1) {
-    const offset = start + i * spread;
-    positions.push({
-      x: layout.x + offset,
-      y: layout.y + Math.abs(offset) * 0.035,
-      rotation: offset * 0.0016,
-    });
-  }
-  return positions;
-}
-
-/** Which hand card is under a point, topmost first. */
-export function cardAt(x, y, positions, scale = 1) {
+export function handCardAt(x, y, positions) {
   for (let i = positions.length - 1; i >= 0; i -= 1) {
     const spot = positions[i];
-    if (
-      x >= spot.x - (CARD.w * scale) / 2 && x <= spot.x + (CARD.w * scale) / 2 &&
-      y >= spot.y - (CARD.h * scale) / 2 && y <= spot.y + (CARD.h * scale) / 2
-    ) return i;
+    if (Math.abs(x - spot.x) <= HAND.width / 2 && Math.abs(y - spot.y) <= HAND.height / 2) return i;
   }
   return -1;
 }
 
-export function drawStock(ctx, state, time) {
-  const { x, y } = LAYOUT.stock;
-  if (state.stock.length > 0) {
-    drawCard(ctx, state.trumpCard, x + 26, y + 30, { rotation: Math.PI / 2, scale: 0.82 });
-    for (let i = Math.min(4, state.stock.length - 1); i >= 0; i -= 1) {
-      drawCard(ctx, null, x - i * 1.5, y - i * 2, { faceUp: false, scale: 0.82 });
+export const inEndTurn = (x, y) =>
+  x >= END_TURN.x && x <= END_TURN.x + END_TURN.w && y >= END_TURN.y && y <= END_TURN.y + END_TURN.h;
+
+/* ------------------------------------------------------------------ table */
+
+export function drawTable(ctx, time) {
+  const bg = ctx.createLinearGradient(0, 0, 0, VIEW.height);
+  bg.addColorStop(0, '#241a2e');
+  bg.addColorStop(0.5, '#151424');
+  bg.addColorStop(1, '#1d1a2c');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+
+  ctx.save();
+  ctx.globalAlpha = 0.06;
+  ctx.strokeStyle = '#9fb4ff';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 20; i += 1) {
+    const y = ((time * 6 + i * 32) % (VIEW.height + 40)) - 20;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(VIEW.width, y - 12);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // The line between the two halves
+  ctx.strokeStyle = 'rgba(180, 195, 255, 0.22)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 8]);
+  ctx.beginPath();
+  ctx.moveTo(280, 182);
+  ctx.lineTo(920, 182);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+export function drawLanes(ctx, state, highlight) {
+  for (const side of ['rival', 'you']) {
+    for (let lane = 0; lane < LANES; lane += 1) {
+      const rect = laneRect(side, lane);
+      const lit = highlight.some((spot) => spot.side === side && spot.lane === lane);
+      ctx.fillStyle = lit ? 'rgba(255, 209, 102, 0.16)' : 'rgba(255, 255, 255, 0.045)';
+      roundedRect(ctx, rect.x, rect.y, rect.w, rect.h, 10);
+      ctx.fill();
+      ctx.strokeStyle = lit ? '#ffd166' : 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = lit ? 2.5 : 1.2;
+      ctx.stroke();
     }
   }
+}
 
+/* --------------------------------------------------------------- fighters */
+
+export function drawFighter(ctx, fighter, side, lane, options = {}) {
+  const rect = laneRect(side, lane);
+  const faction = FACTIONS[fighter.card.faction];
+  const hurt = options.flash || 0;
+
+  ctx.save();
+  ctx.fillStyle = faction.dark;
+  roundedRect(ctx, rect.x + 3, rect.y + 3, rect.w - 6, rect.h - 6, 9);
+  ctx.fill();
+  ctx.fillStyle = hurt > 0 ? '#ffffff' : faction.color;
+  ctx.globalAlpha = hurt > 0 ? 0.35 + hurt * 0.5 : 1;
+  roundedRect(ctx, rect.x + 3, rect.y + 3, rect.w - 6, 22, 9);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = '#12101d';
+  ctx.font = '700 13px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(fighter.name, rect.x + 10, rect.y + 15);
+
+  drawFighterArt(ctx, fighter.card.art, faction, rect.x + rect.w - 26, rect.y + 46, 20);
+
+  // HP bar
+  const ratio = clamp(fighter.hp / fighter.maxHp, 0, 1);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  roundedRect(ctx, rect.x + 10, rect.y + 62, rect.w - 20, 9, 5);
+  ctx.fill();
+  ctx.fillStyle = ratio > 0.5 ? '#6ee7a8' : ratio > 0.25 ? '#ffd166' : '#ff6b6b';
+  if (ratio > 0) {
+    roundedRect(ctx, rect.x + 10, rect.y + 62, Math.max(5, (rect.w - 20) * ratio), 9, 5);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = '#f4f2ff';
+  ctx.font = '700 15px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(`${fighter.hp}`, rect.x + 10, rect.y + 44);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#ffd166';
+  ctx.fillText(`${fighter.damage + fighter.turnDamage}`, rect.x + rect.w - 44, rect.y + 44);
+
+  ctx.textAlign = 'left';
+  ctx.font = '600 10px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(244, 242, 255, 0.6)';
+  ctx.fillText('HP', rect.x + 10, rect.y + 56);
+
+  if (fighter.shield > 0) badge(ctx, rect.x + 8, rect.y + 78, `shield ${fighter.shield}`, '#8ed6ff');
+  else if (fighter.silenced > 0) badge(ctx, rect.x + 8, rect.y + 78, `tangled ${fighter.silenced}`, '#c39bff');
+  else if (!options.ready) badge(ctx, rect.x + 8, rect.y + 78, 'landing', 'rgba(255,255,255,0.45)');
+  ctx.restore();
+}
+
+function badge(ctx, x, y, text, color) {
+  ctx.font = '700 10px "Trebuchet MS", system-ui, sans-serif';
+  const w = ctx.measureText(text).width + 12;
+  ctx.fillStyle = color;
+  roundedRect(ctx, x, y - 7, w, 14, 7);
+  ctx.fill();
+  ctx.fillStyle = '#14121f';
+  ctx.textAlign = 'left';
+  ctx.fillText(text, x + 6, y);
+}
+
+/** A quick silhouette per fighter, so the lanes are not all rectangles. */
+export function drawFighterArt(ctx, art, faction, x, y, size) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(size / 20, size / 20);
+  ctx.fillStyle = faction.light;
+  ctx.strokeStyle = 'rgba(10, 8, 20, 0.7)';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  switch (art) {
+    case 'orb': ctx.arc(0, 0, 11, 0, TAU); break;
+    case 'spike':
+      ctx.moveTo(0, -13); ctx.lineTo(9, 10); ctx.lineTo(0, 5); ctx.lineTo(-9, 10); ctx.closePath(); break;
+    case 'anvil':
+      ctx.moveTo(-11, -6); ctx.lineTo(11, -6); ctx.lineTo(7, 2); ctx.lineTo(4, 11); ctx.lineTo(-4, 11); ctx.lineTo(-7, 2); ctx.closePath(); break;
+    case 'tower':
+      ctx.rect(-9, -11, 18, 22); break;
+    case 'brain':
+      ctx.arc(-4, -2, 7, 0, TAU); ctx.arc(4, -2, 7, 0, TAU); ctx.arc(0, 5, 6, 0, TAU); break;
+    case 'prism':
+      ctx.moveTo(0, -12); ctx.lineTo(10, 6); ctx.lineTo(-10, 6); ctx.closePath(); break;
+    case 'block':
+      ctx.rect(-11, -8, 22, 16); break;
+    case 'puppet':
+      ctx.moveTo(0, -12); ctx.lineTo(3, -4); ctx.lineTo(10, 0); ctx.lineTo(3, 4); ctx.lineTo(0, 12);
+      ctx.lineTo(-3, 4); ctx.lineTo(-10, 0); ctx.lineTo(-3, -4); ctx.closePath(); break;
+    case 'crown':
+      ctx.moveTo(-11, 8); ctx.lineTo(-8, -8); ctx.lineTo(-3, 2); ctx.lineTo(0, -10);
+      ctx.lineTo(3, 2); ctx.lineTo(8, -8); ctx.lineTo(11, 8); ctx.closePath(); break;
+    default:
+      ctx.moveTo(-9, 10); ctx.lineTo(-5, -9); ctx.lineTo(5, -9); ctx.lineTo(9, 10); ctx.closePath(); break;
+  }
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* ------------------------------------------------------------------- hand */
+
+export function drawHandCard(ctx, card, x, y, options = {}) {
+  const { selected = false, playable = true, scale = 1 } = options;
+  const w = HAND.width * scale;
+  const h = HAND.height * scale;
+  const faction = FACTIONS[card.faction];
+  const lift = selected ? 16 : 0;
+
+  ctx.save();
+  ctx.translate(x, y - lift);
+  ctx.globalAlpha = playable ? 1 : 0.55;
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  roundedRect(ctx, -w / 2 + 2, -h / 2 + 4, w, h, 9);
+  ctx.fill();
+  ctx.fillStyle = '#f2eefb';
+  roundedRect(ctx, -w / 2, -h / 2, w, h, 9);
+  ctx.fill();
+  ctx.strokeStyle = selected ? '#ffd166' : faction.dark;
+  ctx.lineWidth = selected ? 3 : 1.5;
+  ctx.stroke();
+
+  ctx.fillStyle = faction.color;
+  roundedRect(ctx, -w / 2, -h / 2, w, 20, 9);
+  ctx.fill();
+
+  ctx.fillStyle = '#14121f';
+  ctx.font = `700 ${Math.round(11 * scale)}px "Trebuchet MS", system-ui, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(card.name.slice(0, 13), -w / 2 + 6, -h / 2 + 10);
+
+  // Cost pip
+  ctx.fillStyle = '#2c2447';
+  ctx.beginPath();
+  ctx.arc(w / 2 - 12, -h / 2 + 30, 11, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#ffd166';
+  ctx.font = `700 ${Math.round(13 * scale)}px "Trebuchet MS", system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText(String(card.cost), w / 2 - 12, -h / 2 + 31);
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#4a4266';
+  ctx.font = `600 ${Math.round(9 * scale)}px "Trebuchet MS", system-ui, sans-serif`;
+  ctx.fillText(card.kind.toUpperCase(), -w / 2 + 6, -h / 2 + 30);
+
+  if (card.kind === 'fighter') {
+    drawFighterArt(ctx, card.art, faction, 0, -2, 26);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#1d1830';
+    ctx.font = `700 ${Math.round(12 * scale)}px "Trebuchet MS", system-ui, sans-serif`;
+    ctx.fillText(`${card.hp}`, -w / 2 + 7, h / 2 - 12);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#8a3b12';
+    ctx.fillText(`${card.damage}`, w / 2 - 7, h / 2 - 12);
+  } else {
+    wrapText(ctx, card.blurb, -w / 2 + 7, -6, w - 14, 11 * scale, `600 ${Math.round(9.5 * scale)}px "Trebuchet MS", system-ui, sans-serif`, '#3b3456');
+  }
+  ctx.restore();
+}
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight, font, color) {
+  ctx.font = font;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'left';
+  const words = String(text).split(' ');
+  let line = '';
+  let cursor = y;
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, cursor);
+      line = word;
+      cursor += lineHeight;
+    } else line = test;
+  }
+  if (line) ctx.fillText(line, x, cursor);
+}
+
+/* -------------------------------------------------------------------- hud */
+
+export function drawSideBar(ctx, state, side, player, faction) {
+  const top = side === 'rival' ? 20 : 320;
+  const name = side === 'rival' ? 'Rival' : 'You';
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(12, 10, 24, 0.72)';
+  roundedRect(ctx, 20, top, 250, 46, 10);
+  ctx.fill();
+  ctx.strokeStyle = FACTIONS[faction].color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(22, top + 4);
+  ctx.lineTo(22, top + 42);
+  ctx.stroke();
+
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#f4f2ff';
+  ctx.font = '700 14px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(`${name} - ${FACTIONS[faction].name}`, 34, top + 14);
+
+  const ratio = clamp(player.core / player.maxCore, 0, 1);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
+  roundedRect(ctx, 34, top + 26, 168, 12, 6);
+  ctx.fill();
+  ctx.fillStyle = ratio > 0.5 ? '#6ee7a8' : ratio > 0.25 ? '#ffd166' : '#ff6b6b';
+  if (ratio > 0) {
+    roundedRect(ctx, 34, top + 26, Math.max(6, 168 * ratio), 12, 6);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#f4f2ff';
+  ctx.font = '700 13px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(`${player.core}`, 262, top + 32);
+
+  // Cards, deck and traps
+  ctx.textAlign = 'left';
+  ctx.font = '600 11px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(244, 242, 255, 0.68)';
+  ctx.fillText(`${player.hand.length} in hand   ${player.deck.length} in deck   ${player.traps.length} trap${player.traps.length === 1 ? '' : 's'} set`, 34, top + 46 + 10);
+  ctx.restore();
+}
+
+export function drawEnergy(ctx, player) {
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 12px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(244, 242, 255, 0.7)';
+  ctx.fillText('ENERGY', 300, 340);
+  for (let i = 0; i < Math.max(player.maxEnergy, player.energy); i += 1) {
+    ctx.beginPath();
+    ctx.arc(300 + 18 + i * 22, 341, 8, 0, TAU);
+    ctx.fillStyle = i < player.energy ? '#ffd166' : 'rgba(255, 255, 255, 0.16)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+export function drawEndTurn(ctx, enabled, hot) {
+  ctx.save();
+  ctx.fillStyle = enabled ? (hot ? '#ffdf8f' : '#ffd166') : 'rgba(255, 255, 255, 0.12)';
+  roundedRect(ctx, END_TURN.x, END_TURN.y, END_TURN.w, END_TURN.h, 12);
+  ctx.fill();
+  ctx.fillStyle = enabled ? '#1a1400' : 'rgba(255, 255, 255, 0.4)';
+  ctx.font = '700 15px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Attack & end turn', END_TURN.x + END_TURN.w / 2, END_TURN.y + END_TURN.h / 2);
+  ctx.font = '600 10px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = enabled ? 'rgba(26, 20, 0, 0.6)' : 'rgba(255, 255, 255, 0.3)';
+  ctx.fillText('or press Enter', END_TURN.x + END_TURN.w / 2, END_TURN.y + END_TURN.h + 10);
+  ctx.restore();
+}
+
+export function drawRivalHand(ctx, count) {
+  ctx.save();
+  for (let i = 0; i < count; i += 1) {
+    const x = 700 + i * 22;
+    ctx.fillStyle = '#3b2f5c';
+    roundedRect(ctx, x, 20, 26, 38, 5);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+export function drawTraps(ctx, count, side) {
+  const y = side === 'rival' ? 172 : 300;
+  ctx.save();
+  for (let i = 0; i < count; i += 1) {
+    const x = 306 + i * 26;
+    ctx.fillStyle = side === 'rival' ? 'rgba(255, 120, 120, 0.75)' : 'rgba(140, 220, 180, 0.8)';
+    roundedRect(ctx, x, y, 20, 12, 4);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+export function drawPopups(ctx, popups) {
   ctx.save();
   ctx.textAlign = 'center';
-  ctx.font = '600 13px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillStyle = 'rgba(226, 240, 232, 0.75)';
-  ctx.fillText(
-    state.stock.length > 0 ? `${state.stock.length} in the stock` : 'Stock empty - follow suit',
-    x + 10,
-    y + 78
-  );
-  ctx.restore();
-  void time;
-}
-
-export function drawHud(ctx, width, hud) {
-  const suit = SUIT_BY_ID.get(hud.trumpSuit);
-  ctx.save();
-  ctx.fillStyle = 'rgba(8, 20, 16, 0.72)';
-  roundedRect(ctx, 24, 24, 268, 74, 12);
-  ctx.fill();
-
   ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
-  ctx.font = '700 13px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillStyle = 'rgba(226, 240, 232, 0.7)';
-  ctx.fillText(`DEAL ${hud.dealNumber} OF ${hud.dealCount}`, 40, 43);
-
-  ctx.font = '700 26px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillStyle = '#ffe07a';
-  ctx.fillText(`${hud.you}`, 40, 74);
-  ctx.font = '600 14px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillStyle = 'rgba(226, 240, 232, 0.75)';
-  ctx.fillText('you', 40 + ctx.measureText(`${hud.you}`).width + 26, 76);
-
-  ctx.textAlign = 'right';
-  ctx.font = '700 26px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillStyle = '#f2f6ff';
-  ctx.fillText(`${hud.rival}`, 276, 74);
-  ctx.font = '600 14px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillStyle = 'rgba(226, 240, 232, 0.75)';
-  ctx.fillText('rival', 276 - ctx.measureText(`${hud.rival}`).width - 26, 76);
-
-  // Trump herd chip
-  ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(8, 20, 16, 0.72)';
-  roundedRect(ctx, width - 236, 24, 212, 44, 12);
-  ctx.fill();
-  drawSuitGlyph(ctx, suit, width - 210, 46, 26);
-  ctx.fillStyle = '#f2f6ff';
-  ctx.font = '700 16px "Trebuchet MS", system-ui, sans-serif';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(`${suit.name} are trumps`, width - 188, 47);
+  for (const popup of popups) {
+    ctx.globalAlpha = clamp(popup.life / popup.maxLife, 0, 1);
+    ctx.font = `700 ${popup.size}px "Trebuchet MS", system-ui, sans-serif`;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(10, 8, 20, 0.8)';
+    ctx.strokeText(popup.text, popup.x, popup.y);
+    ctx.fillStyle = popup.color;
+    ctx.fillText(popup.text, popup.x, popup.y);
+  }
   ctx.restore();
 }
 
-/** Sits under the score panel, clear of the cards flying through the middle. */
-export function drawMessage(ctx, width, text, tone = 'plain') {
+export function drawMessage(ctx, text, tone) {
   if (!text) return;
   ctx.save();
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.font = '600 16px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillStyle = tone === 'good' ? '#8ef0b4' : tone === 'bad' ? '#ffb3b3' : 'rgba(232, 244, 236, 0.88)';
-  ctx.fillText(text, 26, 122);
+  ctx.font = '600 14px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = tone === 'good' ? '#8ef0b4' : tone === 'bad' ? '#ffb3b3' : 'rgba(240, 238, 255, 0.85)';
+  ctx.fillText(text, 300, 372);
   ctx.restore();
-  void width;
 }
 
-export function drawBanner(ctx, width, text, subtext, alpha) {
+export function drawBanner(ctx, text, subtext, alpha) {
   if (!text || alpha <= 0) return;
   ctx.save();
   ctx.globalAlpha = clamp(alpha, 0, 1);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '700 42px "Trebuchet MS", system-ui, sans-serif';
+  ctx.font = '700 44px "Trebuchet MS", system-ui, sans-serif';
   ctx.lineWidth = 8;
-  ctx.strokeStyle = 'rgba(6, 16, 12, 0.85)';
-  ctx.strokeText(text, width / 2, 196);
-  ctx.fillStyle = '#ffe07a';
-  ctx.fillText(text, width / 2, 196);
+  ctx.strokeStyle = 'rgba(8, 6, 18, 0.85)';
+  ctx.strokeText(text, VIEW.width / 2, 180);
+  ctx.fillStyle = '#ffd166';
+  ctx.fillText(text, VIEW.width / 2, 180);
   if (subtext) {
     ctx.font = '600 18px "Trebuchet MS", system-ui, sans-serif';
     ctx.lineWidth = 5;
-    ctx.strokeText(subtext, width / 2, 234);
-    ctx.fillStyle = '#eaf3ee';
-    ctx.fillText(subtext, width / 2, 234);
+    ctx.strokeText(subtext, VIEW.width / 2, 218);
+    ctx.fillStyle = '#f0eeff';
+    ctx.fillText(subtext, VIEW.width / 2, 218);
   }
   ctx.restore();
 }

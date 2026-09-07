@@ -792,78 +792,102 @@ canvas {
 
 /* --- Shubat --- */
 
-.sb-setup {
+.sh-setup {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
   padding: 1em;
-  background: rgba(8, 20, 16, 0.9);
+  background: rgba(14, 11, 26, 0.92);
   overflow: auto;
 }
 
-.sb-setup-card {
-  width: min(34em, 100%);
+.sh-setup-card {
+  width: min(46em, 100%);
   display: flex;
   flex-direction: column;
   gap: 0.6em;
-  padding: 1.2em 1.4em;
+  padding: 1.1em 1.3em;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: var(--radius);
-  background: #16302a;
+  background: #1b1730;
   box-shadow: var(--shadow);
 }
 
-.sb-setup-card h2 { margin: 0; font-size: 1.9em; letter-spacing: 0.02em; }
-.sb-lede { margin: 0; color: #a9c6b8; }
+.sh-setup-card h2 { margin: 0; font-size: 1.8em; }
+.sh-lede { margin: 0; color: #b3aad0; font-size: 0.95em; }
 
-.sb-herds { display: flex; gap: 0.5em; flex-wrap: wrap; }
+.sh-decks { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6em; }
 
-.sb-herd {
+.sh-deck {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.35em;
-  padding: 0.25em 0.7em 0.25em 0.25em;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
-  font-size: 0.9em;
-}
-
-.sb-suit { display: block; }
-
-.sb-rules {
-  margin: 0;
-  padding-left: 1.2em;
-  display: grid;
-  gap: 0.3em;
-  color: #d5e6dc;
-  font-size: 0.92em;
-}
-
-.sb-rules strong { color: var(--accent); }
-
-.sb-choice { display: flex; align-items: center; justify-content: space-between; gap: 0.7em; }
-.sb-choice-label { color: #a9c6b8; font-size: 0.9em; }
-.sb-choice-options { display: flex; gap: 0.35em; }
-
-.sb-option {
-  padding: 0.35em 0.9em;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: transparent;
-  color: #cfe3d8;
+  padding: 0.7em 0.8em;
+  text-align: left;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--faction);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
   font: inherit;
   cursor: pointer;
 }
 
-.sb-option.is-active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #1a1400;
+.sh-deck:hover { background: rgba(255, 255, 255, 0.08); }
+.sh-deck.is-picked { background: rgba(255, 209, 102, 0.14); border-color: var(--accent); border-top-color: var(--faction); }
+
+.sh-deck-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5em; }
+.sh-deck-head strong { font-size: 1.1em; }
+
+.sh-passive {
+  font-size: 0.72em;
   font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faction);
 }
 
-.sb-start { align-self: stretch; }
+.sh-deck-lede { margin: 0; color: var(--muted); font-size: 0.85em; }
+.sh-deck-passive { margin: 0; color: #d9d2f0; font-size: 0.82em; }
+
+.sh-roster { display: grid; gap: 2px; margin-top: 0.2em; }
+.sh-fighter { display: flex; align-items: center; gap: 0.45em; }
+.sh-fighter-meta { display: flex; flex-direction: column; line-height: 1.15; }
+.sh-fighter-meta strong { font-size: 0.88em; }
+.sh-fighter-meta span { color: var(--muted); font-size: 0.75em; }
+.sh-sigil { display: block; }
+
+.sh-deck-shape {
+  margin-top: 0.2em;
+  color: var(--muted);
+  font-size: 0.75em;
+  letter-spacing: 0.04em;
+}
+
+.sh-choice { display: flex; align-items: center; justify-content: space-between; gap: 0.7em; }
+.sh-choice-label { color: var(--muted); font-size: 0.9em; }
+.sh-choice-options { display: flex; gap: 0.35em; }
+
+.sh-option {
+  padding: 0.35em 0.9em;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sh-option.is-active { background: var(--accent); border-color: var(--accent); color: #1a1400; font-weight: 700; }
+
+.sh-note { margin: 0; color: var(--muted); font-size: 0.85em; min-height: 1.2em; }
+.sh-start { align-self: stretch; }
+
+@media (max-width: 700px) {
+  .sh-decks { grid-template-columns: 1fr; }
+  .sh-roster { display: none; }
+}
 
 /* ---------- Footer ---------- */
 
@@ -5266,36 +5290,270 @@ registerGame({
 // ---- src/games/shubat/cards.js -----------------------------------
 __modules["src/games/shubat/cards.js"] = (function () {
 /**
- * The Shubat deck: four herds of eight, thirty-two cards.
+ * Shubat card data. Two starter decks, twenty cards each:
+ *   5 fighters, 10 support cards, 2 instant damage cards, 3 traps.
  *
- * A card's rank is also its point value, so the strong cards are the ones worth
- * taking - an eight wins the trick and is worth eight when you collect it.
+ * Fighter HP and damage are exactly as specified. Everything else is derived,
+ * so changing a fighter's numbers changes what it costs to field it:
+ *
+ *   cost = round(((hp + damage) / 200) ** COST_CURVE), at least 1
+ *
+ * The curve is what balances the two decks against each other. String Brain's
+ * fighters carry more than twice Iron Warrior's total HP, so on a flat curve
+ * they simply win; bending it makes the enormous ones cost enormously, and the
+ * decks become archetypes instead - Iron floods the lanes early, String has to
+ * survive to the turn its monsters land. Raise it to squeeze String further,
+ * lower it to let the big cards out sooner.
  */
+const COST_CURVE = 1.3;
 
-const SUITS = [
-  { id: 'camel', name: 'Camels', color: '#e8b45c', dark: '#8a5b12', glyph: 'camel' },
-  { id: 'horse', name: 'Horses', color: '#e2694a', dark: '#8f2f16', glyph: 'horse' },
-  { id: 'falcon', name: 'Falcons', color: '#63a8e8', dark: '#15517f', glyph: 'falcon' },
-  { id: 'yurt', name: 'Yurts', color: '#6fc48a', dark: '#1f7040', glyph: 'yurt' },
-];
+const FACTIONS = {
+  iron: {
+    id: 'iron',
+    name: 'Iron Warrior',
+    tagline: 'Cheap, fast, relentless. Flood the lanes before the Brain wakes up.',
+    passive: { id: 'breakthrough', name: 'Breakthrough', blurb: 'Damage past a kill carries straight into the core.' },
+    color: '#e8913f',
+    light: '#ffc27a',
+    dark: '#7a3f08',
+    core: '#f2b46a',
+  },
+  string: {
+    id: 'string',
+    name: 'String Brain',
+    tagline: 'Slow, enormous, and it has read your hand. Survive to the late game.',
+    passive: { id: 'foresight', name: 'Foresight', blurb: 'Your first draw each turn looks one card deeper.' },
+    color: '#8b7ce8',
+    light: '#c0b6ff',
+    dark: '#3b2c7a',
+    core: '#b5a6ff',
+  },
+};
 
-const SUIT_BY_ID = new Map(SUITS.map((suit) => [suit.id, suit]));
-const RANKS = [1, 2, 3, 4, 5, 6, 7, 8];
-const DECK_SIZE = SUITS.length * RANKS.length;
-const TOTAL_POINTS = SUITS.length * RANKS.reduce((sum, rank) => sum + rank, 0);
+const FACTION_IDS = Object.keys(FACTIONS);
+const otherFaction = (id) => (id === 'iron' ? 'string' : 'iron');
 
-const cardId = (suit, rank) => `${suit}-${rank}`;
-const cardName = (card) => `${card.rank} of ${SUIT_BY_ID.get(card.suit).name}`;
+const fighterCost = (hp, damage) => Math.max(1, Math.round(((hp + damage) / 200) ** COST_CURVE));
 
-function createDeck() {
-  const deck = [];
-  for (const suit of SUITS) {
-    for (const rank of RANKS) deck.push({ id: cardId(suit.id, rank), suit: suit.id, rank, points: rank });
-  }
-  return deck;
+function fighter(faction, id, name, hp, damage, blurb, art) {
+  return {
+    id: `${faction}-${id}`,
+    kind: 'fighter',
+    faction,
+    name,
+    hp,
+    damage,
+    cost: fighterCost(hp, damage),
+    blurb,
+    art,
+  };
 }
 
-/** Fisher-Yates with an injectable source, so a deal can be replayed exactly. */
+/* ------------------------------------------------------------------ fighters */
+
+const FIGHTERS = [
+  // Iron Warrior - the numbers are the spec; the costs fall out of them.
+  fighter('iron', 'scrapper', 'Scrapper', 120, 180, 'Cheap, brittle, and hits far above its weight.', 'brawler'),
+  fighter('iron', 'magnet-bot', 'Magnet Bot', 290, 70, 'Soaks a lane so something meaner can work.', 'orb'),
+  fighter('iron', 'overdrive', 'Overdrive', 160, 210, 'The hardest early punch in either deck.', 'spike'),
+  fighter('iron', 'iron-forge', 'Iron-Forge', 135, 177, 'Steady output, and it never asks for much.', 'anvil'),
+  fighter('iron', 'criptmetal', 'Criptmetal', 401, 101, 'The wall Iron builds while the others swing.', 'tower'),
+
+  // String Brain
+  fighter('string', 'brainer', 'Brainer', 380, 20, 'It is not here to hit you. It is here to stay.', 'brain'),
+  fighter('string', 'calculator', 'Calculator', 297 + 17, 1000 - 210, 'Works out exactly how much you had left.', 'prism'),
+  fighter('string', 'coden', 'Coden', 1010, 7, 'A thousand and ten points of absolutely nothing happening.', 'block'),
+  fighter('string', 'puppeteer', 'Puppeteer', 248, 157, 'Cheap enough to hold a lane while the big ones load.', 'puppet'),
+  fighter('string', 'grand', 'Grand', 560, 129, 'Big, patient, and always in the way.', 'crown'),
+];
+
+/* ------------------------------------------------------- supports and spells */
+
+/**
+ * Effects are data, read by `rules.js`:
+ *   buff     {stat, amount, duration}      target an ally fighter
+ *   heal     {amount}                      ally fighter, or all allies
+ *   shield   {amount}                      damage the fighter ignores next hit
+ *   damage   {amount}                      enemy fighter, all enemies, or the core
+ *   drain    {stat, amount, duration}      take damage off an enemy fighter
+ *   silence  {turns}                       an enemy fighter cannot attack
+ *   draw     {count}                       cards
+ *   energy   {amount}                      right now
+ *   discard  {count}                       from the enemy hand
+ *   haste    {}                            your fighters may attack the turn they land
+ *   move     {}                            send a fighter to another lane
+ *   revive   {}                            a fallen fighter back to your hand
+ *   coreward {amount}                      damage your core ignores next turn
+ */
+const card = (faction, kind, id, name, cost, target, effect, blurb, tier = 'core') => ({
+  id: `${faction}-${id}`,
+  kind,
+  faction,
+  name,
+  cost,
+  target,
+  effect,
+  blurb,
+  tier,
+});
+
+const SUPPORTS = [
+  // --- Iron Warrior ------------------------------------------------------
+  card('iron', 'support', 'plating', 'Plating', 1, 'ally', { buff: { stat: 'hp', amount: 120 } }, '+120 HP, for good.'),
+  card('iron', 'support', 'overclock', 'Overclock', 1, 'ally', { buff: { stat: 'damage', amount: 90, duration: 'turn' } }, '+90 damage this turn.'),
+  card('iron', 'support', 'weld', 'Weld', 1, 'ally', { heal: { amount: 150 } }, 'Repair 150.'),
+  card('iron', 'support', 'salvage', 'Scrap Salvage', 2, 'none', { draw: { count: 2 } }, 'Draw two cards.'),
+  card('iron', 'support', 'assembly', 'Assembly Line', 0, 'none', { energy: { amount: 2 } }, 'Gain 2 energy now.'),
+  card('iron', 'support', 'riveted', 'Riveted Guard', 2, 'ally', { shield: { amount: 250 } }, 'Ignore the next 250 damage.'),
+  card('iron', 'support', 'foundry', 'Foundry Blast', 3, 'none', { buff: { stat: 'damage', amount: 60, duration: 'turn', scope: 'all' } }, '+60 damage to every fighter you have, this turn.'),
+  card('iron', 'support', 'magnetise', 'Magnetise', 2, 'enemy', { move: {} }, 'Drag an enemy fighter into another lane.'),
+  card('iron', 'support', 'repair-bay', 'Repair Bay', 3, 'none', { heal: { amount: 100, scope: 'all' } }, 'Repair 100 across your whole line.'),
+  card('iron', 'support', 'discipline', 'Iron Discipline', 2, 'none', { haste: {} }, 'Your fighters can attack the turn they land.'),
+  card('iron', 'support', 'scrap-cannon', 'Scrap Cannon', 2, 'ally', { buff: { stat: 'damage', amount: 150, duration: 'turn' } }, '+150 damage this turn.', 'elite'),
+  card('iron', 'support', 'reinforce', 'Reinforce', 1, 'ally', { buff: { stat: 'hp', amount: 60 } }, '+60 HP, for good.', 'basic'),
+
+  // --- String Brain ------------------------------------------------------
+  card('string', 'support', 'tangle', 'Tangle', 2, 'enemy', { silence: { turns: 1 } }, 'That fighter does not attack next turn.'),
+  card('string', 'support', 'mind-spike', 'Mind Spike', 2, 'enemy', { drain: { stat: 'damage', amount: 80 } }, '-80 damage, permanently.'),
+  card('string', 'support', 'recalculate', 'Recalculate', 2, 'none', { draw: { count: 2 } }, 'Draw two cards.'),
+  card('string', 'support', 'neural-boost', 'Neural Boost', 2, 'ally', { buff: { stat: 'damage', amount: 100, duration: 'turn' } }, '+100 damage this turn.'),
+  card('string', 'support', 'synaptic', 'Synaptic Shield', 2, 'none', { coreward: { amount: 200 } }, 'Your core ignores the next 200.'),
+  card('string', 'support', 'puppet-strings', 'Puppet Strings', 2, 'enemy', { move: {} }, 'Walk an enemy fighter into another lane.'),
+  card('string', 'support', 'overthink', 'Overthink', 2, 'none', { discard: { count: 1 } }, 'The rival throws a card away.'),
+  card('string', 'support', 'rewrite', 'Rewrite', 3, 'enemy', { drain: { stat: 'damage', amount: 200, duration: 'turn' } }, '-200 damage this turn.'),
+  card('string', 'support', 'firewall', 'Firewall', 3, 'none', { coreward: { amount: 400 } }, 'Your core ignores the next 400.'),
+  card('string', 'support', 'backup-loop', 'Backup Loop', 3, 'none', { revive: {} }, 'A fallen fighter returns to your hand.'),
+  card('string', 'support', 'deep-thought', 'Deep Thought', 3, 'none', { draw: { count: 3 } }, 'Draw three cards.', 'elite'),
+  card('string', 'support', 'static', 'Static', 1, 'enemy', { drain: { stat: 'damage', amount: 40 } }, '-40 damage, permanently.', 'basic'),
+];
+
+const INSTANTS = [
+  card('iron', 'instant', 'rocket-punch', 'Rocket Punch', 3, 'enemy', { damage: { amount: 300 } }, '300 damage to one fighter.'),
+  card('iron', 'instant', 'rail-shot', 'Rail Shot', 4, 'none', { damage: { amount: 250, scope: 'core' } }, '250 straight to the rival core.'),
+  card('iron', 'instant', 'scrap-grenade', 'Scrap Grenade', 4, 'none', { damage: { amount: 150, scope: 'all' } }, '150 to every enemy fighter.', 'elite'),
+
+  card('string', 'instant', 'logic-bomb', 'Logic Bomb', 3, 'enemy', { damage: { amount: 350 } }, '350 damage to one fighter.'),
+  card('string', 'instant', 'mind-burn', 'Mind Burn', 3, 'none', { damage: { amount: 200, scope: 'core' } }, '200 straight to the rival core.'),
+  card('string', 'instant', 'cascade', 'Cascade', 3, 'none', { damage: { amount: 120, scope: 'all' } }, '120 to every enemy fighter.', 'elite'),
+];
+
+/**
+ * Traps are set face down for their cost and fire on their own during the
+ * rival's turn. `trigger` says when.
+ */
+const TRAPS = [
+  card('iron', 'trap', 'bear-trap', 'Bear Trap', 2, 'none', { trigger: 'enemy-deploy', damage: { amount: 200 } }, 'A fighter arrives: 200 damage to it.'),
+  card('iron', 'trap', 'counterweight', 'Counterweight', 2, 'none', { trigger: 'core-hit', damage: { amount: 150, scope: 'attacker' } }, 'Your core is hit: 150 back to whatever hit it.'),
+  card('iron', 'trap', 'scrap-mines', 'Scrap Mines', 2, 'none', { trigger: 'enemy-instant', damage: { amount: 180, scope: 'core' } }, 'They cast an instant: 180 to their core.'),
+  card('iron', 'trap', 'lockdown', 'Lockdown', 3, 'none', { trigger: 'enemy-support', cancel: true }, 'Their next support card does nothing.', 'elite'),
+  card('iron', 'trap', 'emergency-weld', 'Emergency Weld', 3, 'none', { trigger: 'ally-death', heal: { amount: 200 } }, 'A fighter of yours falls: it survives on 200 instead.', 'basic'),
+
+  card('string', 'trap', 'neural-snare', 'Neural Snare', 2, 'none', { trigger: 'enemy-deploy', silence: { turns: 2 } }, 'A fighter arrives: it cannot attack for two turns.'),
+  card('string', 'trap', 'mirror', 'Mirror', 3, 'none', { trigger: 'core-hit', reflect: true }, 'Your core is hit: the attacker takes the same.'),
+  card('string', 'trap', 'blackout', 'Blackout', 2, 'none', { trigger: 'enemy-instant', cancel: true }, 'Their next instant does nothing.'),
+  card('string', 'trap', 'overload', 'Overload', 3, 'none', { trigger: 'enemy-full-board', damage: { amount: 150, scope: 'all' } }, 'They fill all three lanes: 150 to each.', 'elite'),
+  card('string', 'trap', 'feedback', 'Feedback Loop', 1, 'none', { trigger: 'enemy-support', draw: { count: 2 } }, 'They play a support: you draw two.', 'basic'),
+];
+
+const ALL_CARDS = [...FIGHTERS, ...SUPPORTS, ...INSTANTS, ...TRAPS];
+const CARD_BY_ID = new Map(ALL_CARDS.map((entry) => [entry.id, entry]));
+
+function getCard(id) {
+  const found = CARD_BY_ID.get(id);
+  if (!found) throw new Error(`Unknown card: ${id}`);
+  return found;
+}
+
+/* -------------------------------------------------------------------- decks */
+
+const DECK_SHAPE = { fighter: 5, support: 10, instant: 2, trap: 3 };
+const DECK_SIZE = Object.values(DECK_SHAPE).reduce((total, count) => total + count, 0);
+
+/**
+ * A deck is always the same shape; the difficulty decides which cards fill the
+ * support, instant and trap slots. Every deck runs all five of its fighters.
+ */
+const order = (tiers) => (entry) => tiers.indexOf(entry.tier);
+
+/**
+ * `spread` is how many different cards the recipe runs before it starts
+ * doubling up. Measured head to head, variety beats concentration in this game
+ * by a wide margin - a deck of four cards drawn three times each floods your
+ * hand with copies you have nothing to point at - so the ladder runs from a
+ * repetitive Trainee pile up to a Prototype deck that carries one of
+ * everything.
+ */
+const RECIPES = {
+  basic: { label: 'Trainee', blurb: 'The same few cheap cards, over and over.', spread: 0.45, rank: order(['basic', 'core', 'elite']) },
+  core: { label: 'Standard', blurb: 'The deck as it comes in the box.', spread: 0.7, rank: order(['core', 'elite', 'basic']) },
+  elite: { label: 'Prototype', blurb: 'One of everything, and the best of it.', spread: 1.0, rank: order(['elite', 'core', 'basic']) },
+};
+
+function pick(pool, faction, kind, count, recipe) {
+  const available = pool.filter((entry) => entry.faction === faction && entry.kind === kind);
+  const ranked = [...available].sort((a, b) => recipe.rank(a) - recipe.rank(b));
+  // Each recipe runs a narrower list with duplicates rather than one of
+  // everything, so a Trainee deck and a Prototype deck share very little.
+  const roster = ranked.slice(0, Math.max(2, Math.min(ranked.length, Math.ceil(count * recipe.spread))));
+  const chosen = [];
+  while (chosen.length < count) chosen.push(roster[chosen.length % roster.length]);
+  return chosen;
+}
+
+/** Builds a twenty-card deck: 5 fighters, 10 supports, 2 instants, 3 traps. */
+function buildDeck(faction, recipeId = 'core') {
+  const recipe = RECIPES[recipeId] || RECIPES.core;
+  return [
+    ...FIGHTERS.filter((entry) => entry.faction === faction),
+    ...pick(SUPPORTS, faction, 'support', DECK_SHAPE.support, recipe),
+    ...pick(INSTANTS, faction, 'instant', DECK_SHAPE.instant, recipe),
+    ...pick(TRAPS, faction, 'trap', DECK_SHAPE.trap, recipe),
+  ];
+}
+
+function deckSummary(faction, recipeId = 'core') {
+  const deck = buildDeck(faction, recipeId);
+  const counts = {};
+  for (const entry of deck) counts[entry.kind] = (counts[entry.kind] || 0) + 1;
+  return counts;
+}
+
+  return { COST_CURVE, FACTIONS, FACTION_IDS, otherFaction, fighterCost, FIGHTERS, SUPPORTS, INSTANTS, TRAPS, ALL_CARDS, CARD_BY_ID, getCard, DECK_SHAPE, DECK_SIZE, RECIPES, buildDeck, deckSummary };
+})();
+
+// ---- src/games/shubat/rules.js -----------------------------------
+__modules["src/games/shubat/rules.js"] = (function () {
+  const { DECK_SIZE, buildDeck, getCard, otherFaction } = __modules["src/games/shubat/cards.js"];
+
+/**
+ * Shubat rules. Pure logic - no canvas, no DOM, and every shuffle comes from
+ * the injected random source, so a match can be replayed exactly.
+ *
+ * Both halves of the game live here. The card half: a twenty-card deck, a hand,
+ * energy that grows by one a turn, supports, instants and face-down traps. The
+ * strategy half: three lanes. A fighter only fights whatever stands opposite
+ * it, and an empty lane is a straight road to the core - so where a fighter
+ * goes matters as much as which fighter it is.
+ */
+
+const LANES = 3;
+// Tuned by simulation, and the single most important number in the game: it is
+// the clock the aggressive deck races. At 1200 Iron Warrior wins 76% of
+// matches; at 2000 it wins 44%. At 1850 the two decks are level and a match
+// runs a little over twenty turns.
+const CORE_HP = 1850;
+const START_HAND = 5;
+const MAX_ENERGY = 10;
+const MAX_TRAPS = 3;
+const HAND_LIMIT = 8;
+const TURN_LIMIT = 40;
+
+const SIDES = ['you', 'rival'];
+const opponentOf = (side) => (side === 'you' ? 'rival' : 'you');
+
+let uid = 0;
+const nextUid = () => (uid += 1);
+
 function shuffle(cards, random = Math.random) {
   const deck = cards.slice();
   for (let i = deck.length - 1; i > 0; i -= 1) {
@@ -5305,696 +5563,1018 @@ function shuffle(cards, random = Math.random) {
   return deck;
 }
 
-/**
- * Who takes the trick. The follower only wins by beating the led card in its
- * own suit, or by trumping a plain-suit lead.
- */
-function trickWinner(led, followed, trumpSuit) {
-  if (followed.suit === led.suit) return followed.rank > led.rank ? 'follower' : 'leader';
-  if (followed.suit === trumpSuit) return 'follower';
-  return 'leader';
+function createPlayer(side, faction, recipe, random, second, coreHp, handicap = 0) {
+  const deck = shuffle(buildDeck(faction, recipe), random);
+  const handSize = START_HAND + (second ? 1 : 0);
+  return {
+    side,
+    faction,
+    recipe,
+    deck: deck.slice(handSize),
+    hand: deck.slice(0, handSize),
+    board: new Array(LANES).fill(null),
+    traps: [],
+    fallen: [],
+    core: coreHp,
+    maxCore: coreHp,
+    coreShield: 0,
+    energy: 0,
+    // A handicap shifts where the energy curve starts, so a harder rival is
+    // simply a turn ahead of you all game.
+    maxEnergy: handicap,
+    haste: false,
+    cancel: { support: false, instant: false },
+    // Moving second is a real disadvantage in a game with a clock, so the
+    // second player opens with an extra card and one extra energy.
+    bonusEnergy: second ? 1 : 0,
+  };
 }
 
-const trickValue = (...cards) => cards.reduce((total, card) => total + (card?.points ?? 0), 0);
-
-  return { SUITS, SUIT_BY_ID, RANKS, DECK_SIZE, TOTAL_POINTS, cardId, cardName, createDeck, shuffle, trickWinner, trickValue };
-})();
-
-// ---- src/games/shubat/rules.js -----------------------------------
-__modules["src/games/shubat/rules.js"] = (function () {
-  const { DECK_SIZE, SUIT_BY_ID, TOTAL_POINTS, createDeck, shuffle, trickWinner, trickValue } = __modules["src/games/shubat/cards.js"];
-
 /**
- * Shubat rules. Pure logic - no canvas, no DOM; every shuffle comes from the
- * injected random source so a match can be replayed.
- *
- * A deal is thirty-two cards. Both players hold five; one card is turned up to
- * set the trump herd and sits at the bottom of the stock as the last card
- * anyone will draw. Winner of a trick leads the next and draws first.
- *
- * Leading the first trick is worth about six points over a deal, so a match is
- * two deals - each side leads one - and the totals decide it.
- *
- * While the stock lasts you may play anything - that is what keeps it quick.
- * Once the stock is empty you must follow the led suit if you can, which is
- * what makes the last five tricks a real endgame.
+ * `recipes` lets the rival run a different build of its deck per difficulty -
+ * a Trainee, Standard or Prototype twenty.
  */
-
-const HAND_SIZE = 5;
-const PLAYERS = ['you', 'rival'];
-const opponentOf = (player) => (player === 'you' ? 'rival' : 'you');
-
-const DEALS_PER_MATCH = 2;
-
-function createDeal({ random = Math.random, leader = 'you' } = {}) {
-  const deck = shuffle(createDeck(), random);
-  const hands = {
-    you: deck.slice(0, HAND_SIZE),
-    rival: deck.slice(HAND_SIZE, HAND_SIZE * 2),
-  };
-  const rest = deck.slice(HAND_SIZE * 2);
-  const trumpCard = rest[rest.length - 1]; // the last card anyone draws
-
-  return {
-    hands,
-    stock: rest,                  // drawn from the front; the trump card is last
-    trumpCard,
-    trumpSuit: trumpCard.suit,
-    leader,
-    turn: leader,
-    table: { you: null, rival: null },
-    pendingTrick: null,           // a completed trick waiting to be swept up
-    won: { you: [], rival: [] },  // cards each player has collected
-    tricks: [],
-    trickNumber: 1,
+function createMatch({
+  playerFaction = 'iron',
+  recipes = { you: 'core', rival: 'core' },
+  random = Math.random,
+  first = 'you',
+  coreHp = CORE_HP,
+  handicaps = { you: 0, rival: 0 },
+} = {}) {
+  const rivalFaction = otherFaction(playerFaction);
+  const state = {
+    players: {
+      you: createPlayer('you', playerFaction, recipes.you, random, first !== 'you', coreHp, handicaps.you || 0),
+      rival: createPlayer('rival', rivalFaction, recipes.rival, random, first !== 'rival', coreHp, handicaps.rival || 0),
+    },
+    random,
+    turn: first,
+    turnNumber: 1,
+    log: [],
+    pendingTrigger: null,
     over: false,
     winner: null,
     reason: null,
   };
+  return beginTurn(state, first);
 }
 
-const scoreOf = (state, player) => state.won[player].reduce((total, card) => total + card.points, 0);
-const stockLeft = (state) => state.stock.length;
-const mustFollowSuit = (state) => state.stock.length === 0;
+/* --------------------------------------------------------------- helpers */
 
-/** The cards `player` may legally play right now. */
-function legalPlays(state, player) {
-  if (state.over || state.pendingTrick || state.turn !== player) return [];
-  const hand = state.hands[player];
-  const led = state.table[state.leader];
-  if (!led || player === state.leader) return hand.slice();
-  if (!mustFollowSuit(state)) return hand.slice();
-  const following = hand.filter((card) => card.suit === led.suit);
-  return following.length > 0 ? following : hand.slice();
+const me = (state, side) => state.players[side];
+const boardOf = (state, side) => me(state, side).board;
+const fightersOf = (state, side) => boardOf(state, side).filter(Boolean);
+const emptyLanes = (state, side) => boardOf(state, side)
+  .map((slot, lane) => (slot ? -1 : lane))
+  .filter((lane) => lane >= 0);
+
+function log(state, text) {
+  state.log = [...state.log, text];
+  return state;
 }
 
-function isLegalPlay(state, player, cardId) {
-  return legalPlays(state, player).some((card) => card.id === cardId);
+function makeFighter(card) {
+  return {
+    uid: nextUid(),
+    card,
+    name: card.name,
+    hp: card.hp,
+    maxHp: card.hp,
+    damage: card.damage,
+    baseDamage: card.damage,
+    turnDamage: 0,
+    shield: 0,
+    silenced: 0,
+    arrivedOn: null,
+  };
+}
+
+/** Can this fighter swing this turn? */
+function canAttack(state, side, fighter) {
+  if (!fighter) return false;
+  if (fighter.silenced > 0) return false;
+  const player = me(state, side);
+  if (fighter.arrivedOn === state.turnNumber && !player.haste) return false;
+  return true;
+}
+
+function cardCost(card) {
+  return card.cost;
+}
+
+/** Everything the side to move could legally do right now. */
+function legalPlays(state, side) {
+  if (state.over || state.turn !== side) return [];
+  const player = me(state, side);
+  const plays = [];
+  player.hand.forEach((card, index) => {
+    if (card.cost > player.energy) return;
+    if (card.kind === 'fighter') {
+      for (const lane of emptyLanes(state, side)) plays.push({ index, card, lane });
+      return;
+    }
+    if (card.kind === 'trap') {
+      if (player.traps.length < MAX_TRAPS) plays.push({ index, card });
+      return;
+    }
+    if (card.target === 'ally') {
+      boardOf(state, side).forEach((slot, lane) => { if (slot) plays.push({ index, card, lane, targetSide: side }); });
+      return;
+    }
+    if (card.target === 'enemy') {
+      boardOf(state, opponentOf(side)).forEach((slot, lane) => {
+        if (slot) plays.push({ index, card, lane, targetSide: opponentOf(side) });
+      });
+      return;
+    }
+    plays.push({ index, card });
+  });
+  return plays;
+}
+
+const canPlay = (state, side, play) =>
+  legalPlays(state, side).some(
+    (option) => option.index === play.index && option.lane === play.lane
+  );
+
+/* ------------------------------------------------------------ turn cycle */
+
+function beginTurn(state, side) {
+  const player = me(state, side);
+  player.maxEnergy = Math.max(1, Math.min(MAX_ENERGY, player.maxEnergy + 1));
+  player.energy = player.maxEnergy + player.bonusEnergy;
+  player.bonusEnergy = 0;
+  player.haste = false;
+  player.coreShield = 0;
+
+  for (const fighter of fightersOf(state, side)) fighter.turnDamage = 0;
+  drawCards(state, side, 1);
+  return state;
+}
+
+function drawCards(state, side, count) {
+  const player = me(state, side);
+  for (let i = 0; i < count; i += 1) {
+    if (player.deck.length === 0) break;
+    const card = player.deck.shift();
+    if (player.hand.length >= HAND_LIMIT) {
+      log(state, `${label(side)} has no room for ${card.name}.`);
+      continue;
+    }
+    player.hand.push(card);
+  }
+  return state;
+}
+
+const label = (side) => (side === 'you' ? 'You' : 'The rival');
+
+/** Plays a card from hand. `play` is `{ index, lane?, targetSide? }`. */
+function playCard(state, side, play) {
+  if (state.over) throw new Error('The match is over');
+  if (state.turn !== side) throw new Error(`It is ${state.turn}'s turn`);
+  const player = me(state, side);
+  const card = player.hand[play.index];
+  if (!card) throw new Error('No such card in hand');
+  if (card.cost > player.energy) throw new Error(`${card.name} costs ${card.cost}`);
+
+  player.hand = player.hand.filter((_, index) => index !== play.index);
+  player.energy -= card.cost;
+
+  if (card.kind === 'fighter') return deployFighter(state, side, card, play.lane);
+  if (card.kind === 'trap') {
+    player.traps.push({ card, id: nextUid() });
+    log(state, `${label(side)} set a trap.`);
+    return state;
+  }
+
+  // Supports and instants can be shut down by a waiting trap.
+  const kind = card.kind === 'instant' ? 'instant' : 'support';
+  if (player.cancel[kind]) {
+    player.cancel[kind] = false;
+    log(state, `${card.name} fizzled.`);
+    return state;
+  }
+  log(state, `${label(side)} played ${card.name}.`);
+  applyEffect(state, side, card.effect, play);
+  fireTraps(state, opponentOf(side), kind === 'instant' ? 'enemy-instant' : 'enemy-support', {});
+  return state;
+}
+
+function deployFighter(state, side, card, lane) {
+  const player = me(state, side);
+  if (lane == null || player.board[lane]) throw new Error('That lane is taken');
+  const fighter = makeFighter(card);
+  fighter.arrivedOn = state.turnNumber;
+  player.board[lane] = fighter;
+  log(state, `${label(side)} sent ${card.name} to lane ${lane + 1}.`);
+
+  fireTraps(state, opponentOf(side), 'enemy-deploy', { fighter, side, lane });
+  if (fightersOf(state, side).length === LANES) {
+    fireTraps(state, opponentOf(side), 'enemy-full-board', { side });
+  }
+  clearDead(state);
+  return state;
+}
+
+/** Runs the attack step, then hands over to the other side. */
+function endTurn(state, side) {
+  if (state.over) return state;
+  if (state.turn !== side) throw new Error(`It is ${state.turn}'s turn`);
+
+  resolveAttacks(state, side);
+  if (state.over) return state;
+
+  // Silence wears off at the end of the turn it cost you, not the start of it -
+  // otherwise a fighter tangled on your turn is free again before it misses one.
+  for (const fighter of fightersOf(state, side)) {
+    if (fighter.silenced > 0) fighter.silenced -= 1;
+  }
+
+  if (state.turnNumber >= TURN_LIMIT) return callTheMatch(state);
+
+  state.turn = opponentOf(side);
+  state.turnNumber += 1;
+  return beginTurn(state, state.turn);
+}
+
+function resolveAttacks(state, side) {
+  const attackerBoard = boardOf(state, side);
+  const defenderSide = opponentOf(side);
+
+  for (let lane = 0; lane < LANES; lane += 1) {
+    const fighter = attackerBoard[lane];
+    if (!canAttack(state, side, fighter)) continue;
+    const power = Math.max(0, fighter.damage + fighter.turnDamage);
+    if (power <= 0) continue;
+
+    const blocker = boardOf(state, defenderSide)[lane];
+    if (blocker) {
+      const before = blocker.hp;
+      damageFighter(state, defenderSide, blocker, power, { source: fighter, lane });
+      log(state, `${fighter.name} hit ${blocker.name} for ${power}.`);
+      // Iron Warrior's Breakthrough: whatever is left over goes to the core.
+      if (me(state, side).faction === 'iron' && blocker.hp <= 0) {
+        const spill = Math.max(0, power - Math.max(0, before));
+        if (spill > 0) {
+          log(state, `${fighter.name} smashed straight through for ${spill}.`);
+          damageCore(state, defenderSide, spill, { source: fighter, lane, side });
+        }
+      }
+    } else {
+      damageCore(state, defenderSide, power, { source: fighter, lane, side });
+    }
+    clearDead(state);
+    if (state.over) return;
+  }
+}
+
+function damageFighter(state, side, fighter, amount, context = {}) {
+  const absorbed = Math.min(fighter.shield, amount);
+  fighter.shield -= absorbed;
+  fighter.hp -= amount - absorbed;
+  void context;
+  return amount - absorbed;
+}
+
+function damageCore(state, side, amount, context = {}) {
+  const player = me(state, side);
+  const absorbed = Math.min(player.coreShield, amount);
+  player.coreShield -= absorbed;
+  const dealt = amount - absorbed;
+  player.core = Math.max(0, player.core - dealt);
+  log(state, `${context.source ? context.source.name : 'A card'} hit ${side === 'you' ? 'your' : 'the rival'} core for ${dealt}.`);
+
+  fireTraps(state, side, 'core-hit', { amount: dealt, attacker: context.source, attackerSide: context.side });
+  if (player.core <= 0) finish(state, opponentOf(side), 'the core is down');
+  return dealt;
+}
+
+function clearDead(state) {
+  for (const side of SIDES) {
+    const player = me(state, side);
+    player.board.forEach((fighter, lane) => {
+      if (!fighter || fighter.hp > 0) return;
+      const saved = fireTraps(state, side, 'ally-death', { fighter });
+      if (saved && fighter.hp > 0) return;
+      player.board[lane] = null;
+      player.fallen.push(fighter.card);
+      log(state, `${fighter.name} is scrap.`);
+    });
+  }
+}
+
+function callTheMatch(state) {
+  const you = me(state, 'you').core;
+  const rival = me(state, 'rival').core;
+  state.over = true;
+  state.winner = you === rival ? null : you > rival ? 'you' : 'rival';
+  state.reason = 'time - the healthier core takes it';
+  return state;
+}
+
+function finish(state, winner, reason) {
+  state.over = true;
+  state.winner = winner;
+  state.reason = reason;
+  return state;
+}
+
+/* ---------------------------------------------------------------- effects */
+
+function applyEffect(state, side, effect, play = {}, context = {}) {
+  if (!effect) return state;
+  const enemy = opponentOf(side);
+  const targetSide = play.targetSide || (effect.scope === 'core' ? enemy : side);
+  const targetFighter = play.lane != null && play.targetSide
+    ? boardOf(state, play.targetSide)[play.lane]
+    : context.fighter || null;
+
+  if (effect.buff) {
+    const { stat, amount, duration, scope } = effect.buff;
+    const targets = scope === 'all' ? fightersOf(state, side) : [targetFighter].filter(Boolean);
+    for (const fighter of targets) {
+      if (stat === 'hp') {
+        fighter.maxHp += amount;
+        fighter.hp += amount;
+      } else if (duration === 'turn') fighter.turnDamage += amount;
+      else fighter.damage += amount;
+    }
+  }
+
+  if (effect.drain) {
+    const { stat, amount, duration } = effect.drain;
+    const fighter = targetFighter;
+    if (fighter && stat === 'damage') {
+      if (duration === 'turn') fighter.turnDamage -= amount;
+      else fighter.damage = Math.max(0, fighter.damage - amount);
+    }
+  }
+
+  if (effect.heal) {
+    const targets = effect.heal.scope === 'all' ? fightersOf(state, side) : [targetFighter].filter(Boolean);
+    for (const fighter of targets) fighter.hp = Math.min(fighter.maxHp, fighter.hp + effect.heal.amount);
+  }
+
+  if (effect.shield) {
+    const fighter = targetFighter;
+    if (fighter) fighter.shield += effect.shield.amount;
+  }
+
+  if (effect.damage) {
+    const { amount, scope } = effect.damage;
+    if (scope === 'core') damageCore(state, enemy, amount, {});
+    else if (scope === 'all') {
+      for (const fighter of fightersOf(state, enemy)) damageFighter(state, enemy, fighter, amount);
+    } else if (scope === 'attacker') {
+      if (context.attacker) damageFighter(state, context.attackerSide || enemy, context.attacker, amount);
+    } else if (targetFighter) {
+      damageFighter(state, play.targetSide || enemy, targetFighter, amount);
+    }
+    clearDead(state);
+  }
+
+  if (effect.reflect && context.attacker) {
+    damageFighter(state, context.attackerSide || enemy, context.attacker, context.amount || 0);
+    clearDead(state);
+  }
+
+  if (effect.silence && targetFighter) targetFighter.silenced = effect.silence.turns;
+  if (effect.draw) drawCards(state, side, effect.draw.count);
+  if (effect.energy) me(state, side).energy += effect.energy.amount;
+  if (effect.haste) me(state, side).haste = true;
+  if (effect.coreward) me(state, side).coreShield += effect.coreward.amount;
+
+  if (effect.discard) {
+    const victim = me(state, enemy);
+    for (let i = 0; i < effect.discard.count && victim.hand.length > 0; i += 1) {
+      const index = Math.floor(state.random() * victim.hand.length);
+      const [card] = victim.hand.splice(index, 1);
+      log(state, `${label(enemy)} lost ${card.name} from hand.`);
+    }
+  }
+
+  if (effect.revive) {
+    const player = me(state, side);
+    const card = player.fallen.pop();
+    if (card && player.hand.length < HAND_LIMIT) player.hand.push(card);
+  }
+
+  if (effect.cancel) {
+    const victim = me(state, enemy);
+    victim.cancel[context.cancelKind || 'support'] = true;
+  }
+
+  return state;
 }
 
 /**
- * Plays one card. When it completes a trick the trick is resolved, both players
- * draw, and the lead passes to the winner.
+ * Fires any of `side`'s face-down traps that match `trigger`. Returns true if
+ * one of them actually did something.
  */
-function playCard(state, player, cardId) {
-  if (state.over) throw new Error('The match is over');
-  if (state.pendingTrick) throw new Error('The trick on the table has not been settled');
-  if (state.turn !== player) throw new Error(`It is ${state.turn}'s turn`);
-  if (!isLegalPlay(state, player, cardId)) throw new Error(`${player} cannot play ${cardId}`);
+function fireTraps(state, side, trigger, context) {
+  const player = me(state, side);
+  const ready = player.traps.filter((entry) => entry.card.effect.trigger === trigger);
+  if (ready.length === 0) return false;
 
-  const hand = state.hands[player];
-  const card = hand.find((entry) => entry.id === cardId);
-  const next = {
-    ...state,
-    hands: { ...state.hands, [player]: hand.filter((entry) => entry.id !== cardId) },
-    table: { ...state.table, [player]: card },
-  };
-
-  if (player === state.leader) {
-    next.turn = opponentOf(state.leader);
-    return next;
+  for (const entry of ready) {
+    player.traps = player.traps.filter((other) => other.id !== entry.id);
+    log(state, `${label(side)} sprang ${entry.card.name}!`);
+    const effect = entry.card.effect;
+    const kind = trigger === 'enemy-instant' ? 'instant' : 'support';
+    applyEffect(state, side, effect, { targetSide: opponentOf(side), lane: context.lane }, {
+      ...context,
+      fighter: context.fighter,
+      cancelKind: kind,
+    });
   }
-
-  // Both cards are down. Work out who took it, but leave the cards on the table
-  // and nobody to move until the trick is settled.
-  const leader = state.leader;
-  const follower = player;
-  const led = next.table[leader];
-  const followed = next.table[follower];
-  const winner = trickWinner(led, followed, state.trumpSuit) === 'leader' ? leader : follower;
-  next.turn = null;
-  next.pendingTrick = {
-    number: state.trickNumber,
-    leader,
-    winner,
-    value: trickValue(led, followed),
-    cards: { [leader]: led, [follower]: followed },
-  };
-  return next;
+  return true;
 }
 
-/** Sweeps a completed trick to its winner, draws for both, and passes the lead. */
-function settleTrick(state) {
-  const trick = state.pendingTrick;
-  if (!trick) return state;
-  const winner = trick.winner;
-  const loser = opponentOf(winner);
-  const led = trick.cards[trick.leader];
-  const followed = trick.cards[opponentOf(trick.leader)];
+/* ------------------------------------------------------------- reporting */
 
-  // The winner draws first, so the last card of the stock - the trump - goes to
-  // whoever lost the final draw.
-  const stock = state.stock.slice();
-  const hands = { ...state.hands };
-  for (const player of [winner, loser]) {
-    if (stock.length === 0) break;
-    hands[player] = [...hands[player], stock.shift()];
-  }
+const coreOf = (state, side) => me(state, side).core;
+const handOf = (state, side) => me(state, side).hand;
+const energyOf = (state, side) => ({ energy: me(state, side).energy, max: me(state, side).maxEnergy });
+const trapsOf = (state, side) => me(state, side).traps;
 
-  const next = {
-    ...state,
-    hands,
-    stock,
-    won: { ...state.won, [winner]: [...state.won[winner], led, followed] },
-    table: { you: null, rival: null },
-    pendingTrick: null,
-    tricks: [...state.tricks, trick],
-    trickNumber: state.trickNumber + 1,
-    leader: winner,
-    turn: winner,
-  };
-
-  if (next.hands.you.length === 0 && next.hands.rival.length === 0) return finish(next);
-  return next;
+function describeState(state) {
+  return SIDES.map((side) => {
+    const player = me(state, side);
+    return `${side}: core ${player.core}, board [${player.board.map((f) => (f ? `${f.name} ${f.hp}` : '-')).join(', ')}]`;
+  }).join(' | ');
 }
 
-/** Play a card and sweep the trick if it completed one - for search and tests. */
-function playAndSettle(state, player, cardId) {
-  const next = playCard(state, player, cardId);
-  return next.pendingTrick ? settleTrick(next) : next;
-}
-
-function finish(state) {
-  const you = scoreOf(state, 'you');
-  const rival = scoreOf(state, 'rival');
-  return {
-    ...state,
-    over: true,
-    winner: you === rival ? null : you > rival ? 'you' : 'rival',
-    reason: you === rival ? `dead level at ${you} each` : `${Math.max(you, rival)} to ${Math.min(you, rival)}`,
-  };
-}
-
-/** Cards nobody can hold any more: played, collected, or the face-up trump. */
-function seenCards(state, viewer) {
-  const seen = new Set();
-  for (const trick of state.tricks) {
-    for (const card of Object.values(trick.cards)) seen.add(card.id);
-  }
-  for (const card of Object.values(state.table)) if (card) seen.add(card.id);
-  if (state.pendingTrick) for (const card of Object.values(state.pendingTrick.cards)) seen.add(card.id);
-  for (const card of state.hands[viewer]) seen.add(card.id);
-  if (state.stock.length > 0) seen.add(state.trumpCard.id);
-  return seen;
-}
-
-/** Cards that could still be in the opponent's hand or the stock. */
-function unseenCards(state, viewer) {
-  const seen = seenCards(state, viewer);
-  return createDeck().filter((card) => !seen.has(card.id));
-}
-
-function describeTrick(trick) {
-  const cards = Object.entries(trick.cards)
-    .map(([player, card]) => `${player === 'you' ? 'You' : 'Rival'} ${card.rank}${SUIT_BY_ID.get(card.suit).name[0]}`)
-    .join(' v ');
-  return `${cards} - ${trick.winner === 'you' ? 'you take' : 'rival takes'} ${trick.value}`;
-}
-
-  return { HAND_SIZE, PLAYERS, opponentOf, DEALS_PER_MATCH, createDeal, scoreOf, stockLeft, mustFollowSuit, legalPlays, isLegalPlay, playCard, settleTrick, playAndSettle, seenCards, unseenCards, describeTrick, DECK_SIZE, TOTAL_POINTS };
+  return { LANES, CORE_HP, START_HAND, MAX_ENERGY, MAX_TRAPS, HAND_LIMIT, TURN_LIMIT, SIDES, opponentOf, shuffle, createMatch, boardOf, fightersOf, emptyLanes, canAttack, cardCost, legalPlays, canPlay, beginTurn, drawCards, playCard, endTurn, applyEffect, coreOf, handOf, energyOf, trapsOf, describeState, DECK_SIZE, buildDeck };
 })();
 
 // ---- src/games/shubat/ai.js --------------------------------------
 __modules["src/games/shubat/ai.js"] = (function () {
-  const { SUIT_BY_ID, trickWinner } = __modules["src/games/shubat/cards.js"];
-  const { HAND_SIZE, legalPlays, mustFollowSuit, opponentOf, playAndSettle, scoreOf, unseenCards } = __modules["src/games/shubat/rules.js"];
+  const { LANES, boardOf, canAttack, coreOf, endTurn, fightersOf, legalPlays, opponentOf, playCard } = __modules["src/games/shubat/rules.js"];
 
 /**
- * The rival. It never looks at your hand while cards are hidden: it plays off
- * its own hand plus what everyone has seen.
- *
- * Once the stock is empty, though, every remaining card is public by counting -
- * whatever is unseen is in your hand - so at that point Hard switches to a full
- * search of the last few tricks. That is deduction, not peeking.
+ * The rival. Each difficulty runs its own build of the deck and its own
+ * appetite for risk; all three share the same scoring pass, which walks every
+ * legal play, takes the best one, and repeats until nothing is worth the energy.
  */
 const DIFFICULTIES = {
-  easy: { id: 'easy', name: 'Easy', counts: false, solves: false, sloppiness: 0.45, blurb: 'Plays by feel, and often the wrong card.' },
-  normal: { id: 'normal', name: 'Normal', counts: false, solves: false, sloppiness: 0.12, blurb: 'Wins tricks worth winning, dumps the rest.' },
-  hard: { id: 'hard', name: 'Hard', counts: true, solves: true, sloppiness: 0, blurb: 'Counts the cards and plays the endgame out exactly.' },
+  easy: { id: 'easy', name: 'Easy', recipe: 'basic', deckName: 'Trainee deck', handicap: -1, sloppiness: 0.55, floor: 90, trapValue: 20, blurb: 'A Trainee deck, a turn behind you on energy, played carelessly.' },
+  normal: { id: 'normal', name: 'Normal', recipe: 'core', deckName: 'Standard deck', handicap: 0, sloppiness: 0.15, floor: 25, trapValue: 55, blurb: 'The Standard twenty, played straight.' },
+  hard: { id: 'hard', name: 'Hard', recipe: 'elite', deckName: 'Prototype deck', handicap: 1, sloppiness: 0, floor: 15, trapValue: 80, blurb: 'A Prototype deck, a turn ahead of you on energy, and no mistakes.' },
 };
 
-const VALUABLE_TRICK = 5; // a led card worth this much is worth fighting for
+/** What one of my fighters is worth sitting in a lane. */
+const fighterValue = (fighter) => fighter.damage + fighter.hp * 0.45;
 
-const lowest = (cards) => cards.reduce((best, card) => (card.points < best.points ? card : best), cards[0]);
-const highest = (cards) => cards.reduce((best, card) => (card.points > best.points ? card : best), cards[0]);
+function laneScore(state, side, lane, card) {
+  const enemy = opponentOf(side);
+  const blocker = boardOf(state, enemy)[lane];
+  let score = card.damage + card.hp * 0.45;
 
-/** Cards of `suit` that could still be against us, from what we have seen. */
-function outstanding(state, player, suit) {
-  return unseenCards(state, player).filter((card) => card.suit === suit);
-}
-
-function beats(candidate, led, trumpSuit) {
-  return trickWinner(led, candidate, trumpSuit) === 'follower';
-}
-
-/* ------------------------------------------------------------- heuristics */
-
-function chooseLead(state, player, level) {
-  const hand = state.hands[player];
-  const trump = state.trumpSuit;
-  const plain = hand.filter((card) => card.suit !== trump);
-  const trumps = hand.filter((card) => card.suit === trump);
-
-  // Cash a high plain card only once nothing can trump it. A card no rank can
-  // beat is still worth nothing if the other side is void in the suit and
-  // holding a trump - which is exactly how leading "winners" loses points.
-  if (level.counts && outstanding(state, player, trump).length === 0) {
-    const winners = plain.filter((card) => {
-      const higher = outstanding(state, player, card.suit).filter((other) => other.rank > card.rank);
-      return higher.length === 0 && card.points >= 4;
-    });
-    if (winners.length > 0) return highest(winners);
+  if (!blocker) {
+    score += card.damage * 0.6;              // an open lane is a road to the core
+  } else {
+    if (card.damage >= blocker.hp) score += 120;   // trades up
+    if (blocker.damage >= card.hp) score -= 90;    // walks into a killer
+    score += Math.min(card.hp, blocker.damage) * 0.3; // and blocks that damage
   }
-
-  // Trumps are for taking other people's points, not for leading.
-  if (plain.length > 0) return lowest(plain);
-  return lowest(trumps);
+  return score;
 }
 
-function chooseFollow(state, player, level) {
-  const options = legalPlays(state, player);
-  const led = state.table[state.leader];
-  const trump = state.trumpSuit;
-  const pot = led.points;
+function effectScore(state, side, play, level) {
+  const { card } = play;
+  const enemy = opponentOf(side);
+  const effect = card.effect || {};
+  const target = play.targetSide ? boardOf(state, play.targetSide)[play.lane] : null;
+  let score = 0;
 
-  const winners = options.filter((card) => beats(card, led, trump));
-  const losers = options.filter((card) => !beats(card, led, trump));
+  if (card.kind === 'trap') return level.trapValue;
 
-  if (winners.length > 0) {
-    const cheapest = lowest(winners);
-    const worthIt = pot >= VALUABLE_TRICK || cheapest.points <= 2 || losers.length === 0;
-    // Do not burn a valuable trump on a cheap trick when a discard is available.
-    const overpaying = cheapest.suit === trump && led.suit !== trump
-      && cheapest.points >= VALUABLE_TRICK && pot < VALUABLE_TRICK;
-    if (worthIt && !(overpaying && losers.length > 0)) return cheapest;
-  }
-  return lowest(losers.length > 0 ? losers : options);
-}
-
-/* ----------------------------------------------------------- endgame solve */
-
-/**
- * With the stock gone, both hands are known by counting, so the last tricks can
- * be played out exactly. Returns the best card for `player` by final points.
- */
-function solveEndgame(state, player) {
-  const best = search(state, player, -Infinity, Infinity);
-  return best.card;
-}
-
-function search(state, player, alpha, beta) {
-  if (state.over) return { score: scoreOf(state, player), card: null };
-  const mover = state.turn;
-  const options = legalPlays(state, mover);
-  if (options.length === 0) return { score: scoreOf(state, player), card: null };
-
-  const maximizing = mover === player;
-  let bestScore = maximizing ? -Infinity : Infinity;
-  let bestCard = options[0];
-
-  for (const card of options) {
-    const { score } = search(playAndSettle(state, mover, card.id), player, alpha, beta);
-    if (maximizing ? score > bestScore : score < bestScore) {
-      bestScore = score;
-      bestCard = card;
+  if (effect.damage) {
+    const { amount, scope } = effect.damage;
+    if (scope === 'core') score += amount * (coreOf(state, enemy) <= amount ? 12 : 1.1);
+    else if (scope === 'all') {
+      for (const fighter of fightersOf(state, enemy)) {
+        score += Math.min(amount, fighter.hp) + (amount >= fighter.hp ? 90 : 0);
+      }
+    } else if (target) {
+      score += Math.min(amount, target.hp) + (amount >= target.hp ? 110 : 0);
     }
-    if (maximizing) alpha = Math.max(alpha, bestScore);
-    else beta = Math.min(beta, bestScore);
-    if (beta <= alpha) break;
   }
-  return { score: bestScore, card: bestCard };
+
+  if (effect.buff && target) {
+    const usable = canAttack(state, side, target);
+    if (effect.buff.stat === 'hp') score += effect.buff.amount * 0.5;
+    else score += usable ? effect.buff.amount * 0.9 : effect.buff.amount * 0.2;
+  }
+  if (effect.buff?.scope === 'all') {
+    score = fightersOf(state, side).filter((f) => canAttack(state, side, f)).length * effect.buff.amount * 0.9;
+  }
+  if (effect.heal && target) score += Math.min(effect.heal.amount, target.maxHp - target.hp) * 0.7;
+  if (effect.heal?.scope === 'all') {
+    score = fightersOf(state, side).reduce((total, f) => total + Math.min(effect.heal.amount, f.maxHp - f.hp), 0) * 0.7;
+  }
+  if (effect.shield && target) score += effect.shield.amount * 0.5;
+  if (effect.silence && target) score += target.damage * 0.8;
+  if (effect.drain && target) score += Math.min(effect.drain.amount, target.damage) * 0.8;
+  if (effect.draw) score += effect.draw.count * 70;
+  if (effect.energy) score += effect.energy.amount * 45;
+  if (effect.discard) score += 55;
+  if (effect.coreward) score += effect.coreward.amount * 0.4;
+  if (effect.haste) {
+    const fresh = fightersOf(state, side).filter((f) => !canAttack(state, side, f));
+    score += fresh.reduce((total, f) => total + f.damage, 0) * 0.8;
+  }
+  if (effect.revive) score += 120;
+  if (effect.move && target) score += 40;
+
+  return score;
 }
 
-/* --------------------------------------------------------------- entry point */
+function scorePlay(state, side, play, level) {
+  if (play.card.kind === 'fighter') return laneScore(state, side, play.lane, play.card);
+  return effectScore(state, side, play, level);
+}
 
-function chooseCard(state, player = 'rival', difficulty = 'normal', random = Math.random) {
+/** Plays out the rival's whole turn: cards first, then the attack step. */
+function takeTurn(state, side = 'rival', difficulty = 'normal', random = Math.random) {
   const level = DIFFICULTIES[difficulty] || DIFFICULTIES.normal;
-  const options = legalPlays(state, player);
-  if (options.length === 0) return null;
-  if (options.length === 1) return options[0];
+  let guard = 0;
 
-  if (level.sloppiness > 0 && random() < level.sloppiness) {
-    return options[Math.floor(random() * options.length)];
+  while (!state.over && guard < 24) {
+    const plays = legalPlays(state, side);
+    if (plays.length === 0) break;
+    const scored = plays.map((play) => ({ play, score: scorePlay(state, side, play, level) }));
+    scored.sort((a, b) => b.score - a.score);
+    // A careless rival often reaches for something other than its best play.
+    const best = level.sloppiness > 0 && random() < level.sloppiness
+      ? scored[Math.floor(random() * scored.length)]
+      : scored[0];
+    if (best.score <= level.floor) break; // not worth the energy
+    state = playCard(state, side, best.play);
+    guard += 1;
   }
 
-  // Everything left is public once the stock is empty: play it out exactly.
-  if (level.solves && mustFollowSuit(state) && state.hands[opponentOf(player)].length <= HAND_SIZE) {
-    return solveEndgame(state, player);
-  }
-
-  return player === state.leader ? chooseLead(state, player, level) : chooseFollow(state, player, level);
+  return state.over ? state : endTurn(state, side);
 }
 
-  return { DIFFICULTIES, chooseCard, SUIT_BY_ID };
+/** How much damage this side would push through right now, for the UI hint. */
+function threatOf(state, side) {
+  const enemy = opponentOf(side);
+  let total = 0;
+  for (let lane = 0; lane < LANES; lane += 1) {
+    const fighter = boardOf(state, side)[lane];
+    if (!canAttack(state, side, fighter)) continue;
+    if (!boardOf(state, enemy)[lane]) total += fighter.damage + fighter.turnDamage;
+  }
+  return total;
+}
+
+  return { DIFFICULTIES, takeTurn, threatOf, fighterValue };
 })();
 
 // ---- src/games/shubat/render.js ----------------------------------
 __modules["src/games/shubat/render.js"] = (function () {
   const { TAU, clamp, roundedRect } = __modules["src/core/utils.js"];
-  const { SUIT_BY_ID } = __modules["src/games/shubat/cards.js"];
+  const { FACTIONS } = __modules["src/games/shubat/cards.js"];
+  const { LANES } = __modules["src/games/shubat/rules.js"];
 
-/**
- * The Shubat table: a felt mat, two hands, the trick in the middle and the
- * stock with the trump card showing under it. Cards are drawn from code.
- */
+/** Board geometry, shared by the renderer and the click handling. */
+const VIEW = { width: 960, height: 540 };
+const LANE = { width: 132, height: 92, gap: 22, top: { rival: 74, you: 208 } };
+const HAND = { y: 452, spread: 96, width: 88, height: 120 };
+const END_TURN = { x: 760, y: 318, w: 180, h: 46 };
 
-const CARD = { w: 74, h: 104, radius: 10 };
+const laneX = (lane) => 306 + lane * (LANE.width + LANE.gap);
 
-const LAYOUT = {
-  hand: { x: 480, y: 452, spread: 84, lift: 18 },
-  rival: { x: 480, y: 92, spread: 52, scale: 0.72 },
-  trick: { you: { x: 520, y: 300 }, rival: { x: 440, y: 236 } },
-  stock: { x: 118, y: 268 },
-  discard: { x: 852, y: 268 },
-};
-
-const FELT_TOP = '#1d3b34';
-const FELT_BOTTOM = '#12261f';
-
-function drawTable(ctx, width, height, time) {
-  const felt = ctx.createLinearGradient(0, 0, 0, height);
-  felt.addColorStop(0, FELT_TOP);
-  felt.addColorStop(1, FELT_BOTTOM);
-  ctx.fillStyle = felt;
-  ctx.fillRect(0, 0, width, height);
-
-  // A woven band across the middle, so the mat reads as cloth rather than void.
-  ctx.save();
-  ctx.globalAlpha = 0.07;
-  ctx.strokeStyle = '#a8e6c8';
-  ctx.lineWidth = 2;
-  for (let i = -6; i < 26; i += 1) {
-    const offset = i * 46 + Math.sin(time * 0.25 + i) * 3;
-    ctx.beginPath();
-    ctx.moveTo(offset, 0);
-    ctx.lineTo(offset + 180, height);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  ctx.save();
-  ctx.globalAlpha = 0.35;
-  ctx.strokeStyle = '#0b1a15';
-  ctx.lineWidth = 3;
-  roundedRect(ctx, 24, 24, width - 48, height - 48, 18);
-  ctx.stroke();
-  ctx.restore();
+function laneRect(side, lane) {
+  return { x: laneX(lane), y: LANE.top[side], w: LANE.width, h: LANE.height };
 }
 
-/* ------------------------------------------------------------------ cards */
-
-function drawCard(ctx, card, x, y, options = {}) {
-  const { scale = 1, rotation = 0, faceUp = true, glow = 0, dim = false, alpha = 1 } = options;
-  const w = CARD.w * scale;
-  const h = CARD.h * scale;
-
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.translate(x, y);
-  ctx.rotate(rotation);
-
-  ctx.fillStyle = 'rgba(6, 14, 12, 0.4)';
-  roundedRect(ctx, -w / 2 + 2, -h / 2 + 5, w, h, CARD.radius * scale);
-  ctx.fill();
-
-  if (!faceUp) {
-    drawCardBack(ctx, w, h, scale);
-    ctx.restore();
-    return;
+function laneAt(x, y) {
+  for (const side of ['rival', 'you']) {
+    for (let lane = 0; lane < LANES; lane += 1) {
+      const rect = laneRect(side, lane);
+      if (x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h) return { side, lane };
+    }
   }
-
-  const suit = SUIT_BY_ID.get(card.suit);
-  ctx.fillStyle = dim ? '#c9c6bd' : '#f7f3e8';
-  roundedRect(ctx, -w / 2, -h / 2, w, h, CARD.radius * scale);
-  ctx.fill();
-  ctx.strokeStyle = glow > 0 ? '#ffd166' : 'rgba(20, 26, 24, 0.55)';
-  ctx.lineWidth = (glow > 0 ? 3 : 1.5) * scale;
-  ctx.stroke();
-
-  // Suit band down the left edge
-  ctx.save();
-  ctx.beginPath();
-  roundedRect(ctx, -w / 2, -h / 2, w, h, CARD.radius * scale);
-  ctx.clip();
-  ctx.fillStyle = suit.color;
-  ctx.fillRect(-w / 2, -h / 2, 7 * scale, h);
-  ctx.restore();
-
-  ctx.fillStyle = dim ? '#7b7568' : suit.dark;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.font = `700 ${Math.round(22 * scale)}px "Trebuchet MS", system-ui, sans-serif`;
-  ctx.fillText(String(card.rank), -w / 2 + 13 * scale, -h / 2 + 8 * scale);
-
-  drawSuitGlyph(ctx, suit, 4 * scale, 6 * scale, 22 * scale, dim);
-
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'bottom';
-  ctx.font = `700 ${Math.round(14 * scale)}px "Trebuchet MS", system-ui, sans-serif`;
-  ctx.fillStyle = dim ? '#8b8577' : suit.dark;
-  ctx.fillText(`${card.rank} pts`, w / 2 - 8 * scale, h / 2 - 7 * scale);
-
-  if (glow > 0) {
-    ctx.strokeStyle = `rgba(255, 209, 102, ${glow})`;
-    ctx.lineWidth = 4 * scale;
-    roundedRect(ctx, -w / 2 - 3, -h / 2 - 3, w + 6, h + 6, (CARD.radius + 3) * scale);
-    ctx.stroke();
-  }
-  ctx.restore();
+  return null;
 }
 
-function drawCardBack(ctx, w, h, scale) {
-  ctx.fillStyle = '#3b2f5c';
-  roundedRect(ctx, -w / 2, -h / 2, w, h, CARD.radius * scale);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-  ctx.lineWidth = 1.5 * scale;
-  ctx.stroke();
-
-  ctx.save();
-  ctx.beginPath();
-  roundedRect(ctx, -w / 2 + 5 * scale, -h / 2 + 5 * scale, w - 10 * scale, h - 10 * scale, 7 * scale);
-  ctx.clip();
-  ctx.strokeStyle = 'rgba(180, 160, 235, 0.55)';
-  ctx.lineWidth = 1.5 * scale;
-  for (let i = -4; i < 8; i += 1) {
-    ctx.beginPath();
-    ctx.moveTo(-w / 2 + i * 14 * scale, -h / 2);
-    ctx.lineTo(-w / 2 + i * 14 * scale + h, h / 2);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  ctx.fillStyle = 'rgba(255, 233, 168, 0.9)';
-  ctx.beginPath();
-  ctx.arc(0, 0, 9 * scale, 0, TAU);
-  ctx.fill();
+function handPositions(count) {
+  const spread = Math.min(HAND.spread, 620 / Math.max(1, count));
+  const start = 470 - ((count - 1) * spread) / 2;
+  return Array.from({ length: count }, (_, i) => ({ x: start + i * spread, y: HAND.y }));
 }
 
-/** Each herd gets a silhouette: a camel, a horse, a falcon, a yurt. */
-function drawSuitGlyph(ctx, suit, x, y, size, dim = false) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(size / 24, size / 24);
-  ctx.fillStyle = dim ? '#9a9488' : suit.color;
-  ctx.strokeStyle = dim ? '#6f6a5f' : suit.dark;
-  ctx.lineWidth = 1.6;
-  ctx.lineJoin = 'round';
-
-  switch (suit.glyph) {
-    case 'camel':
-      ctx.beginPath();
-      ctx.moveTo(-10, 8);
-      ctx.lineTo(-8, 0);
-      ctx.quadraticCurveTo(-6, -7, -2, -1);
-      ctx.quadraticCurveTo(2, -8, 6, -1);
-      ctx.lineTo(8, 2);
-      ctx.quadraticCurveTo(11, 2, 10, -4);
-      ctx.lineTo(12, -6);
-      ctx.lineTo(11, 2);
-      ctx.lineTo(9, 8);
-      ctx.lineTo(6, 3);
-      ctx.lineTo(-4, 3);
-      ctx.lineTo(-6, 8);
-      ctx.closePath();
-      break;
-    case 'horse':
-      ctx.beginPath();
-      ctx.moveTo(-9, 9);
-      ctx.lineTo(-6, -1);
-      ctx.quadraticCurveTo(-4, -8, 3, -9);
-      ctx.lineTo(6, -12);
-      ctx.lineTo(8, -8);
-      ctx.quadraticCurveTo(11, -4, 7, 1);
-      ctx.lineTo(8, 9);
-      ctx.lineTo(4, 9);
-      ctx.lineTo(2, 2);
-      ctx.lineTo(-3, 2);
-      ctx.lineTo(-5, 9);
-      ctx.closePath();
-      break;
-    case 'falcon':
-      ctx.beginPath();
-      ctx.moveTo(0, -9);
-      ctx.quadraticCurveTo(9, -6, 12, 3);
-      ctx.quadraticCurveTo(5, 0, 2, 8);
-      ctx.lineTo(0, 3);
-      ctx.lineTo(-2, 8);
-      ctx.quadraticCurveTo(-5, 0, -12, 3);
-      ctx.quadraticCurveTo(-9, -6, 0, -9);
-      ctx.closePath();
-      break;
-    default: // yurt
-      ctx.beginPath();
-      ctx.moveTo(-11, 9);
-      ctx.lineTo(-9, -1);
-      ctx.quadraticCurveTo(0, -11, 9, -1);
-      ctx.lineTo(11, 9);
-      ctx.closePath();
-      break;
-  }
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-}
-
-/* -------------------------------------------------------------------- hud */
-
-function handPositions(count, layout = LAYOUT.hand) {
-  const positions = [];
-  const spread = Math.min(layout.spread, 420 / Math.max(1, count));
-  const start = -((count - 1) * spread) / 2;
-  for (let i = 0; i < count; i += 1) {
-    const offset = start + i * spread;
-    positions.push({
-      x: layout.x + offset,
-      y: layout.y + Math.abs(offset) * 0.035,
-      rotation: offset * 0.0016,
-    });
-  }
-  return positions;
-}
-
-/** Which hand card is under a point, topmost first. */
-function cardAt(x, y, positions, scale = 1) {
+function handCardAt(x, y, positions) {
   for (let i = positions.length - 1; i >= 0; i -= 1) {
     const spot = positions[i];
-    if (
-      x >= spot.x - (CARD.w * scale) / 2 && x <= spot.x + (CARD.w * scale) / 2 &&
-      y >= spot.y - (CARD.h * scale) / 2 && y <= spot.y + (CARD.h * scale) / 2
-    ) return i;
+    if (Math.abs(x - spot.x) <= HAND.width / 2 && Math.abs(y - spot.y) <= HAND.height / 2) return i;
   }
   return -1;
 }
 
-function drawStock(ctx, state, time) {
-  const { x, y } = LAYOUT.stock;
-  if (state.stock.length > 0) {
-    drawCard(ctx, state.trumpCard, x + 26, y + 30, { rotation: Math.PI / 2, scale: 0.82 });
-    for (let i = Math.min(4, state.stock.length - 1); i >= 0; i -= 1) {
-      drawCard(ctx, null, x - i * 1.5, y - i * 2, { faceUp: false, scale: 0.82 });
+const inEndTurn = (x, y) =>
+  x >= END_TURN.x && x <= END_TURN.x + END_TURN.w && y >= END_TURN.y && y <= END_TURN.y + END_TURN.h;
+
+/* ------------------------------------------------------------------ table */
+
+function drawTable(ctx, time) {
+  const bg = ctx.createLinearGradient(0, 0, 0, VIEW.height);
+  bg.addColorStop(0, '#241a2e');
+  bg.addColorStop(0.5, '#151424');
+  bg.addColorStop(1, '#1d1a2c');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+
+  ctx.save();
+  ctx.globalAlpha = 0.06;
+  ctx.strokeStyle = '#9fb4ff';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 20; i += 1) {
+    const y = ((time * 6 + i * 32) % (VIEW.height + 40)) - 20;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(VIEW.width, y - 12);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // The line between the two halves
+  ctx.strokeStyle = 'rgba(180, 195, 255, 0.22)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 8]);
+  ctx.beginPath();
+  ctx.moveTo(280, 182);
+  ctx.lineTo(920, 182);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawLanes(ctx, state, highlight) {
+  for (const side of ['rival', 'you']) {
+    for (let lane = 0; lane < LANES; lane += 1) {
+      const rect = laneRect(side, lane);
+      const lit = highlight.some((spot) => spot.side === side && spot.lane === lane);
+      ctx.fillStyle = lit ? 'rgba(255, 209, 102, 0.16)' : 'rgba(255, 255, 255, 0.045)';
+      roundedRect(ctx, rect.x, rect.y, rect.w, rect.h, 10);
+      ctx.fill();
+      ctx.strokeStyle = lit ? '#ffd166' : 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = lit ? 2.5 : 1.2;
+      ctx.stroke();
     }
   }
+}
 
+/* --------------------------------------------------------------- fighters */
+
+function drawFighter(ctx, fighter, side, lane, options = {}) {
+  const rect = laneRect(side, lane);
+  const faction = FACTIONS[fighter.card.faction];
+  const hurt = options.flash || 0;
+
+  ctx.save();
+  ctx.fillStyle = faction.dark;
+  roundedRect(ctx, rect.x + 3, rect.y + 3, rect.w - 6, rect.h - 6, 9);
+  ctx.fill();
+  ctx.fillStyle = hurt > 0 ? '#ffffff' : faction.color;
+  ctx.globalAlpha = hurt > 0 ? 0.35 + hurt * 0.5 : 1;
+  roundedRect(ctx, rect.x + 3, rect.y + 3, rect.w - 6, 22, 9);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = '#12101d';
+  ctx.font = '700 13px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(fighter.name, rect.x + 10, rect.y + 15);
+
+  drawFighterArt(ctx, fighter.card.art, faction, rect.x + rect.w - 26, rect.y + 46, 20);
+
+  // HP bar
+  const ratio = clamp(fighter.hp / fighter.maxHp, 0, 1);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  roundedRect(ctx, rect.x + 10, rect.y + 62, rect.w - 20, 9, 5);
+  ctx.fill();
+  ctx.fillStyle = ratio > 0.5 ? '#6ee7a8' : ratio > 0.25 ? '#ffd166' : '#ff6b6b';
+  if (ratio > 0) {
+    roundedRect(ctx, rect.x + 10, rect.y + 62, Math.max(5, (rect.w - 20) * ratio), 9, 5);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = '#f4f2ff';
+  ctx.font = '700 15px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(`${fighter.hp}`, rect.x + 10, rect.y + 44);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#ffd166';
+  ctx.fillText(`${fighter.damage + fighter.turnDamage}`, rect.x + rect.w - 44, rect.y + 44);
+
+  ctx.textAlign = 'left';
+  ctx.font = '600 10px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(244, 242, 255, 0.6)';
+  ctx.fillText('HP', rect.x + 10, rect.y + 56);
+
+  if (fighter.shield > 0) badge(ctx, rect.x + 8, rect.y + 78, `shield ${fighter.shield}`, '#8ed6ff');
+  else if (fighter.silenced > 0) badge(ctx, rect.x + 8, rect.y + 78, `tangled ${fighter.silenced}`, '#c39bff');
+  else if (!options.ready) badge(ctx, rect.x + 8, rect.y + 78, 'landing', 'rgba(255,255,255,0.45)');
+  ctx.restore();
+}
+
+function badge(ctx, x, y, text, color) {
+  ctx.font = '700 10px "Trebuchet MS", system-ui, sans-serif';
+  const w = ctx.measureText(text).width + 12;
+  ctx.fillStyle = color;
+  roundedRect(ctx, x, y - 7, w, 14, 7);
+  ctx.fill();
+  ctx.fillStyle = '#14121f';
+  ctx.textAlign = 'left';
+  ctx.fillText(text, x + 6, y);
+}
+
+/** A quick silhouette per fighter, so the lanes are not all rectangles. */
+function drawFighterArt(ctx, art, faction, x, y, size) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(size / 20, size / 20);
+  ctx.fillStyle = faction.light;
+  ctx.strokeStyle = 'rgba(10, 8, 20, 0.7)';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  switch (art) {
+    case 'orb': ctx.arc(0, 0, 11, 0, TAU); break;
+    case 'spike':
+      ctx.moveTo(0, -13); ctx.lineTo(9, 10); ctx.lineTo(0, 5); ctx.lineTo(-9, 10); ctx.closePath(); break;
+    case 'anvil':
+      ctx.moveTo(-11, -6); ctx.lineTo(11, -6); ctx.lineTo(7, 2); ctx.lineTo(4, 11); ctx.lineTo(-4, 11); ctx.lineTo(-7, 2); ctx.closePath(); break;
+    case 'tower':
+      ctx.rect(-9, -11, 18, 22); break;
+    case 'brain':
+      ctx.arc(-4, -2, 7, 0, TAU); ctx.arc(4, -2, 7, 0, TAU); ctx.arc(0, 5, 6, 0, TAU); break;
+    case 'prism':
+      ctx.moveTo(0, -12); ctx.lineTo(10, 6); ctx.lineTo(-10, 6); ctx.closePath(); break;
+    case 'block':
+      ctx.rect(-11, -8, 22, 16); break;
+    case 'puppet':
+      ctx.moveTo(0, -12); ctx.lineTo(3, -4); ctx.lineTo(10, 0); ctx.lineTo(3, 4); ctx.lineTo(0, 12);
+      ctx.lineTo(-3, 4); ctx.lineTo(-10, 0); ctx.lineTo(-3, -4); ctx.closePath(); break;
+    case 'crown':
+      ctx.moveTo(-11, 8); ctx.lineTo(-8, -8); ctx.lineTo(-3, 2); ctx.lineTo(0, -10);
+      ctx.lineTo(3, 2); ctx.lineTo(8, -8); ctx.lineTo(11, 8); ctx.closePath(); break;
+    default:
+      ctx.moveTo(-9, 10); ctx.lineTo(-5, -9); ctx.lineTo(5, -9); ctx.lineTo(9, 10); ctx.closePath(); break;
+  }
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* ------------------------------------------------------------------- hand */
+
+function drawHandCard(ctx, card, x, y, options = {}) {
+  const { selected = false, playable = true, scale = 1 } = options;
+  const w = HAND.width * scale;
+  const h = HAND.height * scale;
+  const faction = FACTIONS[card.faction];
+  const lift = selected ? 16 : 0;
+
+  ctx.save();
+  ctx.translate(x, y - lift);
+  ctx.globalAlpha = playable ? 1 : 0.55;
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  roundedRect(ctx, -w / 2 + 2, -h / 2 + 4, w, h, 9);
+  ctx.fill();
+  ctx.fillStyle = '#f2eefb';
+  roundedRect(ctx, -w / 2, -h / 2, w, h, 9);
+  ctx.fill();
+  ctx.strokeStyle = selected ? '#ffd166' : faction.dark;
+  ctx.lineWidth = selected ? 3 : 1.5;
+  ctx.stroke();
+
+  ctx.fillStyle = faction.color;
+  roundedRect(ctx, -w / 2, -h / 2, w, 20, 9);
+  ctx.fill();
+
+  ctx.fillStyle = '#14121f';
+  ctx.font = `700 ${Math.round(11 * scale)}px "Trebuchet MS", system-ui, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(card.name.slice(0, 13), -w / 2 + 6, -h / 2 + 10);
+
+  // Cost pip
+  ctx.fillStyle = '#2c2447';
+  ctx.beginPath();
+  ctx.arc(w / 2 - 12, -h / 2 + 30, 11, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#ffd166';
+  ctx.font = `700 ${Math.round(13 * scale)}px "Trebuchet MS", system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText(String(card.cost), w / 2 - 12, -h / 2 + 31);
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#4a4266';
+  ctx.font = `600 ${Math.round(9 * scale)}px "Trebuchet MS", system-ui, sans-serif`;
+  ctx.fillText(card.kind.toUpperCase(), -w / 2 + 6, -h / 2 + 30);
+
+  if (card.kind === 'fighter') {
+    drawFighterArt(ctx, card.art, faction, 0, -2, 26);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#1d1830';
+    ctx.font = `700 ${Math.round(12 * scale)}px "Trebuchet MS", system-ui, sans-serif`;
+    ctx.fillText(`${card.hp}`, -w / 2 + 7, h / 2 - 12);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#8a3b12';
+    ctx.fillText(`${card.damage}`, w / 2 - 7, h / 2 - 12);
+  } else {
+    wrapText(ctx, card.blurb, -w / 2 + 7, -6, w - 14, 11 * scale, `600 ${Math.round(9.5 * scale)}px "Trebuchet MS", system-ui, sans-serif`, '#3b3456');
+  }
+  ctx.restore();
+}
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight, font, color) {
+  ctx.font = font;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'left';
+  const words = String(text).split(' ');
+  let line = '';
+  let cursor = y;
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, cursor);
+      line = word;
+      cursor += lineHeight;
+    } else line = test;
+  }
+  if (line) ctx.fillText(line, x, cursor);
+}
+
+/* -------------------------------------------------------------------- hud */
+
+function drawSideBar(ctx, state, side, player, faction) {
+  const top = side === 'rival' ? 20 : 320;
+  const name = side === 'rival' ? 'Rival' : 'You';
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(12, 10, 24, 0.72)';
+  roundedRect(ctx, 20, top, 250, 46, 10);
+  ctx.fill();
+  ctx.strokeStyle = FACTIONS[faction].color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(22, top + 4);
+  ctx.lineTo(22, top + 42);
+  ctx.stroke();
+
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#f4f2ff';
+  ctx.font = '700 14px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(`${name} - ${FACTIONS[faction].name}`, 34, top + 14);
+
+  const ratio = clamp(player.core / player.maxCore, 0, 1);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
+  roundedRect(ctx, 34, top + 26, 168, 12, 6);
+  ctx.fill();
+  ctx.fillStyle = ratio > 0.5 ? '#6ee7a8' : ratio > 0.25 ? '#ffd166' : '#ff6b6b';
+  if (ratio > 0) {
+    roundedRect(ctx, 34, top + 26, Math.max(6, 168 * ratio), 12, 6);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#f4f2ff';
+  ctx.font = '700 13px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(`${player.core}`, 262, top + 32);
+
+  // Cards, deck and traps
+  ctx.textAlign = 'left';
+  ctx.font = '600 11px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(244, 242, 255, 0.68)';
+  ctx.fillText(`${player.hand.length} in hand   ${player.deck.length} in deck   ${player.traps.length} trap${player.traps.length === 1 ? '' : 's'} set`, 34, top + 46 + 10);
+  ctx.restore();
+}
+
+function drawEnergy(ctx, player) {
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 12px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(244, 242, 255, 0.7)';
+  ctx.fillText('ENERGY', 300, 340);
+  for (let i = 0; i < Math.max(player.maxEnergy, player.energy); i += 1) {
+    ctx.beginPath();
+    ctx.arc(300 + 18 + i * 22, 341, 8, 0, TAU);
+    ctx.fillStyle = i < player.energy ? '#ffd166' : 'rgba(255, 255, 255, 0.16)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawEndTurn(ctx, enabled, hot) {
+  ctx.save();
+  ctx.fillStyle = enabled ? (hot ? '#ffdf8f' : '#ffd166') : 'rgba(255, 255, 255, 0.12)';
+  roundedRect(ctx, END_TURN.x, END_TURN.y, END_TURN.w, END_TURN.h, 12);
+  ctx.fill();
+  ctx.fillStyle = enabled ? '#1a1400' : 'rgba(255, 255, 255, 0.4)';
+  ctx.font = '700 15px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Attack & end turn', END_TURN.x + END_TURN.w / 2, END_TURN.y + END_TURN.h / 2);
+  ctx.font = '600 10px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = enabled ? 'rgba(26, 20, 0, 0.6)' : 'rgba(255, 255, 255, 0.3)';
+  ctx.fillText('or press Enter', END_TURN.x + END_TURN.w / 2, END_TURN.y + END_TURN.h + 10);
+  ctx.restore();
+}
+
+function drawRivalHand(ctx, count) {
+  ctx.save();
+  for (let i = 0; i < count; i += 1) {
+    const x = 700 + i * 22;
+    ctx.fillStyle = '#3b2f5c';
+    roundedRect(ctx, x, 20, 26, 38, 5);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawTraps(ctx, count, side) {
+  const y = side === 'rival' ? 172 : 300;
+  ctx.save();
+  for (let i = 0; i < count; i += 1) {
+    const x = 306 + i * 26;
+    ctx.fillStyle = side === 'rival' ? 'rgba(255, 120, 120, 0.75)' : 'rgba(140, 220, 180, 0.8)';
+    roundedRect(ctx, x, y, 20, 12, 4);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawPopups(ctx, popups) {
   ctx.save();
   ctx.textAlign = 'center';
-  ctx.font = '600 13px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillStyle = 'rgba(226, 240, 232, 0.75)';
-  ctx.fillText(
-    state.stock.length > 0 ? `${state.stock.length} in the stock` : 'Stock empty - follow suit',
-    x + 10,
-    y + 78
-  );
-  ctx.restore();
-  void time;
-}
-
-function drawHud(ctx, width, hud) {
-  const suit = SUIT_BY_ID.get(hud.trumpSuit);
-  ctx.save();
-  ctx.fillStyle = 'rgba(8, 20, 16, 0.72)';
-  roundedRect(ctx, 24, 24, 268, 74, 12);
-  ctx.fill();
-
   ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
-  ctx.font = '700 13px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillStyle = 'rgba(226, 240, 232, 0.7)';
-  ctx.fillText(`DEAL ${hud.dealNumber} OF ${hud.dealCount}`, 40, 43);
-
-  ctx.font = '700 26px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillStyle = '#ffe07a';
-  ctx.fillText(`${hud.you}`, 40, 74);
-  ctx.font = '600 14px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillStyle = 'rgba(226, 240, 232, 0.75)';
-  ctx.fillText('you', 40 + ctx.measureText(`${hud.you}`).width + 26, 76);
-
-  ctx.textAlign = 'right';
-  ctx.font = '700 26px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillStyle = '#f2f6ff';
-  ctx.fillText(`${hud.rival}`, 276, 74);
-  ctx.font = '600 14px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillStyle = 'rgba(226, 240, 232, 0.75)';
-  ctx.fillText('rival', 276 - ctx.measureText(`${hud.rival}`).width - 26, 76);
-
-  // Trump herd chip
-  ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(8, 20, 16, 0.72)';
-  roundedRect(ctx, width - 236, 24, 212, 44, 12);
-  ctx.fill();
-  drawSuitGlyph(ctx, suit, width - 210, 46, 26);
-  ctx.fillStyle = '#f2f6ff';
-  ctx.font = '700 16px "Trebuchet MS", system-ui, sans-serif';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(`${suit.name} are trumps`, width - 188, 47);
+  for (const popup of popups) {
+    ctx.globalAlpha = clamp(popup.life / popup.maxLife, 0, 1);
+    ctx.font = `700 ${popup.size}px "Trebuchet MS", system-ui, sans-serif`;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(10, 8, 20, 0.8)';
+    ctx.strokeText(popup.text, popup.x, popup.y);
+    ctx.fillStyle = popup.color;
+    ctx.fillText(popup.text, popup.x, popup.y);
+  }
   ctx.restore();
 }
 
-/** Sits under the score panel, clear of the cards flying through the middle. */
-function drawMessage(ctx, width, text, tone = 'plain') {
+function drawMessage(ctx, text, tone) {
   if (!text) return;
   ctx.save();
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.font = '600 16px "Trebuchet MS", system-ui, sans-serif';
-  ctx.fillStyle = tone === 'good' ? '#8ef0b4' : tone === 'bad' ? '#ffb3b3' : 'rgba(232, 244, 236, 0.88)';
-  ctx.fillText(text, 26, 122);
+  ctx.font = '600 14px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = tone === 'good' ? '#8ef0b4' : tone === 'bad' ? '#ffb3b3' : 'rgba(240, 238, 255, 0.85)';
+  ctx.fillText(text, 300, 372);
   ctx.restore();
-  void width;
 }
 
-function drawBanner(ctx, width, text, subtext, alpha) {
+function drawBanner(ctx, text, subtext, alpha) {
   if (!text || alpha <= 0) return;
   ctx.save();
   ctx.globalAlpha = clamp(alpha, 0, 1);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '700 42px "Trebuchet MS", system-ui, sans-serif';
+  ctx.font = '700 44px "Trebuchet MS", system-ui, sans-serif';
   ctx.lineWidth = 8;
-  ctx.strokeStyle = 'rgba(6, 16, 12, 0.85)';
-  ctx.strokeText(text, width / 2, 196);
-  ctx.fillStyle = '#ffe07a';
-  ctx.fillText(text, width / 2, 196);
+  ctx.strokeStyle = 'rgba(8, 6, 18, 0.85)';
+  ctx.strokeText(text, VIEW.width / 2, 180);
+  ctx.fillStyle = '#ffd166';
+  ctx.fillText(text, VIEW.width / 2, 180);
   if (subtext) {
     ctx.font = '600 18px "Trebuchet MS", system-ui, sans-serif';
     ctx.lineWidth = 5;
-    ctx.strokeText(subtext, width / 2, 234);
-    ctx.fillStyle = '#eaf3ee';
-    ctx.fillText(subtext, width / 2, 234);
+    ctx.strokeText(subtext, VIEW.width / 2, 218);
+    ctx.fillStyle = '#f0eeff';
+    ctx.fillText(subtext, VIEW.width / 2, 218);
   }
   ctx.restore();
 }
 
-  return { CARD, LAYOUT, drawTable, drawCard, drawSuitGlyph, handPositions, cardAt, drawStock, drawHud, drawMessage, drawBanner };
+  return { VIEW, LANE, HAND, END_TURN, laneX, laneRect, laneAt, handPositions, handCardAt, inEndTurn, drawTable, drawLanes, drawFighter, drawFighterArt, drawHandCard, drawSideBar, drawEnergy, drawEndTurn, drawRivalHand, drawTraps, drawPopups, drawMessage, drawBanner };
 })();
 
 // ---- src/games/shubat/ui.js --------------------------------------
 __modules["src/games/shubat/ui.js"] = (function () {
-  const { SUITS } = __modules["src/games/shubat/cards.js"];
+  const { FACTIONS, FIGHTERS, DECK_SHAPE, RECIPES, buildDeck } = __modules["src/games/shubat/cards.js"];
   const { DIFFICULTIES } = __modules["src/games/shubat/ai.js"];
-  const { drawSuitGlyph } = __modules["src/games/shubat/render.js"];
+  const { drawFighterArt } = __modules["src/games/shubat/render.js"];
 
-/** The pre-match panel. Everything in a match itself is drawn on the table. */
+/** The deck-choice screen. Everything in a match itself is drawn on the table. */
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -6002,77 +6582,107 @@ function el(tag, className, text) {
   return node;
 }
 
-function suitChip(suit) {
-  const canvas = el('canvas', 'sb-suit');
+function sigil(faction, art, size = 30) {
+  const canvas = el('canvas', 'sh-sigil');
   const scale = Math.min(2, window.devicePixelRatio || 1);
-  canvas.width = 34 * scale;
-  canvas.height = 34 * scale;
-  canvas.style.width = '34px';
-  canvas.style.height = '34px';
+  canvas.width = size * scale;
+  canvas.height = size * scale;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
   const ctx = canvas.getContext('2d');
   ctx.scale(scale, scale);
-  drawSuitGlyph(ctx, suit, 17, 17, 26);
-  canvas.title = suit.name;
+  drawFighterArt(ctx, art, faction, size / 2, size / 2, size * 0.8);
   return canvas;
 }
 
 class SetupPanel {
   constructor(container, { onStart }) {
+    this.faction = 'iron';
     this.difficulty = 'normal';
-    this.root = el('div', 'sb-setup');
+    this.onStart = onStart;
+    this.root = el('div', 'sh-setup');
     container.append(this.root);
 
-    const card = el('div', 'sb-setup-card');
+    const card = el('div', 'sh-setup-card');
     card.append(el('h2', null, 'Shubat'));
-    card.append(el('p', 'sb-lede', 'A duel over thirty-two cards. Take the tricks worth taking.'));
+    card.append(el('p', 'sh-lede', 'Pick a starter deck. Twenty cards: five fighters, ten supports, two instants, three traps. Three lanes, one core each, and whatever gets through is what counts.'));
 
-    const herds = el('div', 'sb-herds');
-    for (const suit of SUITS) {
-      const chip = el('div', 'sb-herd');
-      chip.append(suitChip(suit), el('span', null, suit.name));
-      herds.append(chip);
+    this.decks = el('div', 'sh-decks');
+    for (const faction of Object.values(FACTIONS)) {
+      this.decks.append(this._deckCard(faction));
     }
-    card.append(herds);
+    card.append(this.decks);
 
-    const rules = el('ul', 'sb-rules');
-    for (const line of [
-      'Four herds of eight. <strong>A card’s number is both its strength and its worth</strong> — an eight wins the trick and scores eight.',
-      'One card is turned up to set the <strong>trump herd</strong>. Trumps beat any other herd.',
-      'Play any card you like while the stock lasts; the higher card of the led herd takes the trick, and a trump takes it outright.',
-      'Winner of a trick leads the next and draws first. <strong>Once the stock runs out you must follow the led herd</strong> if you can.',
-      '<strong>Two deals a match</strong> — you lead one, the rival leads the other, because leading first is worth about six points. Most points over both wins.',
-    ]) {
-      const item = el('li');
-      item.innerHTML = line;
-      rules.append(item);
-    }
-    card.append(rules);
-
-    const choice = el('div', 'sb-choice');
-    choice.append(el('span', 'sb-choice-label', 'Rival'));
-    const options = el('div', 'sb-choice-options');
-    const buttons = [];
+    const choice = el('div', 'sh-choice');
+    choice.append(el('span', 'sh-choice-label', 'Rival'));
+    const options = el('div', 'sh-choice-options');
+    this.levelButtons = [];
     for (const level of Object.values(DIFFICULTIES)) {
-      const button = el('button', 'sb-option', level.name);
+      const button = el('button', 'sh-option', level.name);
       button.type = 'button';
       button.title = level.blurb;
       button.classList.toggle('is-active', level.id === this.difficulty);
       button.addEventListener('click', () => {
         this.difficulty = level.id;
-        for (const other of buttons) other.classList.toggle('is-active', other.textContent === level.name);
+        for (const other of this.levelButtons) other.classList.toggle('is-active', other.textContent === level.name);
+        this.note.textContent = level.blurb;
       });
-      buttons.push(button);
+      this.levelButtons.push(button);
       options.append(button);
     }
     choice.append(options);
     card.append(choice);
 
-    const start = el('button', 'btn btn--primary sb-start', 'Deal');
-    start.type = 'button';
-    start.addEventListener('click', () => onStart({ difficulty: this.difficulty }));
-    card.append(start);
+    this.note = el('p', 'sh-note', DIFFICULTIES.normal.blurb);
+    card.append(this.note);
 
+    const start = el('button', 'btn btn--primary sh-start', 'Start the duel');
+    start.type = 'button';
+    start.addEventListener('click', () => this.onStart({ faction: this.faction, difficulty: this.difficulty }));
+    card.append(start);
     this.root.append(card);
+    this._paint();
+  }
+
+  _deckCard(faction) {
+    const node = el('button', 'sh-deck');
+    node.type = 'button';
+    node.dataset.faction = faction.id;
+    node.style.setProperty('--faction', faction.color);
+
+    const head = el('div', 'sh-deck-head');
+    head.append(el('strong', null, faction.name));
+    head.append(el('span', 'sh-passive', faction.passive.name));
+    node.append(head);
+    node.append(el('p', 'sh-deck-lede', faction.tagline));
+    node.append(el('p', 'sh-deck-passive', faction.passive.blurb));
+
+    const roster = el('div', 'sh-roster');
+    for (const fighter of FIGHTERS.filter((entry) => entry.faction === faction.id)) {
+      const row = el('div', 'sh-fighter');
+      row.append(sigil(faction, fighter.art, 26));
+      const meta = el('div', 'sh-fighter-meta');
+      meta.append(el('strong', null, fighter.name));
+      meta.append(el('span', null, `${fighter.hp} HP · ${fighter.damage} dmg · costs ${fighter.cost}`));
+      row.append(meta);
+      roster.append(row);
+    }
+    node.append(roster);
+
+    const shape = Object.entries(DECK_SHAPE).map(([kind, count]) => `${count} ${kind}${count > 1 ? 's' : ''}`).join(' · ');
+    node.append(el('span', 'sh-deck-shape', shape));
+
+    node.addEventListener('click', () => {
+      this.faction = faction.id;
+      this._paint();
+    });
+    return node;
+  }
+
+  _paint() {
+    for (const node of this.decks.querySelectorAll('.sh-deck')) {
+      node.classList.toggle('is-picked', node.dataset.faction === this.faction);
+    }
   }
 
   destroy() {
@@ -6080,309 +6690,293 @@ class SetupPanel {
   }
 }
 
-  return { SetupPanel };
+  return { SetupPanel, RECIPES, buildDeck };
 })();
 
 // ---- src/games/shubat/game.js ------------------------------------
 __modules["src/games/shubat/game.js"] = (function () {
   const { clamp } = __modules["src/core/utils.js"];
-  const { SUIT_BY_ID, TOTAL_POINTS, cardName } = __modules["src/games/shubat/cards.js"];
-  const { DEALS_PER_MATCH, createDeal, describeTrick, legalPlays, mustFollowSuit, playCard, scoreOf, settleTrick } = __modules["src/games/shubat/rules.js"];
-  const { chooseCard } = __modules["src/games/shubat/ai.js"];
+  const { FACTIONS, otherFaction } = __modules["src/games/shubat/cards.js"];
+  const { LANES, boardOf, canAttack, createMatch, endTurn, legalPlays, opponentOf, playCard } = __modules["src/games/shubat/rules.js"];
+  const { DIFFICULTIES, takeTurn } = __modules["src/games/shubat/ai.js"];
   const { SetupPanel } = __modules["src/games/shubat/ui.js"];
-  const { CARD, LAYOUT, cardAt, drawBanner, drawCard, drawHud, drawMessage, drawStock, drawTable, handPositions } = __modules["src/games/shubat/render.js"];
+  const { drawBanner, drawEndTurn, drawEnergy, drawFighter, drawHandCard, drawLanes, drawMessage, drawPopups, drawRivalHand, drawSideBar, drawTable, drawTraps, handCardAt, handPositions, inEndTurn, laneAt, laneRect } = __modules["src/games/shubat/render.js"];
 
 const GAME_ID = 'shubat';
 
-const RIVAL_THINK = 0.65;   // pause before the rival plays, so a turn reads
-const TRICK_HOLD = 1.15;    // how long both cards sit on the table
-const DEAL_HOLD = 2.6;      // the pause between deals
-const FLIGHT = 0.32;        // seconds a card takes to reach the table
+const RIVAL_DELAY = 0.9;
 
 class ShubatGame {
   constructor(context) {
     this.context = context;
     this.time = 0;
     this.phase = 'setup';
+    this.state = null;
+    this.faction = 'iron';
     this.difficulty = 'normal';
 
-    this.state = null;
-    this.dealNumber = 1;
-    this.totals = { you: 0, rival: 0 };
-    this.dealScores = [];
-
-    this.selected = 0;
-    this.flights = [];
-    this.timer = 0;
-    this.pending = null;      // what happens when the timer runs out
+    this.selected = -1;
+    this.popups = [];
+    this.flashes = new Map();
     this.message = { text: '', tone: 'plain' };
     this.banner = { text: '', subtext: '', life: 0 };
+    this.timer = 0;
     this.finished = false;
+    this.hover = { lane: null, endTurn: false };
 
-    this.setup = new SetupPanel(context.ui, { onStart: ({ difficulty }) => this._start(difficulty) });
+    this.setup = new SetupPanel(context.ui, { onStart: (options) => this._start(options) });
   }
 
-  _start(difficulty) {
+  _start({ faction, difficulty }) {
     this.setup.destroy();
     this.setup = null;
+    this.faction = faction;
     this.difficulty = difficulty;
-    this.phase = 'play';
-    this._deal(1);
-  }
+    const level = DIFFICULTIES[difficulty];
 
-  _deal(number) {
-    this.dealNumber = number;
-    // You lead the first deal, the rival leads the second.
-    this.state = createDeal({ leader: number === 1 ? 'you' : 'rival' });
-    this.selected = 0;
-    this.flights = [];
+    this.phase = 'play';
+    this.state = createMatch({
+      playerFaction: faction,
+      recipes: { you: 'core', rival: level.recipe },
+      handicaps: { you: 0, rival: level.handicap },
+      first: Math.random() < 0.5 ? 'you' : 'rival',
+    });
     this.banner = {
-      text: `Deal ${number}`,
-      subtext: `${SUIT_BY_ID.get(this.state.trumpSuit).name} are trumps - ${
-        this.state.leader === 'you' ? 'you lead' : 'the rival leads'
-      }`,
-      life: 2.2,
+      text: FACTIONS[faction].name,
+      subtext: `${FACTIONS[otherFaction(faction)].name} opposite - ${level.deckName}${this.state.turn === 'you' ? ' - you open' : ' - the rival opens'}`,
+      life: 2.4,
     };
     this._setMessage();
-    if (this.state.turn === 'rival') this._scheduleRival();
+    if (this.state.turn === 'rival') this.timer = RIVAL_DELAY;
   }
 
-  /* --------------------------------------------------------------- flow */
+  /* ---------------------------------------------------------------- input */
+
+  get yourTurn() {
+    return this.state && !this.state.over && this.state.turn === 'you' && this.timer <= 0;
+  }
 
   _setMessage() {
-    const state = this.state;
-    if (!state || state.over) return;
-    if (state.turn === 'rival') {
-      this.message = { text: 'The rival is choosing...', tone: 'plain' };
+    if (!this.state || this.state.over) return;
+    if (this.state.turn !== 'you') {
+      this.message = { text: 'The rival is thinking...', tone: 'plain' };
       return;
     }
-    const following = state.table[state.leader] && state.leader !== 'you';
-    if (following && mustFollowSuit(state)) {
-      const led = SUIT_BY_ID.get(state.table[state.leader].suit).name;
-      this.message = { text: `Stock is empty - follow ${led} if you can.`, tone: 'plain' };
-    } else if (following) {
-      this.message = { text: 'Beat it, trump it, or throw a low card away.', tone: 'plain' };
-    } else {
-      this.message = { text: 'Your lead.', tone: 'plain' };
-    }
+    const card = this.state.players.you.hand[this.selected];
+    if (card && card.kind === 'fighter') this.message = { text: `Pick a lane for ${card.name}.`, tone: 'plain' };
+    else if (card && card.target !== 'none') this.message = { text: `Pick a target for ${card.name}.`, tone: 'plain' };
+    else this.message = { text: 'Play cards, then attack.', tone: 'plain' };
   }
 
-  _scheduleRival() {
-    this.timer = RIVAL_THINK;
-    this.pending = 'rival';
+  /** Every lane a click could legally send the selected card to. */
+  _targets() {
+    if (this.selected < 0 || !this.yourTurn) return [];
+    return legalPlays(this.state, 'you')
+      .filter((play) => play.index === this.selected && play.lane != null)
+      .map((play) => ({ side: play.targetSide === 'rival' ? 'rival' : play.card.kind === 'fighter' ? 'you' : play.targetSide || 'you', lane: play.lane }));
   }
 
-  _playCard(player, card) {
-    const from = player === 'you'
-      ? handPositions(this.state.hands.you.length)[this.state.hands.you.indexOf(card)]
-      : { x: LAYOUT.rival.x, y: LAYOUT.rival.y, rotation: 0 };
-    const to = LAYOUT.trick[player];
+  _play(play) {
+    const before = this._snapshot();
+    this.state = playCard(this.state, 'you', play);
+    this._reactTo(before);
+    this.selected = -1;
+    this._setMessage();
+  }
 
-    this.state = playCard(this.state, player, card.id);
-    this.flights.push({ card, from, to, t: 0, player });
-    this.selected = Math.min(this.selected, Math.max(0, this.state.hands.you.length - 1));
-
-    if (this.state.pendingTrick) {
-      // Both cards are down: leave them there to be read, then sweep up.
-      this.timer = TRICK_HOLD;
-      this.pending = 'trick';
-      const trick = this.state.pendingTrick;
-      this.message = {
-        text: describeTrick(trick),
-        tone: trick.winner === 'you' ? 'good' : 'bad',
-      };
-    } else if (this.state.turn === 'rival') {
-      this._scheduleRival();
-    } else {
+  _endTurn() {
+    const before = this._snapshot();
+    this.state = endTurn(this.state, 'you');
+    this._reactTo(before);
+    this.selected = -1;
+    if (!this.state.over) {
+      this.timer = RIVAL_DELAY;
       this._setMessage();
     }
   }
 
-  _resolvePending() {
-    const pending = this.pending;
-    this.pending = null;
-    if (pending === 'rival') {
-      const card = chooseCard(this.state, 'rival', this.difficulty);
-      if (card) this._playCard('rival', card);
-      return;
+  _snapshot() {
+    const cores = {};
+    const fighters = new Map();
+    for (const side of ['you', 'rival']) {
+      cores[side] = this.state.players[side].core;
+      boardOf(this.state, side).forEach((fighter, lane) => {
+        if (fighter) fighters.set(`${side}-${lane}`, fighter.hp);
+      });
     }
-    if (pending === 'trick') {
-      this.state = settleTrick(this.state);
-      if (this.state.over) {
-        this._endDeal();
-        return;
+    return { cores, fighters, log: this.state.log.length };
+  }
+
+  /** Turns whatever just happened into damage numbers and a status line. */
+  _reactTo(before) {
+    for (const side of ['you', 'rival']) {
+      const delta = before.cores[side] - this.state.players[side].core;
+      if (delta > 0) {
+        this._popup(140, side === 'rival' ? 46 : 346, `-${delta}`, '#ff8b8b', 26);
       }
-      if (this.state.turn === 'rival') this._scheduleRival();
-      else this._setMessage();
-      return;
+      boardOf(this.state, side).forEach((fighter, lane) => {
+        if (!fighter) return;
+        const was = before.fighters.get(`${side}-${lane}`);
+        if (was == null || was === fighter.hp) return;
+        const rect = laneRect(side, lane);
+        const change = was - fighter.hp;
+        this._popup(rect.x + rect.w / 2, rect.y + 40, change > 0 ? `-${change}` : `+${-change}`,
+          change > 0 ? '#ff8b8b' : '#8ef0b4', 20);
+        if (change > 0) this.flashes.set(`${side}-${lane}`, 1);
+      });
     }
-    if (pending === 'next-deal') {
-      this._deal(this.dealNumber + 1);
-      return;
-    }
-    if (pending === 'finish') this._finish();
+    const fresh = this.state.log.slice(before.log);
+    if (fresh.length > 0) this.message = { text: fresh[fresh.length - 1], tone: 'plain' };
   }
 
-  _endDeal() {
-    const you = scoreOf(this.state, 'you');
-    const rival = scoreOf(this.state, 'rival');
-    this.totals.you += you;
-    this.totals.rival += rival;
-    this.dealScores.push({ you, rival });
-
-    this.banner = {
-      text: `Deal ${this.dealNumber}: ${you} - ${rival}`,
-      subtext: this.dealNumber < DEALS_PER_MATCH
-        ? 'The rival leads the next deal.'
-        : `Match: ${this.totals.you} - ${this.totals.rival}`,
-      life: DEAL_HOLD,
-    };
-    this.timer = DEAL_HOLD;
-    this.pending = this.dealNumber < DEALS_PER_MATCH ? 'next-deal' : 'finish';
+  _popup(x, y, text, color, size) {
+    this.popups.push({ x, y, text, color, size, life: 1, maxLife: 1 });
   }
-
-  /* -------------------------------------------------------------- input */
 
   update(dt, input) {
     this.time += dt;
     if (this.banner.life > 0) this.banner.life -= dt;
-
-    for (const flight of this.flights) flight.t += dt / FLIGHT;
-    this.flights = this.flights.filter((flight) => flight.t < 1);
+    for (const popup of this.popups) {
+      popup.life -= dt;
+      popup.y -= dt * 26;
+    }
+    this.popups = this.popups.filter((popup) => popup.life > 0);
+    for (const [key, value] of this.flashes) {
+      const next = value - dt * 2.6;
+      if (next <= 0) this.flashes.delete(key);
+      else this.flashes.set(key, next);
+    }
 
     if (this.phase !== 'play') return;
 
     if (this.timer > 0) {
       this.timer -= dt;
-      if (this.timer <= 0) this._resolvePending();
+      if (this.timer <= 0 && !this.state.over && this.state.turn === 'rival') {
+        const before = this._snapshot();
+        this.state = takeTurn(this.state, 'rival', this.difficulty);
+        this._reactTo(before);
+        if (!this.state.over) this._setMessage();
+      }
       return;
     }
-    if (this.state.over || this.state.turn !== 'you') return;
 
-    const hand = this.state.hands.you;
-    const legal = legalPlays(this.state, 'you');
+    if (this.state.over) {
+      this._finish();
+      return;
+    }
+    if (this.state.turn !== 'you') return;
+
+    this.hover.lane = laneAt(input.x, input.y);
+    this.hover.endTurn = inEndTurn(input.x, input.y);
+
+    const hand = this.state.players.you.hand;
     const positions = handPositions(hand.length);
+    if (input.wasKeyPressed('ArrowLeft', 'KeyA')) this.selected = Math.max(0, this.selected - 1);
+    if (input.wasKeyPressed('ArrowRight', 'KeyD')) this.selected = Math.min(hand.length - 1, this.selected + 1);
+    if (input.wasKeyPressed('Enter')) this._endTurn();
 
-    // When following suit is forced, do not leave the highlight on a card that
-    // cannot be played - the keyboard would have nothing to press.
-    if (legal.length > 0 && !legal.some((card) => card.id === hand[this.selected]?.id)) {
-      this.selected = hand.findIndex((card) => legal.some((option) => option.id === card.id));
+    if (!input.justPressed) return;
+
+    if (inEndTurn(input.x, input.y)) {
+      this._endTurn();
+      return;
     }
 
-    if (input.usingPointer) {
-      const hovered = cardAt(input.x, input.y, positions);
-      if (hovered >= 0) this.selected = hovered;
-    }
-    const stepSelection = (direction) => {
-      const playable = hand
-        .map((card, index) => ({ card, index }))
-        .filter(({ card }) => legal.some((option) => option.id === card.id));
-      if (playable.length === 0) return;
-      const current = playable.findIndex(({ index }) => index === this.selected);
-      const next = (current + direction + playable.length) % playable.length;
-      this.selected = playable[next].index;
-    };
-    if (input.wasKeyPressed('ArrowLeft', 'KeyA')) stepSelection(-1);
-    if (input.wasKeyPressed('ArrowRight', 'KeyD')) stepSelection(1);
-
-    const play = (index) => {
-      const card = hand[index];
-      if (!card) return;
-      if (!legal.some((option) => option.id === card.id)) {
-        this.message = { text: `You must follow ${SUIT_BY_ID.get(this.state.table[this.state.leader].suit).name}.`, tone: 'bad' };
+    const clicked = handCardAt(input.x, input.y, positions);
+    if (clicked >= 0) {
+      const plays = legalPlays(this.state, 'you').filter((play) => play.index === clicked);
+      if (plays.length === 0) {
+        const card = hand[clicked];
+        this.message = { text: `${card.name} costs ${card.cost} - you have ${this.state.players.you.energy}.`, tone: 'bad' };
         return;
       }
-      this._playCard('you', card);
-    };
-
-    if (input.justPressed) {
-      const clicked = cardAt(input.x, input.y, positions);
-      if (clicked >= 0) play(clicked);
+      const needsTarget = plays.some((play) => play.lane != null);
+      if (!needsTarget) this._play(plays[0]);
+      else {
+        this.selected = clicked;
+        this._setMessage();
+      }
+      return;
     }
-    if (input.wasKeyPressed('Space', 'Enter')) play(this.selected);
+
+    const spot = laneAt(input.x, input.y);
+    if (spot && this.selected >= 0) {
+      const play = legalPlays(this.state, 'you').find(
+        (option) => option.index === this.selected && option.lane === spot.lane &&
+          (option.card.kind === 'fighter' ? spot.side === 'you' : (option.targetSide || 'you') === spot.side)
+      );
+      if (play) this._play(play);
+      else this.message = { text: 'Not a legal target for that card.', tone: 'bad' };
+      return;
+    }
+    this.selected = -1;
+    this._setMessage();
   }
 
-  /* ------------------------------------------------------------ drawing */
+  /* -------------------------------------------------------------- drawing */
 
   render(ctx) {
-    const { width, height } = this.context;
-    drawTable(ctx, width, height, this.time);
+    drawTable(ctx, this.time);
     if (this.phase === 'setup') return;
-
     const state = this.state;
-    drawStock(ctx, state, this.time);
 
-    // Rival hand, face down
-    const rivalPositions = handPositions(state.hands.rival.length, LAYOUT.rival);
-    rivalPositions.forEach((spot) => {
-      drawCard(ctx, null, spot.x, spot.y, { faceUp: false, scale: LAYOUT.rival.scale, rotation: spot.rotation });
-    });
-
-    // Cards on the table
-    for (const player of ['rival', 'you']) {
-      const card = state.table[player];
-      if (!card || this.flights.some((flight) => flight.card === card)) continue;
-      const spot = LAYOUT.trick[player];
-      drawCard(ctx, card, spot.x, spot.y, { rotation: player === 'you' ? 0.06 : -0.05 });
+    drawLanes(ctx, state, this._targets());
+    for (const side of ['rival', 'you']) {
+      boardOf(state, side).forEach((fighter, lane) => {
+        if (!fighter) return;
+        drawFighter(ctx, fighter, side, lane, {
+          flash: this.flashes.get(`${side}-${lane}`) || 0,
+          ready: canAttack(state, side, fighter),
+        });
+      });
+      drawTraps(ctx, state.players[side].traps.length, side);
+      drawSideBar(ctx, state, side, state.players[side], state.players[side].faction);
     }
 
-    // Your hand
-    const legal = state.turn === 'you' && !state.over ? legalPlays(state, 'you') : [];
-    const positions = handPositions(state.hands.you.length);
-    state.hands.you.forEach((card, index) => {
-      const spot = positions[index];
-      const playable = legal.some((option) => option.id === card.id);
-      const chosen = index === this.selected && state.turn === 'you' && !state.over;
-      drawCard(ctx, card, spot.x, spot.y - (chosen ? LAYOUT.hand.lift : 0), {
-        rotation: spot.rotation,
-        glow: chosen && playable ? 0.9 : 0,
-        dim: legal.length > 0 && !playable,
+    drawRivalHand(ctx, state.players.rival.hand.length);
+    drawEnergy(ctx, state.players.you);
+    drawEndTurn(ctx, this.yourTurn, this.hover.endTurn);
+
+    const hand = state.players.you.hand;
+    const positions = handPositions(hand.length);
+    const playable = new Set(legalPlays(state, 'you').map((play) => play.index));
+    hand.forEach((card, index) => {
+      drawHandCard(ctx, card, positions[index].x, positions[index].y, {
+        selected: index === this.selected,
+        playable: playable.has(index),
       });
     });
 
-    // Cards mid-flight
-    for (const flight of this.flights) {
-      const ease = flight.t < 0.5 ? 2 * flight.t * flight.t : 1 - ((-2 * flight.t + 2) ** 2) / 2;
-      const x = flight.from.x + (flight.to.x - flight.from.x) * ease;
-      const y = flight.from.y + (flight.to.y - flight.from.y) * ease;
-      drawCard(ctx, flight.card, x, y, {
-        faceUp: true,
-        rotation: (flight.from.rotation || 0) * (1 - ease),
-        scale: 1 + Math.sin(Math.PI * flight.t) * 0.06,
-      });
-    }
-
-    drawHud(ctx, width, {
-      you: scoreOf(state, 'you') + this.totals.you,
-      rival: scoreOf(state, 'rival') + this.totals.rival,
-      dealNumber: this.dealNumber,
-      dealCount: DEALS_PER_MATCH,
-      trumpSuit: state.trumpSuit,
-    });
-    drawMessage(ctx, width, this.message.text, this.message.tone);
-    drawBanner(ctx, width, this.banner.text, this.banner.subtext, clamp(this.banner.life, 0, 1));
+    drawMessage(ctx, this.message.text, this.message.tone);
+    drawPopups(ctx, this.popups);
+    drawBanner(ctx, this.banner.text, this.banner.subtext, clamp(this.banner.life, 0, 1));
   }
 
-  /* ------------------------------------------------------------- result */
+  /* --------------------------------------------------------------- result */
 
   _finish() {
     if (this.finished) return;
     this.finished = true;
-    const { you, rival } = this.totals;
-    const won = you > rival;
-    const drawn = you === rival;
-    const margin = Math.abs(you - rival);
+    const state = this.state;
+    const won = state.winner === 'you';
+    const you = state.players.you;
+    const rival = state.players.rival;
+
+    this.banner = {
+      text: won ? 'Core secured' : state.winner ? 'Your core is down' : 'Stalemate',
+      subtext: state.reason || '',
+      life: 3,
+    };
 
     this.context.finish({
-      score: won ? 1000 + margin * 12 : drawn ? 400 : Math.round(you * 3),
-      title: won ? 'You take the match' : drawn ? 'Dead level' : 'The rival takes it',
-      detailTitle: `${you} - ${rival} over ${DEALS_PER_MATCH} deals (${TOTAL_POINTS * DEALS_PER_MATCH} on the table)`,
-      collected: this.dealScores.map((deal, index) => ({
-        name: `Deal ${index + 1}`,
-        color: deal.you > deal.rival ? '#8ef0b4' : deal.you === deal.rival ? '#ffd166' : '#ff9d94',
-        count: deal.you,
-        label: `${deal.you} - ${deal.rival}`,
-      })),
+      score: won ? Math.round(900 + you.core * 0.6 + Math.max(0, (25 - state.turnNumber) * 25)) : Math.round((rival.maxCore - rival.core) * 0.3),
+      title: won ? 'You win the duel' : state.winner ? 'Beaten' : 'Stalemate',
+      detailTitle: `${FACTIONS[you.faction].name} vs ${FACTIONS[rival.faction].name} - ${state.turnNumber} turns, ${state.reason}`,
+      collected: [
+        { name: 'Your core', color: FACTIONS[you.faction].color, count: you.core, label: `${you.core} / ${you.maxCore}` },
+        { name: 'Rival core', color: FACTIONS[rival.faction].color, count: rival.core, label: `${rival.core} / ${rival.maxCore}` },
+        { name: 'Fighters lost', color: '#ff9d94', count: you.fallen.length, label: `${you.fallen.length} of yours, ${rival.fallen.length} of theirs` },
+      ],
     });
   }
 
@@ -6395,7 +6989,7 @@ function createShubat(context) {
   return new ShubatGame(context);
 }
 
-  return { GAME_ID, createShubat, ShubatGame, cardName };
+  return { GAME_ID, createShubat, ShubatGame, LANES, opponentOf };
 })();
 
 // ---- src/games/shubat/index.js -----------------------------------
@@ -6406,14 +7000,14 @@ __modules["src/games/shubat/index.js"] = (function () {
 registerGame({
   id: GAME_ID,
   name: 'Shubat',
-  tagline: 'A card duel over four herds. Take the tricks worth taking.',
-  description: 'Thirty-two cards, two deals, one rival. The biggest cards win tricks and score the most.',
+  tagline: 'Deck duel across three lanes: Iron Warrior against String Brain.',
+  description: 'Pick a starter deck, hold three lanes, and put the other core down first.',
   howTo: [
-    'Four herds of eight. A card’s number is <strong>both its strength and its worth</strong> - an eight wins the trick and scores eight.',
-    'One card is turned up to set the <strong>trump herd</strong>, which beats any other herd.',
-    'Play <strong>any card</strong> while the stock lasts. The higher card of the led herd takes the trick; a trump takes it outright.',
-    'The winner leads the next trick and draws first. <strong>Once the stock is empty you must follow the led herd</strong> if you can.',
-    '<strong>Two deals a match</strong> - you lead one, the rival leads the other. Most points over both wins.',
+    'Pick a starter deck: <strong>Iron Warrior</strong> (cheap, fast, smashes through) or <strong>String Brain</strong> (slow, enormous, outlasts you). Twenty cards: <strong>5 fighters, 10 supports, 2 instants, 3 traps</strong>.',
+    'You get <strong>one more energy each turn</strong>. Fighters cost what their numbers are worth, so the big ones land late.',
+    'Three lanes. A fighter only fights whatever stands opposite it - an <strong>empty lane is a straight road to the core</strong>.',
+    'Fighters cannot attack the turn they land. <strong>Traps</strong> are set face down and fire on their own during the rival turn.',
+    'Put the rival core to zero. Each difficulty brings <strong>its own build of the deck</strong>.',
   ],
   create: createShubat,
 });

@@ -1,263 +1,331 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  COST_CURVE,
+  DECK_SHAPE,
   DECK_SIZE,
-  RANKS,
-  SUITS,
-  TOTAL_POINTS,
-  createDeck,
-  shuffle,
-  trickWinner,
+  FACTIONS,
+  FIGHTERS,
+  RECIPES,
+  buildDeck,
+  fighterCost,
+  getCard,
 } from '../src/games/shubat/cards.js';
 import {
-  DEALS_PER_MATCH,
-  HAND_SIZE,
-  createDeal,
+  CORE_HP,
+  LANES,
+  START_HAND,
+  boardOf,
+  canAttack,
+  createMatch,
+  endTurn,
   legalPlays,
-  mustFollowSuit,
-  playAndSettle,
   playCard,
-  scoreOf,
-  settleTrick,
-  unseenCards,
 } from '../src/games/shubat/rules.js';
-import { chooseCard } from '../src/games/shubat/ai.js';
+import { DIFFICULTIES, takeTurn } from '../src/games/shubat/ai.js';
 
-/** A repeatable shuffle, so a deal can be reasoned about. */
 function seeded(seed = 1) {
   let state = seed;
   return () => (state = (state * 16807) % 2147483647) / 2147483647;
 }
 
-const deal = (seed = 1, leader = 'you') => createDeal({ random: seeded(seed), leader });
-
-/** Plays a whole deal out with both sides on the AI. */
-function playOut(state, level = 'normal', random = seeded(99)) {
-  let guard = 0;
-  while (!state.over && guard < 64) {
-    const card = chooseCard(state, state.turn, level, random);
-    state = playAndSettle(state, state.turn, card.id);
-    guard += 1;
-  }
-  return state;
+/** A match with both boards cleared, for testing one rule at a time. */
+function bench({ playerFaction = 'iron', first = 'you', seed = 1 } = {}) {
+  return createMatch({ playerFaction, random: seeded(seed), first });
 }
 
-test('the deck is four herds of eight, every card distinct', () => {
-  const deck = createDeck();
-  assert.equal(deck.length, DECK_SIZE);
-  assert.equal(deck.length, 32);
-  assert.equal(new Set(deck.map((card) => card.id)).size, 32);
-  for (const suit of SUITS) {
-    const cards = deck.filter((card) => card.suit === suit.id);
-    assert.deepEqual(cards.map((card) => card.rank).sort((a, b) => a - b), RANKS);
+const handOf = (state, side) => state.players[side].hand;
+const put = (state, side, lane, cardId) => {
+  const card = getCard(cardId);
+  state.players[side].board[lane] = {
+    uid: Math.random(), card, name: card.name, hp: card.hp, maxHp: card.hp,
+    damage: card.damage, baseDamage: card.damage, turnDamage: 0, shield: 0, silenced: 0, arrivedOn: 0,
+  };
+  return state.players[side].board[lane];
+};
+
+/* ------------------------------------------------------------ the cards */
+
+test('the fighters carry exactly the stats they were given', () => {
+  const expected = {
+    'iron-scrapper': [120, 180], 'iron-magnet-bot': [290, 70], 'iron-overdrive': [160, 210],
+    'iron-iron-forge': [135, 177], 'iron-criptmetal': [401, 101],
+    'string-brainer': [380, 20], 'string-calculator': [314, 790], 'string-coden': [1010, 7],
+    'string-puppeteer': [248, 157], 'string-grand': [560, 129],
+  };
+  assert.equal(FIGHTERS.length, 10);
+  for (const [id, [hp, damage]] of Object.entries(expected)) {
+    const fighter = getCard(id);
+    assert.equal(fighter.hp, hp, `${fighter.name} HP`);
+    assert.equal(fighter.damage, damage, `${fighter.name} damage`);
   }
+  // Calculator's stats are written as sums on purpose.
+  assert.equal(getCard('string-calculator').hp, 297 + 17);
+  assert.equal(getCard('string-calculator').damage, 1000 - 210);
 });
 
-test('a card is worth what it is strong', () => {
-  for (const card of createDeck()) assert.equal(card.points, card.rank);
-  assert.equal(TOTAL_POINTS, 144, 'thirty-six points a herd');
-});
-
-test('shuffling keeps every card, and the same seed deals the same hand', () => {
-  const deck = createDeck();
-  const once = shuffle(deck, seeded(5));
-  const twice = shuffle(deck, seeded(5));
-  assert.deepEqual(once.map((c) => c.id), twice.map((c) => c.id));
-  assert.deepEqual([...once.map((c) => c.id)].sort(), [...deck.map((c) => c.id)].sort());
-  assert.notDeepEqual(once.map((c) => c.id), deck.map((c) => c.id), 'and it actually shuffled');
-});
-
-test('the higher card of the led herd takes the trick', () => {
-  const led = { suit: 'camel', rank: 5 };
-  assert.equal(trickWinner(led, { suit: 'camel', rank: 6 }, 'yurt'), 'follower');
-  assert.equal(trickWinner(led, { suit: 'camel', rank: 4 }, 'yurt'), 'leader');
-});
-
-test('a different herd loses, unless it is trumps', () => {
-  const led = { suit: 'camel', rank: 8 };
-  assert.equal(trickWinner(led, { suit: 'horse', rank: 8 }, 'yurt'), 'leader', 'off-herd never wins');
-  assert.equal(trickWinner(led, { suit: 'yurt', rank: 1 }, 'yurt'), 'follower', 'a trump one beats an eight');
-  assert.equal(trickWinner({ suit: 'yurt', rank: 5 }, { suit: 'yurt', rank: 6 }, 'yurt'), 'follower');
-  assert.equal(trickWinner({ suit: 'yurt', rank: 5 }, { suit: 'camel', rank: 8 }, 'yurt'), 'leader');
-});
-
-test('a deal starts with five cards each, a trump turned up, and the rest in stock', () => {
-  const state = deal();
-  assert.equal(state.hands.you.length, HAND_SIZE);
-  assert.equal(state.hands.rival.length, HAND_SIZE);
-  assert.equal(state.stock.length, DECK_SIZE - HAND_SIZE * 2);
-  assert.equal(state.trumpSuit, state.trumpCard.suit);
-  assert.equal(state.stock[state.stock.length - 1].id, state.trumpCard.id, 'the trump is drawn last');
-  assert.equal(state.turn, state.leader);
-});
-
-test('anything is playable while the stock lasts', () => {
-  let state = deal();
-  const led = state.hands.you[0];
-  state = playCard(state, 'you', led.id);
-  assert.equal(state.turn, 'rival');
-  assert.equal(legalPlays(state, 'rival').length, HAND_SIZE, 'the rival may throw any card');
-});
-
-test('once the stock is empty you must follow the led herd', () => {
-  let state = deal();
-  state = { ...state, stock: [], leader: 'you', turn: 'you' };
-  const led = state.hands.you[0];
-  state = playCard(state, 'you', led.id);
-  assert.equal(mustFollowSuit(state), true);
-
-  const matching = state.hands.rival.filter((card) => card.suit === led.suit);
-  const legal = legalPlays(state, 'rival');
-  if (matching.length > 0) {
-    assert.deepEqual(legal.map((c) => c.id).sort(), matching.map((c) => c.id).sort());
-  } else {
-    assert.equal(legal.length, state.hands.rival.length, 'void means anything goes');
+test('cost follows the curve, so the monsters land late', () => {
+  for (const fighter of FIGHTERS) {
+    assert.equal(fighter.cost, fighterCost(fighter.hp, fighter.damage));
+    assert.ok(fighter.cost >= 1);
   }
+  assert.ok(COST_CURVE > 1, 'the curve bends, or String Brain simply wins');
+  const iron = FIGHTERS.filter((f) => f.faction === 'iron');
+  const string = FIGHTERS.filter((f) => f.faction === 'string');
+  assert.ok(Math.max(...iron.map((f) => f.cost)) < Math.max(...string.map((f) => f.cost)),
+    'the biggest String fighter costs more than anything Iron fields');
+  assert.equal(getCard('string-coden').cost, fighterCost(1010, 7));
 });
 
-test('playing out of turn or an illegal card is refused', () => {
-  const state = deal(1, 'you');
-  assert.throws(() => playCard(state, 'rival', state.hands.rival[0].id), /turn/);
-  assert.throws(() => playCard(state, 'you', 'camel-99'), /cannot play/);
-});
-
-test('the trick winner collects both cards, leads next and draws first', () => {
-  let state = deal();
-  const before = { you: state.hands.you.length, rival: state.hands.rival.length };
-  const led = state.hands.you[0];
-  state = playCard(state, 'you', led.id);
-  const answer = state.hands.rival[0];
-  const stockBefore = state.stock.length;
-  state = playCard(state, 'rival', answer.id);
-
-  assert.ok(state.pendingTrick, 'the trick waits on the table to be read');
-  assert.equal(state.table.you.id, led.id, 'both cards are still showing');
-  assert.equal(state.table.rival.id, answer.id);
-  assert.deepEqual(legalPlays(state, 'you'), [], 'nobody plays until it is swept');
-  state = settleTrick(state);
-
-  const trick = state.tricks[0];
-  assert.equal(state.tricks.length, 1);
-  assert.equal(state.won[trick.winner].length, 2, 'both cards go to the winner');
-  assert.equal(state.leader, trick.winner);
-  assert.equal(state.turn, trick.winner, 'and leads the next trick');
-  assert.equal(state.stock.length, stockBefore - 2, 'both players drew');
-  assert.equal(state.hands.you.length, before.you);
-  assert.equal(state.hands.rival.length, before.rival, 'back up to five');
-  assert.equal(state.table.you, null);
-  assert.equal(trick.value, trick.cards.you.points + trick.cards.rival.points);
-});
-
-test('a deal is sixteen tricks and every point is accounted for', () => {
-  for (const seed of [3, 17, 42, 101]) {
-    const state = playOut(deal(seed));
-    assert.equal(state.over, true);
-    assert.equal(state.tricks.length, 16, `seed ${seed}: sixteen tricks`);
-    assert.equal(state.hands.you.length + state.hands.rival.length, 0, 'every card played');
-    assert.equal(state.stock.length, 0, 'the stock is exhausted');
-    assert.equal(
-      scoreOf(state, 'you') + scoreOf(state, 'rival'),
-      TOTAL_POINTS,
-      `seed ${seed}: the points add up`
-    );
-    assert.equal(state.won.you.length + state.won.rival.length, DECK_SIZE);
-  }
-});
-
-test('the winner is whoever holds more points', () => {
-  const state = playOut(deal(7));
-  const you = scoreOf(state, 'you');
-  const rival = scoreOf(state, 'rival');
-  assert.equal(state.winner, you === rival ? null : you > rival ? 'you' : 'rival');
-  assert.match(state.reason, /\d/);
-});
-
-test('a match is two deals, one lead each', () => {
-  assert.equal(DEALS_PER_MATCH, 2);
-  assert.equal(deal(1, 'you').leader, 'you');
-  assert.equal(deal(1, 'rival').leader, 'rival');
-});
-
-test('counting only ever sees what is public', () => {
-  let state = deal(11);
-  state = playCard(state, state.leader, state.hands[state.leader][0].id);
-  const unseen = unseenCards(state, 'rival').map((card) => card.id);
-  for (const card of state.hands.rival) {
-    assert.ok(!unseen.includes(card.id), 'its own hand is not unseen');
-  }
-  for (const card of state.hands.you) {
-    assert.ok(unseen.includes(card.id), "your hand is hidden, so it counts as unseen");
-  }
-  assert.ok(!unseen.includes(state.trumpCard.id), 'the face-up trump is public');
-});
-
-test('the rival only ever plays a legal card', () => {
-  for (const level of ['easy', 'normal', 'hard']) {
-    let state = deal(23, 'rival');
-    const random = seeded(5);
-    while (!state.over) {
-      const card = chooseCard(state, state.turn, level, random);
-      const legal = legalPlays(state, state.turn);
-      assert.ok(legal.some((option) => option.id === card.id), `${level}: ${card.id} is legal`);
-      state = playAndSettle(state, state.turn, card.id);
+test('every deck is twenty cards in the right shape', () => {
+  for (const faction of Object.keys(FACTIONS)) {
+    for (const recipe of Object.keys(RECIPES)) {
+      const deck = buildDeck(faction, recipe);
+      assert.equal(deck.length, DECK_SIZE, `${faction}/${recipe} is twenty cards`);
+      const counts = {};
+      for (const card of deck) {
+        counts[card.kind] = (counts[card.kind] || 0) + 1;
+        assert.equal(card.faction, faction, 'no cards from the other deck');
+      }
+      assert.deepEqual(counts, DECK_SHAPE, `${faction}/${recipe}: 5 fighters, 10 supports, 2 instants, 3 traps`);
+      assert.equal(deck.filter((card) => card.kind === 'fighter').length, 5);
+      assert.equal(new Set(deck.filter((c) => c.kind === 'fighter').map((c) => c.id)).size, 5, 'all five fighters, once each');
     }
   }
 });
 
-test('the rival trumps a fat trick rather than letting it go', () => {
-  let state = deal(31, 'you');
-  state = {
-    ...state,
-    leader: 'you',
-    turn: 'rival',
-    trumpSuit: 'yurt',
-    table: { you: { id: 'camel-8', suit: 'camel', rank: 8, points: 8 }, rival: null },
-    hands: {
-      ...state.hands,
-      rival: [
-        { id: 'horse-1', suit: 'horse', rank: 1, points: 1 },
-        { id: 'yurt-2', suit: 'yurt', rank: 2, points: 2 },
-        { id: 'camel-3', suit: 'camel', rank: 3, points: 3 },
-      ],
-    },
-  };
-  const card = chooseCard(state, 'rival', 'normal', () => 0.9);
-  assert.equal(card.id, 'yurt-2', 'the cheapest trump takes eight points');
+test('the three difficulty decks are genuinely different builds', () => {
+  const names = (recipe) => new Set(buildDeck('iron', recipe).map((card) => card.id));
+  const trainee = names('basic');
+  const prototype = names('elite');
+  const shared = [...trainee].filter((id) => prototype.has(id));
+  assert.ok(shared.length < trainee.size, 'Trainee and Prototype are not the same deck');
+  assert.ok(prototype.size > trainee.size, 'the Prototype deck runs more different cards');
 });
 
-test('the rival does not waste a big trump on a cheap trick', () => {
-  let state = deal(37, 'you');
-  state = {
-    ...state,
-    leader: 'you',
-    turn: 'rival',
-    trumpSuit: 'yurt',
-    table: { you: { id: 'camel-1', suit: 'camel', rank: 1, points: 1 }, rival: null },
-    hands: {
-      ...state.hands,
-      rival: [
-        { id: 'horse-2', suit: 'horse', rank: 2, points: 2 },
-        { id: 'yurt-8', suit: 'yurt', rank: 8, points: 8 },
-      ],
-    },
-  };
-  const card = chooseCard(state, 'rival', 'normal', () => 0.9);
-  assert.equal(card.id, 'horse-2', 'one point is not worth an eight of trumps');
+/* ------------------------------------------------------------ the match */
+
+test('a match opens with two cores, empty lanes and one energy', () => {
+  const state = bench();
+  assert.equal(state.players.you.core, CORE_HP);
+  assert.equal(state.players.rival.core, CORE_HP);
+  assert.equal(state.players.you.faction, 'iron');
+  assert.equal(state.players.rival.faction, 'string', 'the rival takes the other deck');
+  assert.deepEqual(boardOf(state, 'you'), new Array(LANES).fill(null));
+  assert.equal(state.players.you.energy, 1, 'one energy on turn one');
+  assert.equal(handOf(state, 'you').length, START_HAND + 1, 'five dealt, one drawn');
+  assert.equal(handOf(state, 'rival').length, START_HAND + 1, 'six dealt, and it draws when its turn opens');
+  assert.equal(state.players.rival.bonusEnergy, 1, 'moving second is worth an extra card and an extra energy');
 });
 
-test('the harder rival wins more than it loses against the easier one', () => {
-  let hardWins = 0;
-  let easyWins = 0;
-  for (let seed = 1; seed <= 40; seed += 1) {
-    // The rival seat plays Hard, the other seat plays Easy; leads alternate.
-    let state = deal(seed * 13, seed % 2 ? 'you' : 'rival');
-    const random = seeded(seed * 7 + 1);
-    while (!state.over) {
-      const level = state.turn === 'rival' ? 'hard' : 'easy';
-      state = playAndSettle(state, state.turn, chooseCard(state, state.turn, level, random).id);
-    }
-    if (scoreOf(state, 'rival') > scoreOf(state, 'you')) hardWins += 1;
-    else if (scoreOf(state, 'you') > scoreOf(state, 'rival')) easyWins += 1;
+test('energy grows by one a turn', () => {
+  let state = bench();
+  const seen = [state.players.you.energy];
+  for (let i = 0; i < 3; i += 1) {
+    state = endTurn(state, 'you');
+    state = endTurn(state, 'rival');
+    seen.push(state.players.you.energy);
   }
-  assert.ok(hardWins > easyWins * 1.5, `hard ${hardWins} vs easy ${easyWins} over 40 deals`);
+  assert.deepEqual(seen, [1, 2, 3, 4]);
+});
+
+test('a fighter costs energy, takes a lane, and cannot swing the turn it lands', () => {
+  const state = bench();
+  state.players.you.energy = 9;
+  const index = handOf(state, 'you').findIndex((card) => card.kind === 'fighter');
+  const card = handOf(state, 'you')[index];
+  playCard(state, 'you', { index, lane: 1 });
+
+  assert.equal(state.players.you.energy, 9 - card.cost, 'energy was spent');
+  assert.equal(boardOf(state, 'you')[1].name, card.name);
+  assert.equal(canAttack(state, 'you', boardOf(state, 'you')[1]), false, 'it is still landing');
+  assert.ok(!legalPlays(state, 'you').some((play) => play.lane === 1 && play.card.kind === 'fighter'),
+    'and the lane is taken');
+});
+
+test('a fighter hits whatever is opposite it, and nothing hits back', () => {
+  const state = bench();
+  const attacker = put(state, 'you', 0, 'iron-overdrive');   // 210 damage
+  const blocker = put(state, 'rival', 0, 'string-grand');    // 560 HP, 129 damage
+  endTurn(state, 'you');
+  assert.equal(blocker.hp, 560 - 210, 'the blocker took the hit');
+  assert.equal(attacker.hp, 160, 'and did not hit back on its own turn');
+  assert.equal(state.players.rival.core, CORE_HP, 'a blocked lane never reaches the core');
+});
+
+test('an empty lane is a straight road to the core', () => {
+  const state = bench();
+  put(state, 'you', 2, 'iron-scrapper'); // 180 damage
+  endTurn(state, 'you');
+  assert.equal(state.players.rival.core, CORE_HP - 180);
+});
+
+test("Iron Warrior's Breakthrough carries the overkill into the core", () => {
+  const state = bench({ playerFaction: 'iron' });
+  put(state, 'you', 0, 'iron-overdrive');      // 210 damage
+  const blocker = put(state, 'rival', 0, 'string-puppeteer'); // 248 HP
+  blocker.hp = 60;                             // 150 of the hit is spare
+  endTurn(state, 'you');
+  assert.equal(boardOf(state, 'rival')[0], null, 'the blocker fell');
+  assert.equal(state.players.rival.core, CORE_HP - 150, 'and the rest went through');
+});
+
+test('String Brain does not get Breakthrough', () => {
+  const state = bench({ playerFaction: 'string' });
+  put(state, 'you', 0, 'string-calculator');   // 790 damage
+  const blocker = put(state, 'rival', 0, 'iron-scrapper'); // 120 HP
+  endTurn(state, 'you');
+  assert.equal(boardOf(state, 'rival')[0], null);
+  assert.equal(state.players.rival.core, CORE_HP, 'the overkill is simply wasted');
+});
+
+/* ----------------------------------------------------------- card effects */
+
+test('a support buffs the fighter you point it at', () => {
+  const state = bench();
+  const fighter = put(state, 'you', 0, 'iron-scrapper');
+  state.players.you.hand = [getCard('iron-plating')];
+  state.players.you.energy = 5;
+  playCard(state, 'you', { index: 0, lane: 0, targetSide: 'you' });
+  assert.equal(fighter.hp, 120 + 120);
+  assert.equal(fighter.maxHp, 240);
+});
+
+test('a shield eats the next hit', () => {
+  const state = bench();
+  const fighter = put(state, 'you', 0, 'iron-magnet-bot');
+  state.players.you.hand = [getCard('iron-riveted')];
+  state.players.you.energy = 5;
+  playCard(state, 'you', { index: 0, lane: 0, targetSide: 'you' });
+  assert.equal(fighter.shield, 250);
+
+  put(state, 'rival', 0, 'string-calculator'); // 790 damage
+  endTurn(state, 'you');
+  endTurn(state, 'rival');
+  assert.equal(fighter.shield, 0, 'the shield was spent');
+  assert.equal(fighter.hp, 290 - (790 - 250), 'and it only ate 250 of it');
+});
+
+test('tangling a fighter stops it attacking', () => {
+  const state = bench({ playerFaction: 'string' });
+  const victim = put(state, 'rival', 1, 'iron-overdrive');
+  state.players.you.hand = [getCard('string-tangle')];
+  state.players.you.energy = 5;
+  playCard(state, 'you', { index: 0, lane: 1, targetSide: 'rival' });
+  assert.equal(victim.silenced, 1);
+  endTurn(state, 'you');
+  assert.equal(canAttack(state, 'rival', victim), false);
+  endTurn(state, 'rival');
+  assert.equal(state.players.you.core, CORE_HP, 'it never swung');
+});
+
+test('an instant hits a fighter, or the core', () => {
+  const state = bench();
+  const target = put(state, 'rival', 0, 'string-grand');
+  state.players.you.hand = [getCard('iron-rocket-punch'), getCard('iron-rail-shot')];
+  state.players.you.energy = 9;
+  playCard(state, 'you', { index: 0, lane: 0, targetSide: 'rival' });
+  assert.equal(target.hp, 560 - 300);
+  playCard(state, 'you', { index: 0 });
+  assert.equal(state.players.rival.core, CORE_HP - 250);
+});
+
+test('a trap sits face down and fires on its trigger', () => {
+  const state = bench({ playerFaction: 'iron' });
+  state.players.you.hand = [getCard('iron-bear-trap')];
+  state.players.you.energy = 5;
+  playCard(state, 'you', { index: 0 });
+  assert.equal(state.players.you.traps.length, 1, 'set, not spent');
+  endTurn(state, 'you');
+
+  state.players.rival.energy = 9;
+  state.players.rival.hand = [getCard('string-puppeteer')]; // 248 HP
+  playCard(state, 'rival', { index: 0, lane: 0 });
+  assert.equal(boardOf(state, 'rival')[0].hp, 248 - 200, 'the trap bit it on the way in');
+  assert.equal(state.players.you.traps.length, 0, 'and is used up');
+});
+
+test('a trap can cancel the card that set it off', () => {
+  const state = bench({ playerFaction: 'string' });
+  state.players.you.hand = [getCard('string-blackout')];
+  state.players.you.energy = 5;
+  playCard(state, 'you', { index: 0 });
+  endTurn(state, 'you');
+
+  state.players.rival.energy = 9;
+  state.players.rival.hand = [getCard('iron-rail-shot'), getCard('iron-rail-shot')];
+  playCard(state, 'rival', { index: 0 });   // trips Blackout, still resolves
+  const afterFirst = state.players.you.core;
+  playCard(state, 'rival', { index: 0 });   // this one fizzles
+  assert.equal(state.players.you.core, afterFirst, 'the next instant did nothing');
+});
+
+/* ------------------------------------------------------------- the match */
+
+test('putting a core to zero ends it', () => {
+  const state = bench();
+  state.players.rival.core = 100;
+  put(state, 'you', 0, 'iron-scrapper');
+  endTurn(state, 'you');
+  assert.equal(state.over, true);
+  assert.equal(state.winner, 'you');
+  assert.match(state.reason, /core/);
+  assert.deepEqual(legalPlays(state, 'rival'), [], 'a finished match offers no plays');
+});
+
+test('the rival only ever makes legal plays, and every match finishes', () => {
+  for (const difficulty of ['easy', 'normal', 'hard']) {
+    for (const playerFaction of ['iron', 'string']) {
+      const random = seeded(7);
+      const level = DIFFICULTIES[difficulty];
+      let state = createMatch({
+        playerFaction,
+        recipes: { you: 'core', rival: level.recipe },
+        handicaps: { you: 0, rival: level.handicap },
+        random,
+      });
+      let guard = 0;
+      while (!state.over && guard < 120) {
+        const before = state.turn;
+        state = takeTurn(state, state.turn, difficulty, random);
+        assert.ok(state.over || state.turn !== before, `${difficulty}: the turn passed`);
+        guard += 1;
+      }
+      assert.equal(state.over, true, `${difficulty}/${playerFaction} finished in ${guard} turns`);
+      assert.ok(state.reason, 'and says why');
+    }
+  }
+});
+
+test('the difficulty ladder actually climbs', () => {
+  const play = (difficulty, seed) => {
+    const random = seeded(seed);
+    const level = DIFFICULTIES[difficulty];
+    let state = createMatch({
+      playerFaction: seed % 2 ? 'iron' : 'string',
+      recipes: { you: 'core', rival: level.recipe },
+      handicaps: { you: 0, rival: level.handicap },
+      random,
+      first: seed % 3 ? 'you' : 'rival',
+    });
+    let guard = 0;
+    while (!state.over && guard < 120) {
+      // The player seat always plays a straight Normal game.
+      state = takeTurn(state, state.turn, state.turn === 'you' ? 'normal' : difficulty, random);
+      guard += 1;
+    }
+    return state.winner;
+  };
+
+  const rate = (difficulty) => {
+    let wins = 0;
+    for (let seed = 1; seed <= 40; seed += 1) if (play(difficulty, seed * 13) === 'you') wins += 1;
+    return wins / 40;
+  };
+
+  const easy = rate('easy');
+  const hard = rate('hard');
+  assert.ok(easy > 0.75, `Easy should roll over: player won ${(easy * 100).toFixed(0)}%`);
+  assert.ok(hard < 0.5, `Hard should win more than it loses: player won ${(hard * 100).toFixed(0)}%`);
+  assert.ok(easy - hard > 0.3, 'and the two ends of the ladder are far apart');
 });

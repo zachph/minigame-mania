@@ -4,14 +4,14 @@ import { createShubat, GAME_ID } from './game.js';
 registerGame({
   id: GAME_ID,
   name: 'Shubat',
-  tagline: 'A card duel over four herds. Take the tricks worth taking.',
-  description: 'Thirty-two cards, two deals, one rival. The biggest cards win tricks and score the most.',
+  tagline: 'Deck duel across three lanes: Iron Warrior against String Brain.',
+  description: 'Pick a starter deck, hold three lanes, and put the other core down first.',
   howTo: [
-    'Four herds of eight. A card’s number is <strong>both its strength and its worth</strong> - an eight wins the trick and scores eight.',
-    'One card is turned up to set the <strong>trump herd</strong>, which beats any other herd.',
-    'Play <strong>any card</strong> while the stock lasts. The higher card of the led herd takes the trick; a trump takes it outright.',
-    'The winner leads the next trick and draws first. <strong>Once the stock is empty you must follow the led herd</strong> if you can.',
-    '<strong>Two deals a match</strong> - you lead one, the rival leads the other. Most points over both wins.',
+    'Pick a starter deck: <strong>Iron Warrior</strong> (cheap, fast, smashes through) or <strong>String Brain</strong> (slow, enormous, outlasts you). Twenty cards: <strong>5 fighters, 10 supports, 2 instants, 3 traps</strong>.',
+    'You get <strong>one more energy each turn</strong>. Fighters cost what their numbers are worth, so the big ones land late.',
+    'Three lanes. A fighter only fights whatever stands opposite it - an <strong>empty lane is a straight road to the core</strong>.',
+    'Fighters cannot attack the turn they land. <strong>Traps</strong> are set face down and fire on their own during the rival turn.',
+    'Put the rival core to zero. Each difficulty brings <strong>its own build of the deck</strong>.',
   ],
   create: createShubat,
 });
