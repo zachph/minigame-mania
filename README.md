@@ -4,7 +4,8 @@ A browser collection of small games. No build step, no dependencies — plain ES
 modules, a canvas and a `<script type="module">`.
 
 **The games: [Catchmon](#catchmon) (3v3 type battles), [Nopoly](#nopoly)
-(Red vs Blue on a chess board) and [Shubat](#shubat) (a lane-and-deck duel).**
+(Red vs Blue on a chess board), [Shubat](#shubat) (a lane-and-deck duel) and
+[Defensele](#defensele) (a tower defence that never pauses).**
 
 ## Play
 
@@ -228,6 +229,49 @@ Easy is a turn behind you and misplays half the time, Hard is a turn ahead and
 does not. Against a straight-playing opponent the player wins 96% on Easy, 54%
 on Normal and 34% on Hard.
 
+## Defensele
+
+A tower defence on a fixed road, and the first game here that runs in real
+time. There is **no build phase**: the next wave starts on its own timer whether
+or not you are ready, so gold spent now is gold not spent on the wave already
+walking towards you.
+
+### The defenders
+
+| Defender | Cost | What it does |
+| --- | --- | --- |
+| **Pylon** | 50 | Two shots a second. The one you open with. |
+| **Frostpin** | 65 | Barely scratches, but halves the speed of everything it touches. |
+| **Claw-bind** | 100 | Grabs one enemy and pins it where it stands. |
+| **Lancer** | 120 | One heavy shot from a long way off. Answers armour. |
+| **Coilnest** | 130 | Arcs from one target to the next, up to three. |
+| **Mortar** | 140 | A slow shell that catches everything near the landing. The answer to a Swarm. |
+| **Nightkon** | 150 | Marks them with dread that keeps burning, three stacks deep, and ignores armour. |
+| **Bastion** | 90 | The only one built **in the road**. Nothing walks past until it is rubble. |
+
+### What comes at you
+
+Creeper (basic) · Runner (fast, fragile) · Brute (slow, tough) · Shieldbearer
+(flat armour, so small hits bounce) · Swarm (many at once) · Colossus (2700 HP,
+resists slows, and costs ten lives if it gets through).
+
+Fifteen waves, twenty lives. Kills pay, and each wave arriving pays a supply
+bonus so the money keeps moving.
+
+### How it is balanced
+
+Every number was swept with a scripted builder playing all fifteen waves:
+
+- **Wave gap, 16 seconds.** At 7 seconds nothing survived past wave 8 — waves
+  stacked faster than any economy could answer. At 16 the pressure is constant
+  but a good build keeps up.
+- **The economy** opens at 220 gold with a per-wave supply bonus. Without it a
+  Lancer-first build could only afford two towers in eight waves.
+- Sloppy builds fail: **pylons only** and **cheap swarm** are both overrun at
+  wave 14. A **dread stack** dies on the last wave. **Lancers only** survives
+  with half its lives gone, and a **spread of roles** wins clean — which is the
+  curve you want: mastery is rewarded, one-note is punished.
+
 ## Making it yours
 
 Names and type assignments all live in one table — `ENTRIES` in
@@ -273,6 +317,12 @@ src/
     render.js          the board, the cards, the hand
     ui.js              the deck-choice screen
     game.js            turn flow, targeting, scoring
+  games/defensele/
+    content.js         the eight defenders, six enemies and fifteen waves
+    rules.js           the road, building, movement, shooting, waves (pure logic)
+    render.js          the map, the road, everything standing on it
+    ui.js              the build bar
+    game.js            placement, selling, scoring
   games/nopoly/
     rules.js           board, moves, captures, the verdict (pure logic)
     ai.js              alpha-beta search, three difficulties
@@ -329,7 +379,7 @@ stores the high score and shows the results screen.
 npm test    # node --test
 ```
 
-91 cases. For Catchmon: the type chart (symmetry, two strengths and two weaknesses
+108 cases. For Catchmon: the type chart (symmetry, two strengths and two weaknesses
 each), the roster (thirty final evolutions, equal stat budgets, every move
 used), the battle engine (turn order, cooldowns, limited uses, status effects,
 knockouts, the turn cap, seeded replay determinism), the AI (legal actions,
@@ -343,4 +393,9 @@ moves and takes a free golem. For Shubat: that every fighter carries exactly the
 stats it was given, that all six decks are twenty cards in the right shape,
 energy, deployment, combat in and out of a lane, Breakthrough belonging to Iron
 alone, buffs, shields, tangling, instants, traps firing and cancelling, and that
-the difficulty ladder actually climbs. No browser needed.
+the difficulty ladder actually climbs. For Defensele: the road and which cells
+sit on it, where each defender may be built, gold in and out, armour blunting
+small hits while dread ignores it, slows and snares, a Bastion holding the queue
+until it falls, lives lost to leaks, and — the one that guards the balance — an
+undefended base being overrun while a spread of defenders turns all fifteen
+waves back. No browser needed.

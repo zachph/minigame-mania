@@ -889,6 +889,63 @@ canvas {
   .sh-roster { display: none; }
 }
 
+/* --- Defensele --- */
+
+.df-bar {
+  margin-top: auto;
+  display: flex;
+  align-items: stretch;
+  gap: 0.3em;
+  padding: 0.4em 0.5em;
+  background: rgba(8, 16, 10, 0.9);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.df-tower {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.2em 0.4em 0.2em 0.2em;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  border-bottom: 3px solid var(--tint);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.df-tower:hover { background: rgba(255, 255, 255, 0.11); }
+.df-tower.is-picked { background: rgba(255, 209, 102, 0.2); border-color: var(--accent); }
+.df-tower.is-broke { opacity: 0.4; }
+
+.df-tower-meta { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
+.df-tower-meta strong { font-size: 0.85em; }
+.df-cost { color: var(--accent); font-size: 0.78em; font-weight: 700; }
+.df-sigil { display: block; }
+
+.df-detail {
+  flex: 1 1 10em;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding-left: 0.6em;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.82em;
+}
+
+.df-detail strong { color: var(--text); font-size: 0.95em; }
+.df-detail span { line-height: 1.25; }
+.df-hint { color: var(--muted); }
+.df-sell { align-self: flex-start; padding: 0.15em 0.7em; font-size: 0.9em; }
+
+@media (max-width: 780px) {
+  .df-tower-meta { display: none; }
+  .df-detail { display: none; }
+}
+
 /* ---------- Footer ---------- */
 
 .footer {
@@ -7010,6 +7067,1270 @@ registerGame({
     'Put the rival core to zero. Each difficulty brings <strong>its own build of the deck</strong>.',
   ],
   create: createShubat,
+});
+
+  return {  };
+})();
+
+// ---- src/games/defensele/content.js ------------------------------
+__modules["src/games/defensele/content.js"] = (function () {
+/**
+ * Defensele's roster: eight defenders, six things that come down the road at
+ * you, and the fifteen waves they arrive in.
+ *
+ * Every number here is data. The simulation in `rules.js` reads it and does not
+ * care what any of it is called, so renaming or re-costing a defender is a one
+ * line edit.
+ */
+
+/* ----------------------------------------------------------- the defenders */
+
+const TOWERS = [
+  {
+    id: 'pylon',
+    name: 'Pylon',
+    cost: 50,
+    damage: 12,
+    range: 112,
+    rate: 2.0,             // shots a second
+    color: '#7fd4ff',
+    dark: '#1a5b80',
+    shape: 'pylon',
+    blurb: 'Cheap and quick. Two shots a second, and it never stops.',
+    role: 'The one you open with.',
+  },
+  {
+    id: 'frostpin',
+    name: 'Frostpin',
+    cost: 65,
+    damage: 4,
+    range: 104,
+    rate: 1.5,
+    slow: { factor: 0.55, duration: 1.4 },
+    color: '#9be8ff',
+    dark: '#186a86',
+    shape: 'spire',
+    blurb: 'Barely scratches, but everything it touches walks at half speed.',
+    role: 'Buys every other tower more time.',
+  },
+  {
+    id: 'lancer',
+    name: 'Lancer',
+    cost: 120,
+    damage: 72,
+    range: 226,
+    rate: 0.55,
+    color: '#ffd166',
+    dark: '#8a6410',
+    shape: 'lance',
+    blurb: 'One heavy shot from a long way off.',
+    role: 'Answers armour and picks off the big ones.',
+  },
+  {
+    id: 'mortar',
+    name: 'Mortar',
+    cost: 140,
+    damage: 42,
+    range: 196,
+    rate: 0.5,
+    splash: 58,
+    shell: true,           // a shell that flies, rather than an instant shot
+    color: '#ff9f6b',
+    dark: '#8a3a12',
+    shape: 'mortar',
+    blurb: 'A slow shell that catches everything standing near the landing.',
+    role: 'The answer to a Swarm.',
+  },
+  {
+    id: 'coilnest',
+    name: 'Coilnest',
+    cost: 130,
+    damage: 19,
+    range: 124,
+    rate: 1.1,
+    chain: 3,
+    color: '#c8a4ff',
+    dark: '#4b2a86',
+    shape: 'coil',
+    blurb: 'Arcs from one target to the next, up to three.',
+    role: 'Good where the road doubles back on itself.',
+  },
+  {
+    id: 'bastion',
+    name: 'Bastion',
+    cost: 90,
+    damage: 0,
+    range: 0,
+    rate: 0,
+    onRoad: true,          // the only one that is built on the road itself
+    hp: 640,
+    color: '#c9d1e8',
+    dark: '#3e4763',
+    shape: 'wall',
+    blurb: 'Stands in the road. Nothing walks past until it is rubble.',
+    role: 'Holds a queue still for the Mortar.',
+  },
+  {
+    id: 'claw-bind',
+    name: 'Claw-bind',
+    cost: 100,
+    damage: 9,
+    range: 98,
+    rate: 0.8,
+    snare: { duration: 1.5 },
+    color: '#8ce6a8',
+    dark: '#1d6b3c',
+    shape: 'claw',
+    blurb: 'Grabs one of them and pins it where it stands.',
+    role: 'Stops a Runner dead, one at a time.',
+  },
+  {
+    id: 'nightkon',
+    name: 'Nightkon',
+    cost: 150,
+    damage: 6,
+    range: 146,
+    rate: 1.2,
+    dread: { damage: 15, duration: 3, stacks: 3 },
+    color: '#a98bff',
+    dark: '#2f1d6b',
+    shape: 'night',
+    blurb: 'Marks them with dread that keeps burning, and stacks three deep.',
+    role: 'Melts anything with a big health bar.',
+  },
+];
+
+const TOWER_BY_ID = new Map(TOWERS.map((tower) => [tower.id, tower]));
+const getTower = (id) => {
+  const tower = TOWER_BY_ID.get(id);
+  if (!tower) throw new Error(`Unknown defender: ${id}`);
+  return tower;
+};
+
+/* ------------------------------------------------------------- the enemies */
+
+const ENEMIES = {
+  creeper: { id: 'creeper', name: 'Creeper', hp: 90, speed: 46, bounty: 8, leak: 1, size: 11, color: '#8fd07a', dark: '#2f6b28' },
+  runner: { id: 'runner', name: 'Runner', hp: 55, speed: 94, bounty: 7, leak: 1, size: 9, color: '#ffe07a', dark: '#8a6a10' },
+  brute: { id: 'brute', name: 'Brute', hp: 430, speed: 32, bounty: 22, leak: 2, size: 15, color: '#ff8b6b', dark: '#7f2f14' },
+  shieldbearer: { id: 'shieldbearer', name: 'Shieldbearer', hp: 260, speed: 40, bounty: 20, leak: 2, size: 13, armour: 9, color: '#9fb4e8', dark: '#2d3f70' },
+  swarm: { id: 'swarm', name: 'Swarm', hp: 34, speed: 62, bounty: 4, leak: 1, size: 7, color: '#ffb0e0', dark: '#7a2a5e' },
+  colossus: { id: 'colossus', name: 'Colossus', hp: 2700, speed: 24, bounty: 140, leak: 10, size: 22, armour: 7, slowResist: 0.5, color: '#d0b0ff', dark: '#3a2070', boss: true },
+};
+
+const ENEMY_LIST = Object.values(ENEMIES);
+
+/* --------------------------------------------------------------- the waves */
+
+/** `{ enemy, count, gap }` - gap is the seconds between one and the next. */
+const wave = (...groups) => groups.map(([enemy, count, gap, delay = 0]) => ({ enemy, count, gap, delay }));
+
+const WAVES = [
+  wave(['creeper', 6, 1.1]),
+  wave(['creeper', 9, 0.9]),
+  wave(['runner', 8, 0.7], ['creeper', 5, 1.0, 3]),
+  wave(['swarm', 14, 0.35], ['creeper', 6, 1.0, 2]),
+  wave(['brute', 3, 2.4], ['runner', 8, 0.6, 1]),
+  wave(['shieldbearer', 4, 1.8], ['creeper', 10, 0.8, 1]),
+  wave(['swarm', 22, 0.28], ['runner', 10, 0.5, 4]),
+  wave(['brute', 6, 1.6], ['shieldbearer', 4, 1.6, 2]),
+  wave(['runner', 18, 0.35], ['swarm', 18, 0.3, 3]),
+  wave(['colossus', 1, 1], ['creeper', 12, 0.7, 2]),
+  wave(['shieldbearer', 8, 1.1], ['brute', 5, 1.6, 3]),
+  wave(['swarm', 30, 0.22], ['brute', 6, 1.4, 4]),
+  wave(['runner', 28, 0.24], ['shieldbearer', 8, 1.2, 3], ['colossus', 1, 1, 10]),
+  wave(['brute', 12, 0.8], ['colossus', 2, 5, 6], ['swarm', 20, 0.3, 2]),
+  wave(['colossus', 3, 5], ['swarm', 34, 0.2, 2], ['runner', 20, 0.3, 6], ['brute', 8, 1.2, 12]),
+];
+
+const WAVE_COUNT = WAVES.length;
+
+/** How the road runs, in grid cells, from the left edge to your base. */
+const PATH_CELLS = [
+  [-1, 5], [4, 5], [4, 2], [9, 2], [9, 8], [14, 8], [14, 3], [19, 3], [19, 7], [23, 7],
+];
+
+const GRID = { cols: 24, rows: 11, cell: 40, top: 34 };
+const START_GOLD = 220;
+const START_LIVES = 20;
+const WAVE_GAP = 16;     // seconds between one wave starting and the next
+const SELL_RETURN = 0.6; // what you get back for taking a tower down
+
+/** Paid out when a wave is released, so the money keeps moving. */
+const waveBonus = (waveNumber) => 25 + waveNumber * 8;
+
+  return { TOWERS, TOWER_BY_ID, getTower, ENEMIES, ENEMY_LIST, WAVES, WAVE_COUNT, PATH_CELLS, GRID, START_GOLD, START_LIVES, WAVE_GAP, SELL_RETURN, waveBonus };
+})();
+
+// ---- src/games/defensele/rules.js --------------------------------
+__modules["src/games/defensele/rules.js"] = (function () {
+  const { ENEMIES, GRID, PATH_CELLS, SELL_RETURN, START_GOLD, START_LIVES, WAVES, WAVE_GAP, getTower, waveBonus } = __modules["src/games/defensele/content.js"];
+
+/**
+ * The Defensele simulation. Pure logic, driven by `update(state, dt)` - no
+ * canvas, no DOM, and every roll comes from the injected random source, so a
+ * run can be replayed exactly.
+ *
+ * Waves keep coming whether or not you are ready: there is no build phase, so
+ * the pressure is always on and gold spent now is gold not spent on the wave
+ * already walking towards you.
+ */
+
+let uid = 0;
+const nextUid = () => (uid += 1);
+
+/* ------------------------------------------------------------------- path */
+
+/** Turns the cell waypoints into pixel points and measures the road. */
+function buildPath() {
+  const points = PATH_CELLS.map(([col, row]) => ({
+    x: col * GRID.cell + GRID.cell / 2,
+    y: GRID.top + row * GRID.cell + GRID.cell / 2,
+  }));
+  const segments = [];
+  let total = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    const from = points[i - 1];
+    const to = points[i];
+    const length = Math.hypot(to.x - from.x, to.y - from.y);
+    segments.push({ from, to, length, start: total });
+    total += length;
+  }
+  return { points, segments, length: total };
+}
+
+const PATH = buildPath();
+
+/** Where a thing that has walked `distance` along the road stands. */
+function pointAt(distance) {
+  const clamped = Math.max(0, Math.min(PATH.length, distance));
+  for (const segment of PATH.segments) {
+    if (clamped <= segment.start + segment.length) {
+      const t = segment.length === 0 ? 0 : (clamped - segment.start) / segment.length;
+      return {
+        x: segment.from.x + (segment.to.x - segment.from.x) * t,
+        y: segment.from.y + (segment.to.y - segment.from.y) * t,
+      };
+    }
+  }
+  const last = PATH.segments[PATH.segments.length - 1];
+  return { x: last.to.x, y: last.to.y };
+}
+
+/** How far along the road the centre of a cell sits, or null if it is not on it. */
+function roadDistanceOf(col, row) {
+  const x = col * GRID.cell + GRID.cell / 2;
+  const y = GRID.top + row * GRID.cell + GRID.cell / 2;
+  let best = null;
+  let bestGap = GRID.cell * 0.6;
+  for (const segment of PATH.segments) {
+    const dx = segment.to.x - segment.from.x;
+    const dy = segment.to.y - segment.from.y;
+    const lengthSquared = dx * dx + dy * dy || 1;
+    let t = ((x - segment.from.x) * dx + (y - segment.from.y) * dy) / lengthSquared;
+    t = Math.max(0, Math.min(1, t));
+    const px = segment.from.x + dx * t;
+    const py = segment.from.y + dy * t;
+    const gap = Math.hypot(x - px, y - py);
+    if (gap < bestGap) {
+      bestGap = gap;
+      best = segment.start + segment.length * t;
+    }
+  }
+  return best;
+}
+
+const isRoad = (col, row) => roadDistanceOf(col, row) != null;
+
+const inBounds = (col, row) => col >= 0 && col < GRID.cols && row >= 0 && row < GRID.rows;
+
+/* ------------------------------------------------------------------ state */
+
+function createRun({ random = Math.random } = {}) {
+  return {
+    random,
+    time: 0,
+    gold: START_GOLD,
+    lives: START_LIVES,
+    towers: [],
+    enemies: [],
+    shells: [],
+    beams: [],
+    hits: [],
+    waveIndex: 0,        // waves already released
+    waveTimer: 3,        // until the first one walks in
+    queue: [],           // enemies still to spawn from released waves
+    stats: { kills: 0, leaked: 0, spent: 0, earned: 0 },
+    over: false,
+    won: false,
+    reason: null,
+  };
+}
+
+const enemyDps = (spec) => Math.max(8, Math.round(spec.hp / 25));
+
+function towerAt(state, col, row) {
+  return state.towers.find((tower) => tower.col === col && tower.row === row) || null;
+}
+
+/** Whether `spec` may be built on this cell right now. */
+function canBuild(state, spec, col, row) {
+  if (!inBounds(col, row)) return false;
+  if (towerAt(state, col, row)) return false;
+  if (state.gold < spec.cost) return false;
+  return spec.onRoad ? isRoad(col, row) : !isRoad(col, row);
+}
+
+function build(state, towerId, col, row) {
+  const spec = getTower(towerId);
+  if (!canBuild(state, spec, col, row)) throw new Error(`${spec.name} cannot go there`);
+  state.gold -= spec.cost;
+  state.stats.spent += spec.cost;
+  const tower = {
+    uid: nextUid(),
+    spec,
+    col,
+    row,
+    x: col * GRID.cell + GRID.cell / 2,
+    y: GRID.top + row * GRID.cell + GRID.cell / 2,
+    cooldown: 0,
+    kills: 0,
+    hp: spec.hp || 0,
+    maxHp: spec.hp || 0,
+    gate: spec.onRoad ? roadDistanceOf(col, row) : null,
+    angle: 0,
+  };
+  state.towers.push(tower);
+  return tower;
+}
+
+function sell(state, tower) {
+  state.towers = state.towers.filter((entry) => entry.uid !== tower.uid);
+  const refund = Math.round(tower.spec.cost * SELL_RETURN);
+  state.gold += refund;
+  return refund;
+}
+
+/* ------------------------------------------------------------------ waves */
+
+function releaseWave(state) {
+  const wave = WAVES[state.waveIndex];
+  if (!wave) return state;
+  for (const group of wave) {
+    for (let i = 0; i < group.count; i += 1) {
+      state.queue.push({ enemy: group.enemy, at: state.time + (group.delay || 0) + i * group.gap });
+    }
+  }
+  state.waveIndex += 1;
+  const bonus = waveBonus(state.waveIndex);
+  state.gold += bonus;
+  state.stats.earned += bonus;
+  state.waveTimer = WAVE_GAP;
+  return state;
+}
+
+function spawn(state, enemyId) {
+  const spec = ENEMIES[enemyId];
+  state.enemies.push({
+    uid: nextUid(),
+    spec,
+    hp: spec.hp,
+    maxHp: spec.hp,
+    dist: 0,
+    slowUntil: 0,
+    slowFactor: 1,
+    snareUntil: 0,
+    dread: [],
+    blocking: null,
+    x: PATH.points[0].x,
+    y: PATH.points[0].y,
+  });
+}
+
+/* ------------------------------------------------------------------ damage */
+
+function applyDamage(state, enemy, amount, { ignoreArmour = false } = {}) {
+  const armour = ignoreArmour ? 0 : enemy.spec.armour || 0;
+  const dealt = Math.max(1, amount - armour);
+  enemy.hp -= dealt;
+  return dealt;
+}
+
+function killEnemy(state, enemy, source) {
+  state.gold += enemy.spec.bounty;
+  state.stats.earned += enemy.spec.bounty;
+  state.stats.kills += 1;
+  if (source) source.kills += 1;
+  state.hits.push({ x: enemy.x, y: enemy.y, life: 0.5, maxLife: 0.5, size: enemy.spec.size, color: enemy.spec.color });
+}
+
+/** Slows and snares are resisted by whatever has `slowResist`. */
+function applySlow(enemy, factor, duration, now) {
+  const resist = enemy.spec.slowResist || 0;
+  const effective = 1 - (1 - factor) * (1 - resist);
+  enemy.slowFactor = Math.min(enemy.slowUntil > now ? enemy.slowFactor : 1, effective);
+  enemy.slowUntil = Math.max(enemy.slowUntil, now + duration);
+}
+
+function applySnare(enemy, duration, now) {
+  const resist = enemy.spec.slowResist || 0;
+  enemy.snareUntil = Math.max(enemy.snareUntil, now + duration * (1 - resist));
+}
+
+/* ------------------------------------------------------------------- loop */
+
+function update(state, dt) {
+  if (state.over) return state;
+  state.time += dt;
+
+  // Waves keep arriving whether or not you are ready for them.
+  state.waveTimer -= dt;
+  if (state.waveTimer <= 0 && state.waveIndex < WAVES.length) releaseWave(state);
+
+  while (state.queue.length > 0 && state.queue[0].at <= state.time) {
+    spawn(state, state.queue.shift().enemy);
+  }
+
+  moveEnemies(state, dt);
+  fireTowers(state, dt);
+  moveShells(state, dt);
+  tickEffects(state, dt);
+  reap(state);
+  checkEnd(state);
+  return state;
+}
+
+function moveEnemies(state, dt) {
+  const gates = state.towers.filter((tower) => tower.spec.onRoad && tower.hp > 0);
+
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0) continue;
+    enemy.blocking = null;
+
+    // A Bastion standing in the road stops the queue until it is rubble.
+    const ahead = gates
+      .filter((gate) => gate.gate != null && gate.gate > enemy.dist)
+      .sort((a, b) => a.gate - b.gate)[0];
+
+    const snared = enemy.snareUntil > state.time;
+    const slowed = enemy.slowUntil > state.time ? enemy.slowFactor : 1;
+    const step = snared ? 0 : enemy.spec.speed * slowed * dt;
+
+    if (ahead) {
+      const stopAt = ahead.gate - (enemy.spec.size + 6);
+      if (enemy.dist + step >= stopAt) {
+        enemy.dist = Math.min(enemy.dist, stopAt);
+        enemy.blocking = ahead;
+        ahead.hp -= enemyDps(enemy.spec) * dt;
+      } else enemy.dist += step;
+    } else {
+      enemy.dist += step;
+    }
+
+    const point = pointAt(enemy.dist);
+    enemy.x = point.x;
+    enemy.y = point.y;
+
+    if (enemy.dist >= PATH.length) {
+      state.lives -= enemy.spec.leak;
+      state.stats.leaked += 1;
+      enemy.hp = 0;
+      enemy.leaked = true;
+    }
+  }
+}
+
+/** Targets whatever is furthest along the road - the classic, and the clearest. */
+function pickTarget(state, tower) {
+  let best = null;
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0 || enemy.leaked) continue;
+    if (Math.hypot(enemy.x - tower.x, enemy.y - tower.y) > tower.spec.range) continue;
+    if (!best || enemy.dist > best.dist) best = enemy;
+  }
+  return best;
+}
+
+function fireTowers(state, dt) {
+  for (const tower of state.towers) {
+    const spec = tower.spec;
+    if (!spec.rate) continue;
+    tower.cooldown -= dt;
+    if (tower.cooldown > 0) continue;
+
+    const target = pickTarget(state, tower);
+    if (!target) continue;
+    tower.cooldown = 1 / spec.rate;
+    tower.angle = Math.atan2(target.y - tower.y, target.x - tower.x);
+
+    if (spec.shell) {
+      state.shells.push({
+        x: tower.x, y: tower.y, fromX: tower.x, fromY: tower.y,
+        toX: target.x, toY: target.y, t: 0,
+        duration: Math.max(0.25, Math.hypot(target.x - tower.x, target.y - tower.y) / 420),
+        damage: spec.damage, splash: spec.splash, source: tower,
+      });
+      continue;
+    }
+
+    hit(state, tower, target);
+    if (spec.chain) {
+      let previous = target;
+      const struck = new Set([target.uid]);
+      for (let i = 1; i < spec.chain; i += 1) {
+        const next = state.enemies
+          .filter((enemy) => enemy.hp > 0 && !struck.has(enemy.uid) &&
+            Math.hypot(enemy.x - previous.x, enemy.y - previous.y) < 84)
+          .sort((a, b) => b.dist - a.dist)[0];
+        if (!next) break;
+        struck.add(next.uid);
+        state.beams.push({ x1: previous.x, y1: previous.y, x2: next.x, y2: next.y, life: 0.14, maxLife: 0.14, color: spec.color });
+        applyDamage(state, next, spec.damage);
+        previous = next;
+      }
+    }
+  }
+}
+
+function hit(state, tower, enemy) {
+  const spec = tower.spec;
+  state.beams.push({ x1: tower.x, y1: tower.y, x2: enemy.x, y2: enemy.y, life: 0.12, maxLife: 0.12, color: spec.color });
+  if (spec.damage > 0) applyDamage(state, enemy, spec.damage);
+  if (spec.slow) applySlow(enemy, spec.slow.factor, spec.slow.duration, state.time);
+  if (spec.snare) applySnare(enemy, spec.snare.duration, state.time);
+  if (spec.dread) {
+    if (enemy.dread.length < spec.dread.stacks) {
+      enemy.dread.push({ until: state.time + spec.dread.duration, dps: spec.dread.damage });
+    } else {
+      enemy.dread[0] = { until: state.time + spec.dread.duration, dps: spec.dread.damage };
+      enemy.dread.sort((a, b) => a.until - b.until);
+    }
+  }
+}
+
+function moveShells(state, dt) {
+  for (const shell of state.shells) {
+    shell.t += dt / shell.duration;
+    shell.x = shell.fromX + (shell.toX - shell.fromX) * shell.t;
+    shell.y = shell.fromY + (shell.toY - shell.fromY) * shell.t;
+    if (shell.t < 1) continue;
+    shell.spent = true;
+    state.hits.push({ x: shell.toX, y: shell.toY, life: 0.35, maxLife: 0.35, size: shell.splash, color: '#ffb066' });
+    for (const enemy of state.enemies) {
+      if (enemy.hp <= 0) continue;
+      if (Math.hypot(enemy.x - shell.toX, enemy.y - shell.toY) > shell.splash) continue;
+      applyDamage(state, enemy, shell.damage);
+    }
+  }
+  state.shells = state.shells.filter((shell) => !shell.spent);
+}
+
+function tickEffects(state, dt) {
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0) continue;
+    enemy.dread = enemy.dread.filter((stack) => stack.until > state.time);
+    for (const stack of enemy.dread) applyDamage(state, enemy, stack.dps * dt, { ignoreArmour: true });
+  }
+  for (const beam of state.beams) beam.life -= dt;
+  state.beams = state.beams.filter((beam) => beam.life > 0);
+  for (const mark of state.hits) mark.life -= dt;
+  state.hits = state.hits.filter((mark) => mark.life > 0);
+}
+
+function reap(state) {
+  for (const enemy of state.enemies) {
+    if (enemy.hp > 0 || enemy.reaped) continue;
+    enemy.reaped = true;
+    if (!enemy.leaked) killEnemy(state, enemy, enemy.lastSource);
+  }
+  state.enemies = state.enemies.filter((enemy) => enemy.hp > 0);
+  state.towers = state.towers.filter((tower) => !tower.spec.onRoad || tower.hp > 0);
+}
+
+function checkEnd(state) {
+  if (state.lives <= 0) {
+    state.over = true;
+    state.won = false;
+    state.reason = 'the base is overrun';
+    return;
+  }
+  const done = state.waveIndex >= WAVES.length && state.queue.length === 0 && state.enemies.length === 0;
+  if (done) {
+    state.over = true;
+    state.won = true;
+    state.reason = 'every wave turned back';
+  }
+}
+
+  return { PATH, pointAt, roadDistanceOf, isRoad, inBounds, createRun, towerAt, canBuild, build, sell, releaseWave, applyDamage, update, GRID, WAVES, START_GOLD, START_LIVES };
+})();
+
+// ---- src/games/defensele/render.js -------------------------------
+__modules["src/games/defensele/render.js"] = (function () {
+  const { TAU, clamp, roundedRect } = __modules["src/core/utils.js"];
+  const { GRID, START_LIVES, WAVE_COUNT } = __modules["src/games/defensele/content.js"];
+  const { PATH } = __modules["src/games/defensele/rules.js"];
+
+/** The map, the road, everything standing on it, and the strip along the top. */
+const ROAD_WIDTH = 30;
+
+const cellOf = (x, y) => ({
+  col: Math.floor(x / GRID.cell),
+  row: Math.floor((y - GRID.top) / GRID.cell),
+});
+
+const cellCentre = (col, row) => ({
+  x: col * GRID.cell + GRID.cell / 2,
+  y: GRID.top + row * GRID.cell + GRID.cell / 2,
+});
+
+function drawGround(ctx, width, height, time) {
+  const ground = ctx.createLinearGradient(0, 0, 0, height);
+  ground.addColorStop(0, '#20301f');
+  ground.addColorStop(1, '#16241a');
+  ctx.fillStyle = ground;
+  ctx.fillRect(0, 0, width, height);
+
+  // Buildable ground reads as a faint lattice.
+  ctx.save();
+  ctx.globalAlpha = 0.12;
+  ctx.strokeStyle = '#9fd8a8';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let col = 0; col <= GRID.cols; col += 1) {
+    ctx.moveTo(col * GRID.cell, GRID.top);
+    ctx.lineTo(col * GRID.cell, GRID.top + GRID.rows * GRID.cell);
+  }
+  for (let row = 0; row <= GRID.rows; row += 1) {
+    ctx.moveTo(0, GRID.top + row * GRID.cell);
+    ctx.lineTo(GRID.cols * GRID.cell, GRID.top + row * GRID.cell);
+  }
+  ctx.stroke();
+  ctx.restore();
+  void time;
+}
+
+function drawRoad(ctx) {
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const trace = () => {
+    ctx.beginPath();
+    ctx.moveTo(PATH.points[0].x, PATH.points[0].y);
+    for (const point of PATH.points.slice(1)) ctx.lineTo(point.x, point.y);
+  };
+  ctx.strokeStyle = '#2c2519';
+  ctx.lineWidth = ROAD_WIDTH + 8;
+  trace();
+  ctx.stroke();
+  ctx.strokeStyle = '#6b5a3c';
+  ctx.lineWidth = ROAD_WIDTH;
+  trace();
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255, 233, 180, 0.25)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([9, 13]);
+  trace();
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Where they come in, and what they are walking towards.
+  const start = PATH.points[0];
+  const end = PATH.points[PATH.points.length - 1];
+  ctx.fillStyle = 'rgba(255, 120, 120, 0.85)';
+  ctx.beginPath();
+  ctx.arc(start.x + 8, start.y, 9, 0, TAU);
+  ctx.fill();
+
+  ctx.fillStyle = '#7fd4ff';
+  roundedRect(ctx, end.x - 20, end.y - 28, 44, 56, 8);
+  ctx.fill();
+  ctx.fillStyle = '#3aa0d8';
+  roundedRect(ctx, end.x - 14, end.y - 22, 32, 20, 4);
+  ctx.fill();
+  ctx.fillStyle = '#123044';
+  ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('BASE', end.x + 2, end.y + 12);
+  ctx.restore();
+}
+
+/* ----------------------------------------------------------------- towers */
+
+function drawTower(ctx, tower, options = {}) {
+  const spec = tower.spec;
+  const { x, y } = tower;
+  ctx.save();
+
+  if (options.showRange && spec.range > 0) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.beginPath();
+    ctx.arc(x, y, spec.range, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 12, 15, 6, 0, 0, TAU);
+  ctx.fill();
+
+  drawTowerShape(ctx, spec, x, y, 1, tower.angle || 0);
+
+  if (spec.onRoad && tower.maxHp > 0) {
+    const ratio = clamp(tower.hp / tower.maxHp, 0, 1);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    roundedRect(ctx, x - 16, y - 22, 32, 5, 2.5);
+    ctx.fill();
+    ctx.fillStyle = ratio > 0.4 ? '#9be8a8' : '#ff8b6b';
+    roundedRect(ctx, x - 16, y - 22, Math.max(2, 32 * ratio), 5, 2.5);
+    ctx.fill();
+  }
+  if (options.selected) {
+    ctx.strokeStyle = '#ffd166';
+    ctx.lineWidth = 2.5;
+    roundedRect(ctx, x - 19, y - 19, 38, 38, 8);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** A silhouette per defender, so eight towers do not look like eight boxes. */
+function drawTowerShape(ctx, spec, x, y, scale = 1, angle = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.strokeStyle = 'rgba(8, 12, 10, 0.8)';
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = spec.dark;
+
+  // Every defender stands on the same little plinth.
+  ctx.beginPath();
+  ctx.arc(0, 6, 13, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = spec.color;
+
+  switch (spec.shape) {
+    case 'pylon':
+      ctx.beginPath();
+      ctx.moveTo(0, -18); ctx.lineTo(7, 4); ctx.lineTo(-7, 4); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      break;
+    case 'spire':
+      ctx.beginPath();
+      ctx.moveTo(0, -20); ctx.lineTo(6, -2); ctx.lineTo(0, 5); ctx.lineTo(-6, -2); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      break;
+    case 'lance':
+      ctx.save();
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(-6, -5); ctx.lineTo(20, -2); ctx.lineTo(20, 2); ctx.lineTo(-6, 5); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(0, 0, 7, 0, TAU);
+      ctx.fill(); ctx.stroke();
+      break;
+    case 'mortar':
+      ctx.save();
+      ctx.rotate(angle - 0.5);
+      ctx.beginPath();
+      roundedRect(ctx, -4, -18, 9, 20, 3);
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(0, 2, 9, 0, TAU);
+      ctx.fill(); ctx.stroke();
+      break;
+    case 'coil':
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = spec.color;
+      ctx.beginPath();
+      for (let i = 0; i < 3; i += 1) ctx.arc(0, -4 - i * 5, 8 - i * 2, 0, Math.PI, true);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(8, 12, 10, 0.8)';
+      ctx.lineWidth = 2;
+      break;
+    case 'wall':
+      ctx.beginPath();
+      roundedRect(ctx, -16, -14, 32, 24, 4);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = spec.dark;
+      ctx.fillRect(-16, -6, 32, 3);
+      ctx.fillRect(-2, -14, 4, 24);
+      break;
+    case 'claw':
+      for (const dir of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(dir * 3, 2);
+        ctx.quadraticCurveTo(dir * 14, -6, dir * 9, -18);
+        ctx.quadraticCurveTo(dir * 8, -6, dir * 1, -2);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+      }
+      break;
+    default: // night
+      ctx.beginPath();
+      ctx.arc(0, -6, 11, 0.35 * Math.PI, 1.75 * Math.PI);
+      ctx.arc(4, -10, 9, 1.75 * Math.PI, 0.35 * Math.PI, true);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      break;
+  }
+  ctx.restore();
+}
+
+/* ---------------------------------------------------------------- enemies */
+
+function drawEnemy(ctx, enemy, time) {
+  const spec = enemy.spec;
+  const slowed = enemy.slowUntil > time;
+  const snared = enemy.snareUntil > time;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(enemy.x, enemy.y + spec.size * 0.7, spec.size * 0.8, spec.size * 0.35, 0, 0, TAU);
+  ctx.fill();
+
+  ctx.fillStyle = slowed ? '#bfe9ff' : spec.color;
+  ctx.strokeStyle = snared ? '#8ce6a8' : spec.dark;
+  ctx.lineWidth = snared ? 3 : 2;
+  ctx.beginPath();
+  if (spec.boss) {
+    for (let i = 0; i < 6; i += 1) {
+      const angle = (i / 6) * TAU - Math.PI / 2;
+      const r = spec.size * (i % 2 === 0 ? 1 : 0.78);
+      ctx.lineTo(enemy.x + Math.cos(angle) * r, enemy.y + Math.sin(angle) * r);
+    }
+    ctx.closePath();
+  } else {
+    ctx.arc(enemy.x, enemy.y, spec.size, 0, TAU);
+  }
+  ctx.fill();
+  ctx.stroke();
+
+  if (spec.armour) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(enemy.x, enemy.y, spec.size + 3, -0.8, 0.8);
+    ctx.stroke();
+  }
+  if (enemy.dread.length > 0) {
+    ctx.fillStyle = `rgba(169, 139, 255, ${0.25 + enemy.dread.length * 0.18})`;
+    ctx.beginPath();
+    ctx.arc(enemy.x, enemy.y, spec.size + 5, 0, TAU);
+    ctx.fill();
+  }
+
+  const ratio = clamp(enemy.hp / enemy.maxHp, 0, 1);
+  if (ratio < 1) {
+    const width = spec.size * 2.2;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    roundedRect(ctx, enemy.x - width / 2, enemy.y - spec.size - 9, width, 4, 2);
+    ctx.fill();
+    ctx.fillStyle = ratio > 0.5 ? '#8ef0a8' : ratio > 0.25 ? '#ffd166' : '#ff6b6b';
+    roundedRect(ctx, enemy.x - width / 2, enemy.y - spec.size - 9, Math.max(1, width * ratio), 4, 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawShots(ctx, state) {
+  ctx.save();
+  for (const beam of state.beams) {
+    ctx.globalAlpha = clamp(beam.life / beam.maxLife, 0, 1);
+    ctx.strokeStyle = beam.color;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(beam.x1, beam.y1);
+    ctx.lineTo(beam.x2, beam.y2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  for (const shell of state.shells) {
+    const lift = Math.sin(Math.PI * shell.t) * 18;
+    ctx.fillStyle = '#ffb066';
+    ctx.beginPath();
+    ctx.arc(shell.x, shell.y - lift, 5, 0, TAU);
+    ctx.fill();
+  }
+  for (const mark of state.hits) {
+    const life = clamp(mark.life / mark.maxLife, 0, 1);
+    ctx.globalAlpha = life * 0.7;
+    ctx.strokeStyle = mark.color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(mark.x, mark.y, mark.size * (1.4 - life), 0, TAU);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* -------------------------------------------------------------------- hud */
+
+function drawHud(ctx, state, width) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(8, 14, 10, 0.8)';
+  ctx.fillRect(0, 0, width, GRID.top);
+
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.font = '700 15px "Trebuchet MS", system-ui, sans-serif';
+
+  ctx.fillStyle = state.lives > START_LIVES * 0.35 ? '#8ef0a8' : '#ff8b8b';
+  ctx.fillText(`${Math.max(0, state.lives)} lives`, 16, GRID.top / 2);
+
+  ctx.fillStyle = '#ffd166';
+  ctx.fillText(`${state.gold} gold`, 116, GRID.top / 2);
+
+  ctx.fillStyle = '#e8f2e8';
+  ctx.fillText(`Wave ${Math.max(1, state.waveIndex)} / ${WAVE_COUNT}`, 226, GRID.top / 2);
+
+  const next = Math.max(0, state.waveTimer);
+  ctx.fillStyle = next < 4 ? '#ffb3b3' : 'rgba(232, 242, 232, 0.7)';
+  ctx.font = '600 13px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(
+    state.waveIndex >= WAVE_COUNT ? 'last wave - hold the line' : `next wave in ${next.toFixed(0)}s`,
+    340, GRID.top / 2
+  );
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(232, 242, 232, 0.72)';
+  ctx.fillText(`${state.enemies.length} on the road   ${state.stats.kills} down`, width - 16, GRID.top / 2);
+  ctx.restore();
+}
+
+/** The cell under the cursor while a defender is picked up. */
+function drawPlacement(ctx, spec, col, row, allowed) {
+  const { x, y } = cellCentre(col, row);
+  ctx.save();
+  ctx.globalAlpha = 0.85;
+  if (spec.range > 0) {
+    ctx.fillStyle = allowed ? 'rgba(140, 230, 168, 0.10)' : 'rgba(255, 120, 120, 0.10)';
+    ctx.beginPath();
+    ctx.arc(x, y, spec.range, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = allowed ? 'rgba(140, 230, 168, 0.6)' : 'rgba(255, 120, 120, 0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  ctx.fillStyle = allowed ? 'rgba(140, 230, 168, 0.25)' : 'rgba(255, 120, 120, 0.25)';
+  roundedRect(ctx, x - GRID.cell / 2 + 2, y - GRID.cell / 2 + 2, GRID.cell - 4, GRID.cell - 4, 6);
+  ctx.fill();
+  ctx.globalAlpha = allowed ? 0.9 : 0.4;
+  drawTowerShape(ctx, spec, x, y, 0.9, 0);
+  ctx.restore();
+}
+
+function drawBanner(ctx, width, text, subtext, alpha) {
+  if (!text || alpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = clamp(alpha, 0, 1);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 42px "Trebuchet MS", system-ui, sans-serif';
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = 'rgba(6, 12, 8, 0.85)';
+  ctx.strokeText(text, width / 2, 190);
+  ctx.fillStyle = '#ffd166';
+  ctx.fillText(text, width / 2, 190);
+  if (subtext) {
+    ctx.font = '600 17px "Trebuchet MS", system-ui, sans-serif';
+    ctx.lineWidth = 5;
+    ctx.strokeText(subtext, width / 2, 226);
+    ctx.fillStyle = '#e8f2e8';
+    ctx.fillText(subtext, width / 2, 226);
+  }
+  ctx.restore();
+}
+
+  return { cellOf, cellCentre, drawGround, drawRoad, drawTower, drawTowerShape, drawEnemy, drawShots, drawHud, drawPlacement, drawBanner };
+})();
+
+// ---- src/games/defensele/ui.js -----------------------------------
+__modules["src/games/defensele/ui.js"] = (function () {
+  const { SELL_RETURN, TOWERS } = __modules["src/games/defensele/content.js"];
+  const { drawTowerShape } = __modules["src/games/defensele/render.js"];
+
+/**
+ * The build bar along the bottom. It is the only DOM in Defensele - everything
+ * else happens on the map.
+ */
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
+function sigil(spec, size = 34) {
+  const canvas = el('canvas', 'df-sigil');
+  const scale = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = size * scale;
+  canvas.height = size * scale;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  drawTowerShape(ctx, spec, size / 2, size / 2 + 4, size / 42, 0);
+  return canvas;
+}
+
+class BuildBar {
+  constructor(container, { onPick, onSell }) {
+    this.onPick = onPick;
+    this.onSell = onSell;
+    this.picked = null;
+    this.root = el('div', 'df-bar');
+    container.append(this.root);
+
+    this.buttons = new Map();
+    for (const spec of TOWERS) {
+      const button = el('button', 'df-tower');
+      button.type = 'button';
+      button.style.setProperty('--tint', spec.color);
+      button.append(sigil(spec));
+      const meta = el('div', 'df-tower-meta');
+      meta.append(el('strong', null, spec.name));
+      meta.append(el('span', 'df-cost', `${spec.cost}g`));
+      button.append(meta);
+      button.title = `${spec.blurb}\n${spec.role}`;
+      button.addEventListener('click', () => {
+        this.picked = this.picked === spec.id ? null : spec.id;
+        this.onPick(this.picked);
+        this.refresh(this.lastGold ?? 0);
+      });
+      this.buttons.set(spec.id, button);
+      this.root.append(button);
+    }
+
+    this.detail = el('div', 'df-detail');
+    this.root.append(this.detail);
+  }
+
+  /** Greys out what you cannot afford and marks what you are holding. */
+  refresh(gold, selectedTower = null) {
+    this.lastGold = gold;
+    for (const spec of TOWERS) {
+      const button = this.buttons.get(spec.id);
+      button.classList.toggle('is-picked', this.picked === spec.id);
+      button.classList.toggle('is-broke', gold < spec.cost);
+    }
+
+    this.detail.replaceChildren();
+    if (selectedTower) {
+      const refund = Math.round(selectedTower.spec.cost * SELL_RETURN);
+      this.detail.append(el('strong', null, selectedTower.spec.name));
+      this.detail.append(el('span', null, `${selectedTower.kills} kill${selectedTower.kills === 1 ? '' : 's'}`));
+      const sell = el('button', 'btn btn--ghost df-sell', `Sell for ${refund}g`);
+      sell.type = 'button';
+      sell.addEventListener('click', () => this.onSell(selectedTower));
+      this.detail.append(sell);
+      return;
+    }
+    const spec = this.picked ? TOWERS.find((entry) => entry.id === this.picked) : null;
+    if (spec) {
+      this.detail.append(el('strong', null, spec.name));
+      this.detail.append(el('span', null, spec.blurb));
+    } else {
+      this.detail.append(el('span', 'df-hint', 'Pick one, then click open ground.'));
+    }
+  }
+
+  clearPick() {
+    this.picked = null;
+    this.refresh(this.lastGold ?? 0);
+  }
+
+  destroy() {
+    this.root.remove();
+  }
+}
+
+  return { BuildBar };
+})();
+
+// ---- src/games/defensele/game.js ---------------------------------
+__modules["src/games/defensele/game.js"] = (function () {
+  const { clamp } = __modules["src/core/utils.js"];
+  const { GRID, START_LIVES, WAVE_COUNT, getTower } = __modules["src/games/defensele/content.js"];
+  const { build, canBuild, createRun, isRoad, sell, towerAt, update } = __modules["src/games/defensele/rules.js"];
+  const { BuildBar } = __modules["src/games/defensele/ui.js"];
+  const { cellOf, drawBanner, drawEnemy, drawGround, drawHud, drawPlacement, drawRoad, drawShots, drawTower } = __modules["src/games/defensele/render.js"];
+
+const GAME_ID = 'defensele';
+
+const MAX_STEP = 1 / 20; // never simulate more than 50ms in one go
+
+class DefenseleGame {
+  constructor(context) {
+    this.context = context;
+    this.state = createRun();
+    this.holding = null;      // a defender picked up from the bar
+    this.selected = null;     // one already on the map
+    this.hover = { col: -1, row: -1 };
+    this.banner = { text: 'Defensele', subtext: 'They are already walking. Build.', life: 2.6 };
+    this.finished = false;
+
+    this.bar = new BuildBar(context.ui, {
+      onPick: (id) => {
+        this.holding = id ? getTower(id) : null;
+        this.selected = null;
+      },
+      onSell: (tower) => {
+        sell(this.state, tower);
+        this.selected = null;
+        this.bar.refresh(this.state.gold, null);
+      },
+    });
+    this.bar.refresh(this.state.gold);
+  }
+
+  update(dt, input) {
+    const step = Math.min(dt, MAX_STEP);
+    if (this.banner.life > 0) this.banner.life -= dt;
+
+    const goldBefore = this.state.gold;
+    if (!this.state.over) update(this.state, step);
+
+    this._handleInput(input);
+
+    if (this.state.gold !== goldBefore || this.state.over) {
+      this.bar.refresh(this.state.gold, this.selected);
+    }
+    if (this.state.over) this._finish();
+  }
+
+  _handleInput(input) {
+    const { col, row } = cellOf(input.x, input.y);
+    this.hover = { col, row };
+    if (!input.justPressed || this.state.over) return;
+    if (row < 0 || row >= GRID.rows || col < 0 || col >= GRID.cols) return;
+
+    const existing = towerAt(this.state, col, row);
+
+    // Clicking something you already built always selects it, even while you
+    // are holding another defender - otherwise the sell button is unreachable
+    // until you put the new one down somewhere.
+    if (existing) {
+      this.holding = null;
+      this.bar.clearPick();
+      this.selected = existing;
+      this.bar.refresh(this.state.gold, this.selected);
+      return;
+    }
+
+    if (this.holding) {
+      if (canBuild(this.state, this.holding, col, row)) {
+        build(this.state, this.holding.id, col, row);
+        // Keep holding it while you can still afford another.
+        if (this.state.gold < this.holding.cost) {
+          this.holding = null;
+          this.bar.clearPick();
+        }
+        this.bar.refresh(this.state.gold, null);
+      }
+      return;
+    }
+    this.selected = null;
+    this.bar.refresh(this.state.gold, null);
+  }
+
+  render(ctx) {
+    const { width, height } = this.context;
+    drawGround(ctx, width, height, this.state.time);
+    drawRoad(ctx);
+
+    for (const tower of this.state.towers) {
+      drawTower(ctx, tower, {
+        selected: this.selected && this.selected.uid === tower.uid,
+        showRange: this.selected && this.selected.uid === tower.uid,
+      });
+    }
+    for (const enemy of this.state.enemies) drawEnemy(ctx, enemy, this.state.time);
+    drawShots(ctx, this.state);
+
+    if (this.holding && this.hover.row >= 0 && this.hover.row < GRID.rows && this.hover.col >= 0 && this.hover.col < GRID.cols) {
+      drawPlacement(
+        ctx,
+        this.holding,
+        this.hover.col,
+        this.hover.row,
+        canBuild(this.state, this.holding, this.hover.col, this.hover.row)
+      );
+    }
+
+    drawHud(ctx, this.state, width);
+    drawBanner(ctx, width, this.banner.text, this.banner.subtext, clamp(this.banner.life, 0, 1));
+  }
+
+  _finish() {
+    if (this.finished) return;
+    this.finished = true;
+    const state = this.state;
+    const wavesHeld = state.won ? WAVE_COUNT : Math.max(0, state.waveIndex - 1);
+
+    this.banner = {
+      text: state.won ? 'The road is clear' : 'The base is overrun',
+      subtext: state.won
+        ? `${state.lives} of ${START_LIVES} lives left`
+        : `You held ${wavesHeld} of ${WAVE_COUNT} waves`,
+      life: 3,
+    };
+
+    this.context.finish({
+      score: state.won
+        ? Math.round(1500 + state.lives * 60 + state.gold * 0.2)
+        : Math.round(wavesHeld * 90 + Math.max(0, state.lives) * 20),
+      title: state.won ? 'Every wave turned back' : 'Overrun',
+      detailTitle: `${wavesHeld} of ${WAVE_COUNT} waves - ${state.reason}`,
+      collected: [
+        { name: 'Lives left', color: '#8ef0a8', count: Math.max(0, state.lives), label: `${Math.max(0, state.lives)} / ${START_LIVES}` },
+        { name: 'Killed', color: '#ffd166', count: state.stats.kills, label: `${state.stats.kills}` },
+        { name: 'Walked past you', color: '#ff9d94', count: state.stats.leaked, label: `${state.stats.leaked}` },
+        { name: 'Gold spent', color: '#c8a4ff', count: state.stats.spent, label: `${state.stats.spent}g` },
+      ],
+    });
+  }
+
+  destroy() {
+    this.bar?.destroy();
+  }
+}
+
+function createDefensele(context) {
+  return new DefenseleGame(context);
+}
+
+  return { GAME_ID, createDefensele, DefenseleGame, isRoad };
+})();
+
+// ---- src/games/defensele/index.js --------------------------------
+__modules["src/games/defensele/index.js"] = (function () {
+  const { registerGame } = __modules["src/core/registry.js"];
+  const { createDefensele, GAME_ID } = __modules["src/games/defensele/game.js"];
+
+registerGame({
+  id: GAME_ID,
+  name: 'Defensele',
+  tagline: 'Eight defenders, one road, fifteen waves that never wait for you.',
+  description: 'Hold the road. Build while they walk, because nothing pauses between waves.',
+  howTo: [
+    'Enemies walk the road from the left to your base. Every one that reaches it <strong>costs you lives</strong>.',
+    'Pick a defender from the bar and click <strong>open ground</strong> to build it. <strong>Bastion is the exception</strong> - it goes in the road itself and blocks the way until it is rubble.',
+    'Gold comes from kills and from each wave arriving. Click a defender you built to <strong>sell</strong> it back.',
+    '<strong>Nothing pauses.</strong> The next wave starts on its own timer whether or not you are ready.',
+    'Fifteen waves. Turn them all back and the road is yours.',
+  ],
+  create: createDefensele,
 });
 
   return {  };

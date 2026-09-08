@@ -882,6 +882,63 @@ canvas {
   .sh-roster { display: none; }
 }
 
+/* --- Defensele --- */
+
+.df-bar {
+  margin-top: auto;
+  display: flex;
+  align-items: stretch;
+  gap: 0.3em;
+  padding: 0.4em 0.5em;
+  background: rgba(8, 16, 10, 0.9);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.df-tower {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.2em 0.4em 0.2em 0.2em;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  border-bottom: 3px solid var(--tint);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.df-tower:hover { background: rgba(255, 255, 255, 0.11); }
+.df-tower.is-picked { background: rgba(255, 209, 102, 0.2); border-color: var(--accent); }
+.df-tower.is-broke { opacity: 0.4; }
+
+.df-tower-meta { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
+.df-tower-meta strong { font-size: 0.85em; }
+.df-cost { color: var(--accent); font-size: 0.78em; font-weight: 700; }
+.df-sigil { display: block; }
+
+.df-detail {
+  flex: 1 1 10em;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding-left: 0.6em;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.82em;
+}
+
+.df-detail strong { color: var(--text); font-size: 0.95em; }
+.df-detail span { line-height: 1.25; }
+.df-hint { color: var(--muted); }
+.df-sell { align-self: flex-start; padding: 0.15em 0.7em; font-size: 0.9em; }
+
+@media (max-width: 780px) {
+  .df-tower-meta { display: none; }
+  .df-detail { display: none; }
+}
+
 /* ---------- Footer ---------- */
 
 .footer {
