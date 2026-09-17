@@ -3,12 +3,18 @@
 A browser collection of small games. No build step, no dependencies — plain ES
 modules, a canvas and a `<script type="module">`.
 
-**First minigame: Catchmon.**
+**The games: [Catchmon](#catchmon) (3v3 type battles), [Nopoly](#nopoly)
+(Red vs Blue on a chess board), [Shubat](#shubat) (a lane-and-deck duel) and
+[Defensele](#defensele) (a tower defence that never pauses).**
 
 ## Play
 
-The game uses ES modules, so it needs to be served over HTTP (opening
-`index.html` from disk will not work):
+**The quickest way: open `dist/minigame-mania.html`.** It is both games bundled
+into one self-contained file — download it, double-click it, and it runs in your
+browser. Nothing to install, no server, works offline.
+
+To run the source instead: it uses ES modules, so it needs to be served over
+HTTP (opening `index.html` straight off disk will not work).
 
 ```bash
 npm start          # python3 -m http.server 8000
@@ -16,6 +22,40 @@ npm start          # python3 -m http.server 8000
 ```
 
 Any static file server does the job — `npx http-server`, `php -S`, etc.
+
+Rebuild the single file after changing anything under `src/`:
+
+```bash
+npm run bundle     # writes dist/minigame-mania.html
+```
+
+## Putting it on the web
+
+This is a plain static site: no build step, no server code, no dependencies.
+Any static host serves it by pointing at the repository root — `index.html` is
+already there. **There is nothing to deploy until the code is on the branch your
+host is watching, which is almost always `main`.**
+
+**Vercel** — import the repository at [vercel.com/new](https://vercel.com/new):
+
+- Framework preset: **Other**
+- Build command: **leave empty** (there is nothing to build)
+- Output directory: **leave empty** (the repository root)
+- Install command: leave empty
+
+Every push to `main` then redeploys. The site lives at the URL Vercel gives you
+on the project's dashboard — that exact hostname, which is not necessarily the
+repository's name.
+
+**GitHub Pages** — Settings → Pages → Source: *Deploy from a branch* → Branch:
+`main`, folder `/ (root)` → Save. It appears at
+`https://<user>.github.io/<repo>/` about a minute later. Note that Pages on a
+**private** repository needs a paid GitHub plan; on the free plan, make the
+repository public first.
+
+If a URL says *"this site can't be reached"*, nothing is deployed at that
+hostname — the browser could not connect at all. A deployed site that is merely
+missing a file answers with a 404 page instead.
 
 ## Catchmon
 
@@ -98,6 +138,140 @@ Score rewards winning fast and healthy. Your score, and which fighters you have
 battled with, are kept in `localStorage` (falling back to memory when site data
 is blocked).
 
+## Nopoly
+
+Red against Blue on an 8x8 chess board. Nine pieces a side, eighteen in all.
+
+| Piece      | Each side has | Moves                                                       |
+| ---------- | ------------- | ----------------------------------------------------------- |
+| **Farmer** | 6             | One square up, down, left or right.                           |
+| **Golem**  | 2             | Up to two squares in any of the eight directions.             |
+| **Dragon** | 1             | Six squares forward, three back, two sideways, four diagonal. |
+
+The dragon starts on d of the back rank with a golem either side at c and f;
+the farmers fill b–g on the rank in front. Red moves first.
+
+**Forward means away from your own back rank** — Red advances up the board and
+Blue advances down it — so the dragon's asymmetry cuts the same way for both
+players, and the two armies are exact reflections of each other.
+
+- **Nothing jumps.** Any piece in the path blocks it, friend or enemy.
+- **Landing on an enemy captures it.** There is no separate capture move.
+- **Win by capturing every enemy piece.** If 25 turns pass with nothing taken,
+  the match is called for the bigger army — or drawn if the armies are even.
+
+Play the computer at three depths (Easy looks one move ahead, Normal three,
+Hard four — each capped by a time budget, so a crowded position costs a
+shallower search rather than a frozen screen) or hand the same screen to a second player. Click a piece and then a
+highlighted square, or drive it with the arrow keys and Enter.
+
+## Shubat
+
+A deck duel across three lanes — a card game and a board game at once. Pick a
+starter deck; the rival takes the other one.
+
+| Deck | Feel | Passive |
+| --- | --- | --- |
+| **Iron Warrior** | Cheap, fast, relentless | **Breakthrough** — damage past a kill carries into the core |
+| **String Brain** | Slow, enormous, outlasts you | **Foresight** — flavour for now; the deck's edge is its raw stats |
+
+Twenty cards each: **5 fighters, 10 supports, 2 instant damage cards, 3 traps.**
+
+### The fighters
+
+HP and damage are fixed by hand; **cost is derived** —
+`round(((hp + damage) / 200) ** 1.3)` — so a fighter's price is whatever its
+numbers are worth, and the curve is what keeps the two decks honest.
+
+| Iron Warrior | HP | Damage | Cost | | String Brain | HP | Damage | Cost |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Scrapper | 120 | 180 | 2 | | Brainer | 380 | 20 | 2 |
+| Magnet Bot | 290 | 70 | 2 | | Calculator | 314 | 790 | 6 |
+| Overdrive | 160 | 210 | 2 | | Coden | 1010 | 7 | 5 |
+| Iron-Forge | 135 | 177 | 2 | | Puppeteer | 248 | 157 | 2 |
+| Criptmetal | 401 | 101 | 3 | | Grand | 560 | 129 | 3 |
+
+Calculator's numbers are written in the source as `297 + 17` and `1000 - 210`,
+which is the arithmetic a card called Calculator ought to be doing.
+
+### A turn
+
+- You gain **one more energy each turn** (capped at 10) and draw a card.
+- Play what you can afford: deploy a fighter into an empty lane, aim a support,
+  fire an instant, or set a trap face down (three at a time).
+- Then **attack**: every fighter that has been in play since your last turn
+  strikes the lane opposite it. A blocked lane hits the blocker and nothing hits
+  back; an **empty lane is a straight road to the core**.
+- Traps fire on their own during the rival's turn — when a fighter lands, when
+  your core is hit, when they cast an instant or a support.
+- First core to zero loses. A match runs a little over twenty turns.
+
+### How it is balanced
+
+The fighter stats are a fixed spec, and on their own String Brain wins **75%**
+of matches — it fields more than twice Iron Warrior's total HP. So the balance
+lives in the parts around them, and each number below was measured over hundreds
+of simulated matches rather than guessed:
+
+- **The cost curve** (exponent 1.3) prices String's monsters out of the early
+  game: Calculator and Coden do not land until turn five or six.
+- **Breakthrough** gives Iron an answer to a 1010-HP wall.
+- **Core HP, 1850** is the clock the aggressive deck races. At 1200 Iron wins
+  76% of matches; at 2000 it wins 44%. At 1850 the decks are level.
+- **Moving second** is worth an extra card and an extra energy, which takes the
+  first-move advantage from 24 points down to about 5.
+
+Each difficulty brings its own twenty: a **Trainee** deck (the same few cheap
+cards over and over), the **Standard** deck, or a **Prototype** deck (one of
+everything). Measured head to head the three builds are near enough equal, so
+the ladder comes from how the rival plays and where its energy curve starts —
+Easy is a turn behind you and misplays half the time, Hard is a turn ahead and
+does not. Against a straight-playing opponent the player wins 96% on Easy, 54%
+on Normal and 34% on Hard.
+
+## Defensele
+
+A tower defence on a fixed road, and the first game here that runs in real
+time. There is **no build phase**: the next wave starts on its own timer whether
+or not you are ready, so gold spent now is gold not spent on the wave already
+walking towards you.
+
+### The defenders
+
+| Defender | Cost | What it does |
+| --- | --- | --- |
+| **Pylon** | 50 | Two shots a second. The one you open with. |
+| **Frostpin** | 65 | Barely scratches, but halves the speed of everything it touches. |
+| **Claw-bind** | 100 | Grabs one enemy and pins it where it stands. |
+| **Lancer** | 120 | One heavy shot from a long way off. Answers armour. |
+| **Coilnest** | 130 | Arcs from one target to the next, up to three. |
+| **Mortar** | 140 | A slow shell that catches everything near the landing. The answer to a Swarm. |
+| **Nightkon** | 150 | Marks them with dread that keeps burning, three stacks deep, and ignores armour. |
+| **Bastion** | 90 | The only one built **in the road**. Nothing walks past until it is rubble. |
+
+### What comes at you
+
+Creeper (basic) · Runner (fast, fragile) · Brute (slow, tough) · Shieldbearer
+(flat armour, so small hits bounce) · Swarm (many at once) · Colossus (2700 HP,
+resists slows, and costs ten lives if it gets through).
+
+Fifteen waves, twenty lives. Kills pay, and each wave arriving pays a supply
+bonus so the money keeps moving.
+
+### How it is balanced
+
+Every number was swept with a scripted builder playing all fifteen waves:
+
+- **Wave gap, 16 seconds.** At 7 seconds nothing survived past wave 8 — waves
+  stacked faster than any economy could answer. At 16 the pressure is constant
+  but a good build keeps up.
+- **The economy** opens at 220 gold with a per-wave supply bonus. Without it a
+  Lancer-first build could only afford two towers in eight waves.
+- Sloppy builds fail: **pylons only** and **cheap swarm** are both overrun at
+  wave 14. A **dread stack** dies on the last wave. **Lancers only** survives
+  with half its lives gone, and a **spread of roles** wins clean — which is the
+  curve you want: mastery is rewarded, one-note is punished.
+
 ## Making it yours
 
 Names and type assignments all live in one table — `ENTRIES` in
@@ -136,6 +310,25 @@ src/
     input.js           pointer + keyboard -> per-frame snapshot
     storage.js         localStorage with a memory fallback
     utils.js           maths and canvas helpers
+  games/shubat/
+    cards.js           both decks: fighters, supports, instants, traps
+    rules.js           lanes, energy, combat, traps, the win (pure logic)
+    ai.js              the rival: one scoring pass, three difficulties
+    render.js          the board, the cards, the hand
+    ui.js              the deck-choice screen
+    game.js            turn flow, targeting, scoring
+  games/defensele/
+    content.js         the eight defenders, six enemies and fifteen waves
+    rules.js           the road, building, movement, shooting, waves (pure logic)
+    render.js          the map, the road, everything standing on it
+    ui.js              the build bar
+    game.js            placement, selling, scoring
+  games/nopoly/
+    rules.js           board, moves, captures, the verdict (pure logic)
+    ai.js              alpha-beta search, three difficulties
+    render.js          board, pieces, move hints
+    ui.js              setup screen and the side panel
+    game.js            selection, animation, scoring
   games/catchmon/
     index.js           registration + how-to-play copy
     types.js           the six types and the effectiveness cycle
@@ -148,6 +341,10 @@ src/
     ui.js              DOM team-select screen and battle commands
     game.js            phases, event playback, scoring
 test/                  node:test suites
+tools/
+  build-single-file.mjs  inlines everything into dist/catchmon.html
+dist/
+  minigame-mania.html  both games in one file (generated, committed)
 ```
 
 ## Adding a minigame
@@ -182,10 +379,23 @@ stores the high score and shows the results screen.
 npm test    # node --test
 ```
 
-45 cases covering the type chart (symmetry, two strengths and two weaknesses
+108 cases. For Catchmon: the type chart (symmetry, two strengths and two weaknesses
 each), the roster (thirty final evolutions, equal stat budgets, every move
 used), the battle engine (turn order, cooldowns, limited uses, status effects,
 knockouts, the turn cap, seeded replay determinism), the AI (legal actions,
 taking a knockout, sensible replacements) and the drawing code — every fighter
-is rendered through a fake canvas that rejects non-finite coordinates. No
-browser needed.
+is rendered through a fake canvas that rejects non-finite coordinates. For
+Nopoly: the opening position (eighteen pieces, reflected), how each piece moves
+including the dragon's asymmetry from both sides,
+that nothing jumps, captures, immutability of a position after a move, illegal
+moves being refused, every way a match can end, and an AI that only plays legal
+moves and takes a free golem. For Shubat: that every fighter carries exactly the
+stats it was given, that all six decks are twenty cards in the right shape,
+energy, deployment, combat in and out of a lane, Breakthrough belonging to Iron
+alone, buffs, shields, tangling, instants, traps firing and cancelling, and that
+the difficulty ladder actually climbs. For Defensele: the road and which cells
+sit on it, where each defender may be built, gold in and out, armour blunting
+small hits while dread ignores it, slows and snares, a Bastion holding the queue
+until it falls, lives lost to leaks, and — the one that guards the balance — an
+undefended base being overrun while a spread of defenders turns all fifteen
+waves back. No browser needed.

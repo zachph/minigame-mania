@@ -350,6 +350,13 @@ canvas {
   display: flex;
   flex-direction: column;
   font-size: clamp(11px, 1.35vw, 15px);
+  /* The layer itself must not eat clicks meant for the canvas underneath -
+     games like Nopoly are played on the board, not in the panels. */
+  pointer-events: none;
+}
+
+.stage-ui > * {
+  pointer-events: auto;
 }
 
 .stage-ui.is-inert {
@@ -637,6 +644,300 @@ canvas {
 .cm-bench-meta span { color: var(--muted); font-size: 0.8em; }
 
 .cm-portrait { display: block; }
+
+/* --- Nopoly --- */
+
+.np-setup {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1em;
+  background: rgba(9, 12, 28, 0.88);
+  overflow: auto;
+}
+
+.np-setup-card {
+  width: min(30em, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7em;
+  padding: 1.2em 1.4em;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.np-setup-card h2 { margin: 0; font-size: 1.9em; }
+.np-setup-lede { margin: 0; color: var(--muted); }
+
+.np-key { display: grid; gap: 0.4em; }
+
+.np-key-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  padding: 0.4em 0.6em;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.np-key-meta { display: flex; flex-direction: column; }
+.np-key-meta span { color: var(--muted); font-size: 0.88em; }
+
+.np-choice { display: flex; align-items: center; gap: 0.7em; justify-content: space-between; }
+.np-choice[hidden] { display: none; }
+.np-choice-label { color: var(--muted); font-size: 0.9em; }
+.np-choice-options { display: flex; gap: 0.35em; }
+
+.np-option {
+  padding: 0.35em 0.8em;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.np-option.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1400;
+  font-weight: 700;
+}
+
+.np-start { align-self: stretch; margin-top: 0.2em; }
+.np-setup-foot { margin: 0; color: var(--muted); font-size: 0.85em; text-align: center; }
+
+.np-panel {
+  position: absolute;
+  top: 1em;
+  right: 1em;
+  bottom: 1em;
+  width: 27em;
+  max-width: 45%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  padding: 0.9em;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(13, 17, 38, 0.92);
+}
+
+.np-turn {
+  display: grid;
+  gap: 0.15em;
+  padding: 0.6em 0.8em;
+  border-radius: 10px;
+  border-left: 4px solid var(--side, var(--accent));
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.np-turn-label { font-size: 1.15em; font-weight: 700; }
+.np-turn-hint { color: var(--muted); }
+.np-turn-count { color: var(--muted); font-size: 0.8em; letter-spacing: 0.08em; text-transform: uppercase; }
+
+.np-armies { display: grid; gap: 0.4em; }
+
+.np-army {
+  padding: 0.45em 0.7em;
+  border-radius: 10px;
+  border-left: 4px solid var(--side);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.np-army-head { display: flex; justify-content: space-between; align-items: baseline; }
+.np-army-count { color: var(--muted); font-size: 0.85em; }
+.np-army-pieces { display: flex; flex-wrap: wrap; gap: 1px; margin-top: 0.2em; }
+.np-army-pieces .is-lost { opacity: 0.22; filter: grayscale(1); }
+
+.np-heading {
+  margin: 0.2em 0 0;
+  font-size: 0.78em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.np-log {
+  flex: 1;
+  min-height: 3em;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0 0 0 1.6em;
+  color: var(--muted);
+}
+
+.np-log-line { margin: 0.1em 0; }
+.np-log-line--red { color: #ff9d94; }
+.np-log-line--blue { color: #9cc4ff; }
+
+.np-resign { align-self: flex-start; }
+.np-icon { display: block; }
+
+@media (max-width: 720px) {
+  .np-panel { width: 15em; padding: 0.6em; }
+  .np-log { display: none; }
+}
+
+/* --- Shubat --- */
+
+.sh-setup {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1em;
+  background: rgba(14, 11, 26, 0.92);
+  overflow: auto;
+}
+
+.sh-setup-card {
+  width: min(46em, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  padding: 1.1em 1.3em;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius);
+  background: #1b1730;
+  box-shadow: var(--shadow);
+}
+
+.sh-setup-card h2 { margin: 0; font-size: 1.8em; }
+.sh-lede { margin: 0; color: #b3aad0; font-size: 0.95em; }
+
+.sh-decks { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6em; }
+
+.sh-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  padding: 0.7em 0.8em;
+  text-align: left;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--faction);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sh-deck:hover { background: rgba(255, 255, 255, 0.08); }
+.sh-deck.is-picked { background: rgba(255, 209, 102, 0.14); border-color: var(--accent); border-top-color: var(--faction); }
+
+.sh-deck-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5em; }
+.sh-deck-head strong { font-size: 1.1em; }
+
+.sh-passive {
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faction);
+}
+
+.sh-deck-lede { margin: 0; color: var(--muted); font-size: 0.85em; }
+.sh-deck-passive { margin: 0; color: #d9d2f0; font-size: 0.82em; }
+
+.sh-roster { display: grid; gap: 2px; margin-top: 0.2em; }
+.sh-fighter { display: flex; align-items: center; gap: 0.45em; }
+.sh-fighter-meta { display: flex; flex-direction: column; line-height: 1.15; }
+.sh-fighter-meta strong { font-size: 0.88em; }
+.sh-fighter-meta span { color: var(--muted); font-size: 0.75em; }
+.sh-sigil { display: block; }
+
+.sh-deck-shape {
+  margin-top: 0.2em;
+  color: var(--muted);
+  font-size: 0.75em;
+  letter-spacing: 0.04em;
+}
+
+.sh-choice { display: flex; align-items: center; justify-content: space-between; gap: 0.7em; }
+.sh-choice-label { color: var(--muted); font-size: 0.9em; }
+.sh-choice-options { display: flex; gap: 0.35em; }
+
+.sh-option {
+  padding: 0.35em 0.9em;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sh-option.is-active { background: var(--accent); border-color: var(--accent); color: #1a1400; font-weight: 700; }
+
+.sh-note { margin: 0; color: var(--muted); font-size: 0.85em; min-height: 1.2em; }
+.sh-start { align-self: stretch; }
+
+@media (max-width: 700px) {
+  .sh-decks { grid-template-columns: 1fr; }
+  .sh-roster { display: none; }
+}
+
+/* --- Defensele --- */
+
+.df-bar {
+  margin-top: auto;
+  display: flex;
+  align-items: stretch;
+  gap: 0.3em;
+  padding: 0.4em 0.5em;
+  background: rgba(8, 16, 10, 0.9);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.df-tower {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.2em 0.4em 0.2em 0.2em;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  border-bottom: 3px solid var(--tint);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.df-tower:hover { background: rgba(255, 255, 255, 0.11); }
+.df-tower.is-picked { background: rgba(255, 209, 102, 0.2); border-color: var(--accent); }
+.df-tower.is-broke { opacity: 0.4; }
+
+.df-tower-meta { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
+.df-tower-meta strong { font-size: 0.85em; }
+.df-cost { color: var(--accent); font-size: 0.78em; font-weight: 700; }
+.df-sigil { display: block; }
+
+.df-detail {
+  flex: 1 1 10em;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding-left: 0.6em;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.82em;
+}
+
+.df-detail strong { color: var(--text); font-size: 0.95em; }
+.df-detail span { line-height: 1.25; }
+.df-hint { color: var(--muted); }
+.df-sell { align-self: flex-start; padding: 0.15em 0.7em; font-size: 0.9em; }
+
+@media (max-width: 780px) {
+  .df-tower-meta { display: none; }
+  .df-detail { display: none; }
+}
 
 /* ---------- Footer ---------- */
 
