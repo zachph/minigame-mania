@@ -175,7 +175,7 @@ export const PATH_CELLS = [
 ];
 
 export const GRID = { cols: 24, rows: 11, cell: 40, top: 34 };
-export const START_GOLD = 220;
+export const START_GOLD = 100;
 export const START_LIVES = 20;
 export const WAVE_GAP = 16;     // seconds between one wave starting and the next
 export const SELL_RETURN = 0.6; // what you get back for taking a tower down

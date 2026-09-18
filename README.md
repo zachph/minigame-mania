@@ -160,9 +160,11 @@ players, and the two armies are exact reflections of each other.
 - **Win by capturing every enemy piece.** If 25 turns pass with nothing taken,
   the match is called for the bigger army — or drawn if the armies are even.
 
-Play the computer at three depths (Easy looks one move ahead, Normal three,
-Hard four — each capped by a time budget, so a crowded position costs a
-shallower search rather than a frozen screen) or hand the same screen to a second player. Click a piece and then a
+Play the computer at three depths (Easy looks one move ahead, Normal three on a
+short clock, Hard four — each capped by a time budget, so a crowded position
+costs a shallower search rather than a frozen screen). Measured head to head,
+Normal wins about a third of its games against the sharper build it replaced,
+and still beats Easy every time. or hand the same screen to a second player. Click a piece and then a
 highlighted square, or drive it with the arrow keys and Enter.
 
 ## Shubat
@@ -265,8 +267,10 @@ Every number was swept with a scripted builder playing all fifteen waves:
 - **Wave gap, 16 seconds.** At 7 seconds nothing survived past wave 8 — waves
   stacked faster than any economy could answer. At 16 the pressure is constant
   but a good build keeps up.
-- **The economy** opens at 220 gold with a per-wave supply bonus. Without it a
-  Lancer-first build could only afford two towers in eight waves.
+- **The economy** opens at 100 gold with a per-wave supply bonus. That is two
+  Pylons on the first wave and nothing else, so the opening is a real decision.
+  Without the wave bonus a Lancer-first build could only afford two towers in
+  eight waves.
 - Sloppy builds fail: **pylons only** and **cheap swarm** are both overrun at
   wave 14. A **dread stack** dies on the last wave. **Lancers only** survives
   with half its lives gone, and a **spread of roles** wins clean — which is the

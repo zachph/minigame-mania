@@ -156,6 +156,7 @@ test('you cannot build what you cannot afford', () => {
 
 test('selling gives most of it back', () => {
   const state = quiet();
+  state.gold = 400; // this is about the refund, not what you open with
   const open = spotNearRoad();
   const tower = build(state, 'lancer', open.col, open.row);
   const before = state.gold;
@@ -169,6 +170,7 @@ test('selling gives most of it back', () => {
 
 test('a defender shoots what walks past, and a kill pays a bounty', () => {
   const state = quiet();
+  state.gold = 400;
   // A Lancer, because a lone Pylon only just out-damages a Creeper walking by.
   const spot = spotNearRoad(getTower('lancer').range);
   build(state, 'lancer', spot.col, spot.row);
@@ -198,6 +200,7 @@ test('armour blunts small hits, and dread ignores it', () => {
   assert.ok(versusArmour < versusCreeper, 'the Shieldbearer took less from the same gun');
 
   const dread = quiet();
+  dread.gold = 400;
   build(dread, 'nightkon', spot.col, spot.row);
   const marked = sendOne(dread, 'shieldbearer');
   run(dread, 3);
