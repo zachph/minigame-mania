@@ -65,9 +65,9 @@ function spotNearRoad(range = 120) {
 
 /* --------------------------------------------------------------- content */
 
-test('eight defenders, six enemies, fifteen waves', () => {
-  assert.equal(TOWERS.length, 8);
-  assert.equal(new Set(TOWERS.map((tower) => tower.id)).size, 8);
+test('nine defenders, six enemies, fifteen waves', () => {
+  assert.equal(TOWERS.length, 9);
+  assert.equal(new Set(TOWERS.map((tower) => tower.id)).size, 9);
   assert.equal(ENEMY_LIST.length, 6);
   assert.equal(WAVE_COUNT, 15);
   assert.equal(WAVES.length, 15);
@@ -78,11 +78,16 @@ test('eight defenders, six enemies, fifteen waves', () => {
   }
 });
 
-test('Claw-bind and Nightkon are in, and do what their names promise', () => {
+test('Claw-bind, Nightkon and Frostglide do what their names promise', () => {
   const claw = getTower('claw-bind');
   const night = getTower('nightkon');
+  const glide = getTower('frostglide');
   assert.ok(claw.snare.duration > 0, 'Claw-bind pins things in place');
   assert.ok(night.dread.damage > 0 && night.dread.stacks > 1, 'Nightkon stacks a burn');
+  assert.equal(glide.cost, 230);
+  assert.equal(glide.damage, 23);
+  assert.equal(glide.range, 100);
+  assert.deepEqual(glide.freeze, { duration: 1.5, damage: 12.5, interval: 0.5 });
 });
 
 test('every wave names a real enemy and gets harder', () => {
@@ -229,6 +234,25 @@ test('Frostpin slows and Claw-bind stops', () => {
   assert.ok(held.snareUntil > pinned.time || held.hp <= 0, 'Claw-bind got hold of it');
 });
 
+test('Frostglide freezes, and the cold bites every half second', () => {
+  const iced = quiet();
+  iced.gold = 400;
+  const spot = spotNearRoad(getTower('frostglide').range);
+  build(iced, 'frostglide', spot.col, spot.row);
+  const caught = sendOne(iced, 'brute');
+  run(iced, 1.2);
+  assert.ok(caught.freezeUntil > iced.time, 'the Brute is held in the ice');
+
+  // One shot (23) plus two bites of 12.5 by 1.2s in - armour does not stop cold.
+  const dealt = caught.maxHp - caught.hp;
+  assert.ok(dealt >= 23 + 12.5 * 2 - 0.5, `the cold kept biting (dealt ${dealt})`);
+
+  const free = quiet();
+  const loose = sendOne(free, 'brute');
+  run(free, 1.2);
+  assert.ok(caught.dist < loose.dist * 0.5, 'and it barely moved while frozen');
+});
+
 test('a Bastion stops the queue until it is rubble', () => {
   const state = quiet();
   const gate = build(state, 'bastion', 9, 5);
@@ -267,7 +291,15 @@ test('a wave releases on its own, queues its enemies and pays out', () => {
   releaseWave(state);
   assert.equal(state.waveIndex, 1);
   assert.equal(state.queue.length, queued);
-  assert.equal(state.gold, goldBefore + waveBonus(1));
+
+  // The first wave pays nothing - the opening gold is the wave-one budget, so
+  // a bonus here would just be a bigger opening handed over a few seconds late.
+  assert.equal(waveBonus(1), 0);
+  assert.equal(state.gold, goldBefore, 'the opening gold is untouched by wave one');
+
+  releaseWave(state);
+  assert.equal(state.gold, goldBefore + waveBonus(2), 'wave two is the first payday');
+  assert.ok(waveBonus(2) > 0);
 });
 
 test('losing every life ends the run', () => {
@@ -287,10 +319,12 @@ test('an undefended base is overrun; a real defence turns all fifteen waves back
   assert.equal(naked.over, true);
   assert.equal(naked.won, false, 'building nothing loses');
 
-  // The same scripted build the balance pass uses: a spread of roles.
+  // The same scripted build the balance pass uses: a spread of roles, opening
+  // cheap. With no supply bonus on wave one the opening 100 gold is all there
+  // is for a while, so the guns have to come before the expensive answers.
   const defended = createRun();
-  const plan = ['pylon', 'pylon', 'frostpin', 'lancer', 'pylon', 'mortar', 'frostpin', 'lancer',
-    'coilnest', 'nightkon', 'mortar', 'claw-bind', 'lancer', 'nightkon', 'mortar', 'lancer'];
+  const plan = ['pylon', 'pylon', 'pylon', 'frostpin', 'lancer', 'mortar', 'frostpin', 'lancer',
+    'coilnest', 'mortar', 'claw-bind', 'lancer', 'nightkon', 'mortar', 'lancer', 'frostglide'];
   const taken = new Set();
   let next = 0;
   for (let elapsed = 0; elapsed < 600 && !defended.over; elapsed += 1 / 20) {

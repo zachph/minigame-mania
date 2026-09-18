@@ -244,12 +244,13 @@ walking towards you.
 | --- | --- | --- |
 | **Pylon** | 50 | Two shots a second. The one you open with. |
 | **Frostpin** | 65 | Barely scratches, but halves the speed of everything it touches. |
+| **Bastion** | 80 | The only one built **in the road**. Nothing walks past until it is rubble. |
 | **Claw-bind** | 100 | Grabs one enemy and pins it where it stands. |
-| **Lancer** | 120 | One heavy shot from a long way off. Answers armour. |
-| **Coilnest** | 130 | Arcs from one target to the next, up to three. |
+| **Lancer** | 125 | One heavy shot from a long way off. Answers armour. |
 | **Mortar** | 140 | A slow shell that catches everything near the landing. The answer to a Swarm. |
-| **Nightkon** | 150 | Marks them with dread that keeps burning, three stacks deep, and ignores armour. |
-| **Bastion** | 90 | The only one built **in the road**. Nothing walks past until it is rubble. |
+| **Coilnest** | 160 | Arcs from one target to the next, up to three. |
+| **Nightkon** | 200 | Marks them with dread that keeps burning, three stacks deep, and ignores armour. |
+| **Frostglide** | 230 | Freezes one enemy solid for 1.5s, biting 12.5 through armour every 0.5s. Short reach. |
 
 ### What comes at you
 
@@ -267,14 +268,24 @@ Every number was swept with a scripted builder playing all fifteen waves:
 - **Wave gap, 16 seconds.** At 7 seconds nothing survived past wave 8 — waves
   stacked faster than any economy could answer. At 16 the pressure is constant
   but a good build keeps up.
-- **The economy** opens at 100 gold with a per-wave supply bonus. That is two
-  Pylons on the first wave and nothing else, so the opening is a real decision.
-  Without the wave bonus a Lancer-first build could only afford two towers in
-  eight waves.
-- Sloppy builds fail: **pylons only** and **cheap swarm** are both overrun at
-  wave 14. A **dread stack** dies on the last wave. **Lancers only** survives
-  with half its lives gone, and a **spread of roles** wins clean — which is the
-  curve you want: mastery is rewarded, one-note is punished.
+- **The economy** opens at 100 gold with a per-wave supply bonus from wave two
+  on. That is two Pylons on the first wave and nothing else, so the opening is a
+  real decision. Wave one deliberately pays nothing: a bonus there would just be
+  a 133-gold opening handed over three seconds late. Without the wave bonus
+  entirely, a Lancer-first build could only afford two towers in eight waves.
+- **Open cheap.** With no wave-one bonus the guns have to come before the
+  expensive answers. Three Pylons then a Frostpin wins with all twenty lives
+  intact; the same spread with a Lancer bought third ends the last wave on
+  nothing left.
+- Sloppy builds fail: **pylons only** is overrun at wave 14 and **cheap swarm**
+  at wave 13. **Lancers only** survives with half its lives gone, and a **spread
+  of roles** wins clean — which is the curve you want: mastery is rewarded,
+  one-note is punished.
+- **The expensive end is genuinely expensive.** Nightkon at 200 and Frostglide
+  at 230 cannot be opened with, and the sweep shows it: a **dread stack** that
+  used to limp to the last wave now dies at wave 6, and **frostglide only**
+  falls at wave 4 with one tower on the board. Both are things you buy once the
+  cheap guns have paid for them.
 
 ## Making it yours
 
@@ -322,7 +333,7 @@ src/
     ui.js              the deck-choice screen
     game.js            turn flow, targeting, scoring
   games/defensele/
-    content.js         the eight defenders, six enemies and fifteen waves
+    content.js         the nine defenders, six enemies and fifteen waves
     rules.js           the road, building, movement, shooting, waves (pure logic)
     render.js          the map, the road, everything standing on it
     ui.js              the build bar

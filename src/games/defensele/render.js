@@ -129,7 +129,7 @@ export function drawTower(ctx, tower, options = {}) {
   ctx.restore();
 }
 
-/** A silhouette per defender, so eight towers do not look like eight boxes. */
+/** A silhouette per defender, so nine towers do not look like nine boxes. */
 export function drawTowerShape(ctx, spec, x, y, scale = 1, angle = 0) {
   ctx.save();
   ctx.translate(x, y);
@@ -206,6 +206,22 @@ export function drawTowerShape(ctx, spec, x, y, scale = 1, angle = 0) {
         ctx.fill(); ctx.stroke();
       }
       break;
+    case 'glide': {
+      // Three blades of ice fanned out around a cold core.
+      for (const dir of [-1, 0, 1]) {
+        ctx.save();
+        ctx.rotate(dir * 0.7);
+        ctx.beginPath();
+        ctx.moveTo(0, 2); ctx.lineTo(4, -8); ctx.lineTo(0, -20); ctx.lineTo(-4, -8); ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
+      ctx.fillStyle = spec.dark;
+      ctx.beginPath();
+      ctx.arc(0, 0, 5, 0, TAU);
+      ctx.fill(); ctx.stroke();
+      break;
+    }
     default: // night
       ctx.beginPath();
       ctx.arc(0, -6, 11, 0.35 * Math.PI, 1.75 * Math.PI);
@@ -223,6 +239,7 @@ export function drawEnemy(ctx, enemy, time) {
   const spec = enemy.spec;
   const slowed = enemy.slowUntil > time;
   const snared = enemy.snareUntil > time;
+  const frozen = enemy.freezeUntil > time;
 
   ctx.save();
   ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
@@ -230,9 +247,9 @@ export function drawEnemy(ctx, enemy, time) {
   ctx.ellipse(enemy.x, enemy.y + spec.size * 0.7, spec.size * 0.8, spec.size * 0.35, 0, 0, TAU);
   ctx.fill();
 
-  ctx.fillStyle = slowed ? '#bfe9ff' : spec.color;
-  ctx.strokeStyle = snared ? '#8ce6a8' : spec.dark;
-  ctx.lineWidth = snared ? 3 : 2;
+  ctx.fillStyle = frozen ? '#e6f7ff' : slowed ? '#bfe9ff' : spec.color;
+  ctx.strokeStyle = frozen ? '#8fd8ff' : snared ? '#8ce6a8' : spec.dark;
+  ctx.lineWidth = snared || frozen ? 3 : 2;
   ctx.beginPath();
   if (spec.boss) {
     for (let i = 0; i < 6; i += 1) {
@@ -253,6 +270,18 @@ export function drawEnemy(ctx, enemy, time) {
     ctx.beginPath();
     ctx.arc(enemy.x, enemy.y, spec.size + 3, -0.8, 0.8);
     ctx.stroke();
+  }
+  if (frozen) {
+    ctx.strokeStyle = 'rgba(190, 236, 255, 0.85)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i += 1) {
+      const angle = (i / 3) * TAU + time * 0.8;
+      const r = spec.size + 4;
+      ctx.beginPath();
+      ctx.moveTo(enemy.x + Math.cos(angle) * r * 0.5, enemy.y + Math.sin(angle) * r * 0.5);
+      ctx.lineTo(enemy.x + Math.cos(angle) * r, enemy.y + Math.sin(angle) * r);
+      ctx.stroke();
+    }
   }
   if (enemy.dread.length > 0) {
     ctx.fillStyle = `rgba(169, 139, 255, ${0.25 + enemy.dread.length * 0.18})`;

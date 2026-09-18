@@ -185,6 +185,9 @@ function spawn(state, enemyId) {
     slowUntil: 0,
     slowFactor: 1,
     snareUntil: 0,
+    freezeUntil: 0,
+    freezeTickAt: 0,
+    freeze: null,
     dread: [],
     blocking: null,
     x: PATH.points[0].x,
@@ -222,6 +225,19 @@ function applySnare(enemy, duration, now) {
   enemy.snareUntil = Math.max(enemy.snareUntil, now + duration * (1 - resist));
 }
 
+/**
+ * A freeze holds them still like a snare, but the cold keeps biting: a fixed
+ * bite every `interval` seconds for as long as the ice lasts. Refreezing
+ * extends the ice without resetting the clock on the next bite.
+ */
+function applyFreeze(enemy, spec, now) {
+  const resist = enemy.spec.slowResist || 0;
+  const until = now + spec.duration * (1 - resist);
+  if (enemy.freezeUntil <= now) enemy.freezeTickAt = now + spec.interval;
+  enemy.freezeUntil = Math.max(enemy.freezeUntil, until);
+  enemy.freeze = spec;
+}
+
 /* ------------------------------------------------------------------- loop */
 
 export function update(state, dt) {
@@ -257,7 +273,7 @@ function moveEnemies(state, dt) {
       .filter((gate) => gate.gate != null && gate.gate > enemy.dist)
       .sort((a, b) => a.gate - b.gate)[0];
 
-    const snared = enemy.snareUntil > state.time;
+    const snared = enemy.snareUntil > state.time || enemy.freezeUntil > state.time;
     const slowed = enemy.slowUntil > state.time ? enemy.slowFactor : 1;
     const step = snared ? 0 : enemy.spec.speed * slowed * dt;
 
@@ -343,6 +359,7 @@ function hit(state, tower, enemy) {
   if (spec.damage > 0) applyDamage(state, enemy, spec.damage);
   if (spec.slow) applySlow(enemy, spec.slow.factor, spec.slow.duration, state.time);
   if (spec.snare) applySnare(enemy, spec.snare.duration, state.time);
+  if (spec.freeze) applyFreeze(enemy, spec.freeze, state.time);
   if (spec.dread) {
     if (enemy.dread.length < spec.dread.stacks) {
       enemy.dread.push({ until: state.time + spec.dread.duration, dps: spec.dread.damage });
@@ -373,6 +390,10 @@ function moveShells(state, dt) {
 function tickEffects(state, dt) {
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0) continue;
+    while (enemy.freeze && enemy.freezeUntil > state.time && enemy.freezeTickAt <= state.time) {
+      applyDamage(state, enemy, enemy.freeze.damage, { ignoreArmour: true });
+      enemy.freezeTickAt += enemy.freeze.interval;
+    }
     enemy.dread = enemy.dread.filter((stack) => stack.until > state.time);
     for (const stack of enemy.dread) applyDamage(state, enemy, stack.dps * dt, { ignoreArmour: true });
   }
