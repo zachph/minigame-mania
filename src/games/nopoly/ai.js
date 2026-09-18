@@ -22,7 +22,7 @@ import {
  */
 export const DIFFICULTIES = {
   easy: { id: 'easy', name: 'Easy', depth: 1, budgetMs: 80, jitter: 90, blurb: 'Looks one move ahead.' },
-  normal: { id: 'normal', name: 'Normal', depth: 3, budgetMs: 300, jitter: 25, blurb: 'Looks three moves ahead.' },
+  normal: { id: 'normal', name: 'Normal', depth: 3, budgetMs: 60, jitter: 90, blurb: 'Looks three moves ahead, but not for long, and it is not fussy about which good move it takes.' },
   hard: { id: 'hard', name: 'Hard', depth: 4, budgetMs: 900, jitter: 0, blurb: 'Looks four moves ahead and takes no chances.' },
 };
 
