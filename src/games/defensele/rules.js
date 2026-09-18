@@ -105,7 +105,7 @@ export function createRun({ random = Math.random } = {}) {
     waveIndex: 0,        // waves already released
     waveTimer: 3,        // until the first one walks in
     queue: [],           // enemies still to spawn from released waves
-    stats: { kills: 0, leaked: 0, spent: 0, earned: 0 },
+    stats: { kills: 0, leaked: 0, spent: 0, earned: 0, stunned: 0 },
     over: false,
     won: false,
     reason: null,
@@ -144,6 +144,9 @@ export function build(state, towerId, col, row) {
     maxHp: spec.hp || 0,
     gate: spec.onRoad ? roadDistanceOf(col, row) : null,
     angle: 0,
+    stunUntil: 0,
+    earned: 0,
+    payAt: spec.income ? state.time + spec.income.interval : 0,
   };
   state.towers.push(tower);
   return tower;
@@ -189,6 +192,7 @@ function spawn(state, enemyId) {
     freezeTickAt: 0,
     freeze: null,
     dread: [],
+    stunAt: spec.stun ? state.time + spec.stun.interval : 0,
     blocking: null,
     x: PATH.points[0].x,
     y: PATH.points[0].y,
@@ -253,6 +257,8 @@ export function update(state, dt) {
   }
 
   moveEnemies(state, dt);
+  tickIncome(state);
+  tickStunners(state);
   fireTowers(state, dt);
   moveShells(state, dt);
   tickEffects(state, dt);
@@ -301,6 +307,54 @@ function moveEnemies(state, dt) {
   }
 }
 
+/** Money Trees fruit on their own clock. A stunned one holds its payout. */
+function tickIncome(state) {
+  for (const tower of state.towers) {
+    const income = tower.spec.income;
+    if (!income) continue;
+    if (tower.stunUntil > state.time) continue;   // a stunned tree fruits nothing
+    while (state.time >= tower.payAt) {
+      state.gold += income.amount;
+      state.stats.earned += income.amount;
+      tower.earned += income.amount;
+      tower.payAt += income.interval;
+      state.hits.push({ x: tower.x, y: tower.y, life: 0.6, maxLife: 0.6, size: 16, color: '#ffd166' });
+    }
+  }
+}
+
+/**
+ * A Cripplestone reaches out and puts a tower's lights out. The clock runs from
+ * the moment it walks in, and when it comes round it takes whatever is nearest
+ * and still working. Nothing in reach means it holds the charge rather than
+ * wasting it - at 87 a side of the map, it is never near one tower for long.
+ */
+function tickStunners(state) {
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0 || enemy.leaked) continue;
+    const stun = enemy.spec.stun;
+    if (!stun) continue;
+    if (state.time < enemy.stunAt) continue;
+
+    let best = null;
+    let bestGap = stun.range;
+    for (const tower of state.towers) {
+      if (!tower.spec.rate && !tower.spec.income) continue;  // a wall has nothing to switch off
+      if (tower.stunUntil > state.time) continue;
+      const gap = Math.hypot(tower.x - enemy.x, tower.y - enemy.y);
+      if (gap <= bestGap) { bestGap = gap; best = tower; }
+    }
+    if (!best) continue;
+
+    best.stunUntil = state.time + stun.duration;
+    state.stats.stunned += 1;
+    if (best.spec.income) best.payAt = Math.max(best.payAt, best.stunUntil);
+    enemy.stunAt = state.time + stun.interval;
+    state.beams.push({ x1: enemy.x, y1: enemy.y, x2: best.x, y2: best.y, life: 0.3, maxLife: 0.3, color: enemy.spec.color });
+    state.hits.push({ x: best.x, y: best.y, life: 0.5, maxLife: 0.5, size: 18, color: enemy.spec.color });
+  }
+}
+
 /** Targets whatever is furthest along the road - the classic, and the clearest. */
 function pickTarget(state, tower) {
   let best = null;
@@ -316,6 +370,7 @@ function fireTowers(state, dt) {
   for (const tower of state.towers) {
     const spec = tower.spec;
     if (!spec.rate) continue;
+    if (tower.stunUntil > state.time) continue;
     tower.cooldown -= dt;
     if (tower.cooldown > 0) continue;
 

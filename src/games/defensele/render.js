@@ -89,10 +89,12 @@ export function drawRoad(ctx) {
 
 /* ----------------------------------------------------------------- towers */
 
-export function drawTower(ctx, tower, options = {}) {
+export function drawTower(ctx, tower, options = {}, time = 0) {
   const spec = tower.spec;
   const { x, y } = tower;
+  const stunned = tower.stunUntil > time;
   ctx.save();
+  if (stunned) ctx.globalAlpha = 0.45;
 
   if (options.showRange && spec.range > 0) {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
@@ -120,6 +122,18 @@ export function drawTower(ctx, tower, options = {}) {
     roundedRect(ctx, x - 16, y - 22, Math.max(2, 32 * ratio), 5, 2.5);
     ctx.fill();
   }
+  if (stunned) {
+    // Broken arcs jittering over the top: the lights are out.
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#ffe07a';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i += 1) {
+      const angle = (i / 3) * TAU + time * 6;
+      ctx.beginPath();
+      ctx.arc(x, y - 2, 17, angle, angle + 0.8);
+      ctx.stroke();
+    }
+  }
   if (options.selected) {
     ctx.strokeStyle = '#ffd166';
     ctx.lineWidth = 2.5;
@@ -129,7 +143,7 @@ export function drawTower(ctx, tower, options = {}) {
   ctx.restore();
 }
 
-/** A silhouette per defender, so nine towers do not look like nine boxes. */
+/** A silhouette per defender, so ten towers do not look like ten boxes. */
 export function drawTowerShape(ctx, spec, x, y, scale = 1, angle = 0) {
   ctx.save();
   ctx.translate(x, y);
@@ -206,6 +220,25 @@ export function drawTowerShape(ctx, spec, x, y, scale = 1, angle = 0) {
         ctx.fill(); ctx.stroke();
       }
       break;
+    case 'tree': {
+      ctx.fillStyle = spec.dark;
+      ctx.beginPath();
+      roundedRect(ctx, -3, -6, 6, 14, 2);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = spec.color;
+      for (const [cx, cy, r] of [[0, -14, 9], [-7, -7, 7], [7, -7, 7]]) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, TAU);
+        ctx.fill(); ctx.stroke();
+      }
+      ctx.fillStyle = '#ffd166';   // the coins it is heavy with
+      for (const [cx, cy] of [[-6, -10], [5, -12], [0, -4]]) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, 2.6, 0, TAU);
+        ctx.fill();
+      }
+      break;
+    }
     case 'glide': {
       // Three blades of ice fanned out around a cold core.
       for (const dir of [-1, 0, 1]) {
@@ -251,7 +284,14 @@ export function drawEnemy(ctx, enemy, time) {
   ctx.strokeStyle = frozen ? '#8fd8ff' : snared ? '#8ce6a8' : spec.dark;
   ctx.lineWidth = snared || frozen ? 3 : 2;
   ctx.beginPath();
-  if (spec.boss) {
+  if (spec.stun) {
+    const r = spec.size;
+    for (let i = 0; i < 4; i += 1) {
+      const angle = (i / 4) * TAU + 0.35;
+      ctx.lineTo(enemy.x + Math.cos(angle) * r, enemy.y + Math.sin(angle) * r);
+    }
+    ctx.closePath();
+  } else if (spec.boss) {
     for (let i = 0; i < 6; i += 1) {
       const angle = (i / 6) * TAU - Math.PI / 2;
       const r = spec.size * (i % 2 === 0 ? 1 : 0.78);
@@ -264,6 +304,21 @@ export function drawEnemy(ctx, enemy, time) {
   ctx.fill();
   ctx.stroke();
 
+  if (spec.stun) {
+    // A crack across the stone, and the reach it can put a tower out from.
+    ctx.strokeStyle = 'rgba(30, 26, 18, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(enemy.x - spec.size * 0.5, enemy.y - spec.size * 0.4);
+    ctx.lineTo(enemy.x + spec.size * 0.1, enemy.y);
+    ctx.lineTo(enemy.x - spec.size * 0.2, enemy.y + spec.size * 0.5);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(201, 194, 168, ${0.12 + 0.06 * Math.sin(time * 3)})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(enemy.x, enemy.y, spec.stun.range, 0, TAU);
+    ctx.stroke();
+  }
   if (spec.armour) {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.lineWidth = 2;

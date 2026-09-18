@@ -12,7 +12,7 @@ function el(tag, className, text) {
   return node;
 }
 
-function sigil(spec, size = 28) {
+function sigil(spec, size = 24) {
   const canvas = el('canvas', 'df-sigil');
   const scale = Math.min(2, window.devicePixelRatio || 1);
   canvas.width = size * scale;
@@ -70,7 +70,10 @@ export class BuildBar {
     if (selectedTower) {
       const refund = Math.round(selectedTower.spec.cost * SELL_RETURN);
       this.detail.append(el('strong', null, selectedTower.spec.name));
-      this.detail.append(el('span', null, `${selectedTower.kills} kill${selectedTower.kills === 1 ? '' : 's'}`));
+      // A Money Tree has never killed anything; what it has earned is the point.
+      this.detail.append(selectedTower.spec.income
+        ? el('span', null, `${selectedTower.earned}g fruited`)
+        : el('span', null, `${selectedTower.kills} kill${selectedTower.kills === 1 ? '' : 's'}`));
       const sell = el('button', 'btn btn--ghost df-sell', `Sell for ${refund}g`);
       sell.type = 'button';
       sell.addEventListener('click', () => this.onSell(selectedTower));

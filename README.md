@@ -251,12 +251,18 @@ walking towards you.
 | **Coilnest** | 160 | Arcs from one target to the next, up to three. |
 | **Nightkon** | 200 | Marks them with dread that keeps burning, three stacks deep, and ignores armour. |
 | **Frostglide** | 230 | Freezes one enemy solid for 1.5s, biting 12.5 through armour every 0.5s. Short reach. |
+| **Money Tree** | 150 | Fruits 100 gold every 6.5 seconds. Shoots at nothing, and a stun stops it paying. |
 
 ### What comes at you
 
 Creeper (basic) · Runner (fast, fragile) · Brute (slow, tough) · Shieldbearer
-(flat armour, so small hits bounce) · Swarm (many at once) · Colossus (2700 HP,
-resists slows, and costs ten lives if it gets through).
+(flat armour, so small hits bounce) · Swarm (many at once) · **Cripplestone**
+(1270 HP at Runner speed; every 4 seconds it puts the nearest working tower out
+for 3.5, and costs eight lives if it gets through) · Colossus (2700 HP, resists
+slows, and costs ten lives if it gets through).
+
+Cripplestones walk in from wave 9 and get thicker every time, so the back half
+of the run is fought with part of your defence dark at any moment.
 
 Fifteen waves, twenty lives. Kills pay, and each wave arriving pays a supply
 bonus so the money keeps moving.
@@ -277,6 +283,15 @@ Every number was swept with a scripted builder playing all fifteen waves:
   expensive answers. Three Pylons then a Frostpin wins with all twenty lives
   intact; the same spread with a Lancer bought third ends the last wave on
   nothing left.
+- **Keep buying.** Cripplestones from wave 9 mean a build that stops at sixteen
+  towers is overrun on the last waves. The spread that wins clean is thirty
+  towers deep and lands 26 stuns on the way.
+- **The Money Tree is the strongest thing in the game, on purpose.** It costs
+  150 and makes that back in thirteen seconds, and a single tree bought early
+  fruits about 3700 gold over a run - more than wave bonuses and bounties put
+  together. From roughly wave 3 on, gold stops being the thing that limits you;
+  good ground and good timing do. Three trees before any guns still loses at
+  wave 4, so it is not a free win, but it does switch the economy off.
 - Sloppy builds fail: **pylons only** is overrun at wave 14 and **cheap swarm**
   at wave 13. **Lancers only** survives with half its lives gone, and a **spread
   of roles** wins clean — which is the curve you want: mastery is rewarded,
@@ -333,7 +348,7 @@ src/
     ui.js              the deck-choice screen
     game.js            turn flow, targeting, scoring
   games/defensele/
-    content.js         the nine defenders, six enemies and fifteen waves
+    content.js         the ten defenders, seven enemies and fifteen waves
     rules.js           the road, building, movement, shooting, waves (pure logic)
     render.js          the map, the road, everything standing on it
     ui.js              the build bar
