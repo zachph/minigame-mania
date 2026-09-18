@@ -291,7 +291,15 @@ test('a wave releases on its own, queues its enemies and pays out', () => {
   releaseWave(state);
   assert.equal(state.waveIndex, 1);
   assert.equal(state.queue.length, queued);
-  assert.equal(state.gold, goldBefore + waveBonus(1));
+
+  // The first wave pays nothing - the opening gold is the wave-one budget, so
+  // a bonus here would just be a bigger opening handed over a few seconds late.
+  assert.equal(waveBonus(1), 0);
+  assert.equal(state.gold, goldBefore, 'the opening gold is untouched by wave one');
+
+  releaseWave(state);
+  assert.equal(state.gold, goldBefore + waveBonus(2), 'wave two is the first payday');
+  assert.ok(waveBonus(2) > 0);
 });
 
 test('losing every life ends the run', () => {
@@ -311,10 +319,12 @@ test('an undefended base is overrun; a real defence turns all fifteen waves back
   assert.equal(naked.over, true);
   assert.equal(naked.won, false, 'building nothing loses');
 
-  // The same scripted build the balance pass uses: a spread of roles.
+  // The same scripted build the balance pass uses: a spread of roles, opening
+  // cheap. With no supply bonus on wave one the opening 100 gold is all there
+  // is for a while, so the guns have to come before the expensive answers.
   const defended = createRun();
-  const plan = ['pylon', 'pylon', 'frostpin', 'lancer', 'pylon', 'mortar', 'frostpin', 'lancer',
-    'coilnest', 'nightkon', 'mortar', 'claw-bind', 'lancer', 'nightkon', 'mortar', 'lancer'];
+  const plan = ['pylon', 'pylon', 'pylon', 'frostpin', 'lancer', 'mortar', 'frostpin', 'lancer',
+    'coilnest', 'mortar', 'claw-bind', 'lancer', 'nightkon', 'mortar', 'lancer', 'frostglide'];
   const taken = new Set();
   let next = 0;
   for (let elapsed = 0; elapsed < 600 && !defended.over; elapsed += 1 / 20) {

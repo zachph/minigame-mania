@@ -194,5 +194,9 @@ export const START_LIVES = 20;
 export const WAVE_GAP = 16;     // seconds between one wave starting and the next
 export const SELL_RETURN = 0.6; // what you get back for taking a tower down
 
-/** Paid out when a wave is released, so the money keeps moving. */
-export const waveBonus = (waveNumber) => 25 + waveNumber * 8;
+/**
+ * Paid out when a wave is released, so the money keeps moving. The first wave
+ * pays nothing: the opening gold above is already the wave-one budget, and
+ * handing over another 33 three seconds in would quietly make the opening 133.
+ */
+export const waveBonus = (waveNumber) => (waveNumber <= 1 ? 0 : 25 + waveNumber * 8);

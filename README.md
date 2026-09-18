@@ -268,10 +268,15 @@ Every number was swept with a scripted builder playing all fifteen waves:
 - **Wave gap, 16 seconds.** At 7 seconds nothing survived past wave 8 — waves
   stacked faster than any economy could answer. At 16 the pressure is constant
   but a good build keeps up.
-- **The economy** opens at 100 gold with a per-wave supply bonus. That is two
-  Pylons on the first wave and nothing else, so the opening is a real decision.
-  Without the wave bonus a Lancer-first build could only afford two towers in
-  eight waves.
+- **The economy** opens at 100 gold with a per-wave supply bonus from wave two
+  on. That is two Pylons on the first wave and nothing else, so the opening is a
+  real decision. Wave one deliberately pays nothing: a bonus there would just be
+  a 133-gold opening handed over three seconds late. Without the wave bonus
+  entirely, a Lancer-first build could only afford two towers in eight waves.
+- **Open cheap.** With no wave-one bonus the guns have to come before the
+  expensive answers. Three Pylons then a Frostpin wins with all twenty lives
+  intact; the same spread with a Lancer bought third ends the last wave on
+  nothing left.
 - Sloppy builds fail: **pylons only** is overrun at wave 14 and **cheap swarm**
   at wave 13. **Lancers only** survives with half its lives gone, and a **spread
   of roles** wins clean — which is the curve you want: mastery is rewarded,
