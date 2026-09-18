@@ -887,6 +887,7 @@ canvas {
 .df-bar {
   margin-top: auto;
   display: flex;
+  flex-wrap: nowrap;
   align-items: stretch;
   gap: 0.3em;
   padding: 0.4em 0.5em;
@@ -894,11 +895,14 @@ canvas {
   border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
+/* Nine of these have to sit on one row without pushing the board up. */
 .df-tower {
   display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
   align-items: center;
-  gap: 0.35em;
-  padding: 0.2em 0.4em 0.2em 0.2em;
+  gap: 0.25em;
+  padding: 0.15em 0.35em 0.15em 0.15em;
   border-radius: 9px;
   border: 1px solid var(--line);
   border-bottom: 3px solid var(--tint);
@@ -912,13 +916,16 @@ canvas {
 .df-tower.is-picked { background: rgba(255, 209, 102, 0.2); border-color: var(--accent); }
 .df-tower.is-broke { opacity: 0.4; }
 
-.df-tower-meta { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
-.df-tower-meta strong { font-size: 0.85em; }
-.df-cost { color: var(--accent); font-size: 0.78em; font-weight: 700; }
+.df-tower-meta { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; line-height: 1.1; white-space: nowrap; }
+.df-tower-meta strong { max-width: 100%; overflow: hidden; font-size: 0.8em; text-overflow: ellipsis; }
+.df-cost { color: var(--accent); font-size: 0.74em; font-weight: 700; }
 .df-sigil { display: block; }
 
+/* Clamped, because a long blurb reflowing the bar would shrink the board. */
 .df-detail {
-  flex: 1 1 10em;
+  flex: 1 1 6em;
+  max-height: 3.4em;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -930,7 +937,13 @@ canvas {
 }
 
 .df-detail strong { color: var(--text); font-size: 0.95em; }
-.df-detail span { line-height: 1.25; }
+.df-detail span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.25;
+}
 .df-hint { color: var(--muted); }
 .df-sell { align-self: flex-start; padding: 0.15em 0.7em; font-size: 0.9em; }
 

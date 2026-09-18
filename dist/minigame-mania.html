@@ -894,6 +894,7 @@ canvas {
 .df-bar {
   margin-top: auto;
   display: flex;
+  flex-wrap: nowrap;
   align-items: stretch;
   gap: 0.3em;
   padding: 0.4em 0.5em;
@@ -901,11 +902,14 @@ canvas {
   border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
+/* Nine of these have to sit on one row without pushing the board up. */
 .df-tower {
   display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
   align-items: center;
-  gap: 0.35em;
-  padding: 0.2em 0.4em 0.2em 0.2em;
+  gap: 0.25em;
+  padding: 0.15em 0.35em 0.15em 0.15em;
   border-radius: 9px;
   border: 1px solid var(--line);
   border-bottom: 3px solid var(--tint);
@@ -919,13 +923,16 @@ canvas {
 .df-tower.is-picked { background: rgba(255, 209, 102, 0.2); border-color: var(--accent); }
 .df-tower.is-broke { opacity: 0.4; }
 
-.df-tower-meta { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
-.df-tower-meta strong { font-size: 0.85em; }
-.df-cost { color: var(--accent); font-size: 0.78em; font-weight: 700; }
+.df-tower-meta { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; line-height: 1.1; white-space: nowrap; }
+.df-tower-meta strong { max-width: 100%; overflow: hidden; font-size: 0.8em; text-overflow: ellipsis; }
+.df-cost { color: var(--accent); font-size: 0.74em; font-weight: 700; }
 .df-sigil { display: block; }
 
+/* Clamped, because a long blurb reflowing the bar would shrink the board. */
 .df-detail {
-  flex: 1 1 10em;
+  flex: 1 1 6em;
+  max-height: 3.4em;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -937,7 +944,13 @@ canvas {
 }
 
 .df-detail strong { color: var(--text); font-size: 0.95em; }
-.df-detail span { line-height: 1.25; }
+.df-detail span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.25;
+}
 .df-hint { color: var(--muted); }
 .df-sell { align-self: flex-start; padding: 0.15em 0.7em; font-size: 0.9em; }
 
@@ -7075,7 +7088,7 @@ registerGame({
 // ---- src/games/defensele/content.js ------------------------------
 __modules["src/games/defensele/content.js"] = (function () {
 /**
- * Defensele's roster: eight defenders, six things that come down the road at
+ * Defensele's roster: nine defenders, six things that come down the road at
  * you, and the fifteen waves they arrive in.
  *
  * Every number here is data. The simulation in `rules.js` reads it and does not
@@ -7116,7 +7129,7 @@ const TOWERS = [
   {
     id: 'lancer',
     name: 'Lancer',
-    cost: 120,
+    cost: 125,
     damage: 72,
     range: 226,
     rate: 0.55,
@@ -7144,7 +7157,7 @@ const TOWERS = [
   {
     id: 'coilnest',
     name: 'Coilnest',
-    cost: 130,
+    cost: 160,
     damage: 19,
     range: 124,
     rate: 1.1,
@@ -7158,7 +7171,7 @@ const TOWERS = [
   {
     id: 'bastion',
     name: 'Bastion',
-    cost: 90,
+    cost: 80,
     damage: 0,
     range: 0,
     rate: 0,
@@ -7187,7 +7200,7 @@ const TOWERS = [
   {
     id: 'nightkon',
     name: 'Nightkon',
-    cost: 150,
+    cost: 200,
     damage: 6,
     range: 146,
     rate: 1.2,
@@ -7197,6 +7210,20 @@ const TOWERS = [
     shape: 'night',
     blurb: 'Marks them with dread that keeps burning, and stacks three deep.',
     role: 'Melts anything with a big health bar.',
+  },
+  {
+    id: 'frostglide',
+    name: 'Frostglide',
+    cost: 230,
+    damage: 23,
+    range: 100,
+    rate: 1.0,
+    freeze: { duration: 1.5, damage: 12.5, interval: 0.5 },
+    color: '#e6f7ff',
+    dark: '#2b4f9e',
+    shape: 'glide',
+    blurb: 'Freezes one solid, and the cold keeps biting while it stands there.',
+    role: 'Short reach, heavy price. Put it where the road turns.',
   },
 ];
 
@@ -7440,6 +7467,9 @@ function spawn(state, enemyId) {
     slowUntil: 0,
     slowFactor: 1,
     snareUntil: 0,
+    freezeUntil: 0,
+    freezeTickAt: 0,
+    freeze: null,
     dread: [],
     blocking: null,
     x: PATH.points[0].x,
@@ -7477,6 +7507,19 @@ function applySnare(enemy, duration, now) {
   enemy.snareUntil = Math.max(enemy.snareUntil, now + duration * (1 - resist));
 }
 
+/**
+ * A freeze holds them still like a snare, but the cold keeps biting: a fixed
+ * bite every `interval` seconds for as long as the ice lasts. Refreezing
+ * extends the ice without resetting the clock on the next bite.
+ */
+function applyFreeze(enemy, spec, now) {
+  const resist = enemy.spec.slowResist || 0;
+  const until = now + spec.duration * (1 - resist);
+  if (enemy.freezeUntil <= now) enemy.freezeTickAt = now + spec.interval;
+  enemy.freezeUntil = Math.max(enemy.freezeUntil, until);
+  enemy.freeze = spec;
+}
+
 /* ------------------------------------------------------------------- loop */
 
 function update(state, dt) {
@@ -7512,7 +7555,7 @@ function moveEnemies(state, dt) {
       .filter((gate) => gate.gate != null && gate.gate > enemy.dist)
       .sort((a, b) => a.gate - b.gate)[0];
 
-    const snared = enemy.snareUntil > state.time;
+    const snared = enemy.snareUntil > state.time || enemy.freezeUntil > state.time;
     const slowed = enemy.slowUntil > state.time ? enemy.slowFactor : 1;
     const step = snared ? 0 : enemy.spec.speed * slowed * dt;
 
@@ -7598,6 +7641,7 @@ function hit(state, tower, enemy) {
   if (spec.damage > 0) applyDamage(state, enemy, spec.damage);
   if (spec.slow) applySlow(enemy, spec.slow.factor, spec.slow.duration, state.time);
   if (spec.snare) applySnare(enemy, spec.snare.duration, state.time);
+  if (spec.freeze) applyFreeze(enemy, spec.freeze, state.time);
   if (spec.dread) {
     if (enemy.dread.length < spec.dread.stacks) {
       enemy.dread.push({ until: state.time + spec.dread.duration, dps: spec.dread.damage });
@@ -7628,6 +7672,10 @@ function moveShells(state, dt) {
 function tickEffects(state, dt) {
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0) continue;
+    while (enemy.freeze && enemy.freezeUntil > state.time && enemy.freezeTickAt <= state.time) {
+      applyDamage(state, enemy, enemy.freeze.damage, { ignoreArmour: true });
+      enemy.freezeTickAt += enemy.freeze.interval;
+    }
     enemy.dread = enemy.dread.filter((stack) => stack.until > state.time);
     for (const stack of enemy.dread) applyDamage(state, enemy, stack.dps * dt, { ignoreArmour: true });
   }
@@ -7798,7 +7846,7 @@ function drawTower(ctx, tower, options = {}) {
   ctx.restore();
 }
 
-/** A silhouette per defender, so eight towers do not look like eight boxes. */
+/** A silhouette per defender, so nine towers do not look like nine boxes. */
 function drawTowerShape(ctx, spec, x, y, scale = 1, angle = 0) {
   ctx.save();
   ctx.translate(x, y);
@@ -7875,6 +7923,22 @@ function drawTowerShape(ctx, spec, x, y, scale = 1, angle = 0) {
         ctx.fill(); ctx.stroke();
       }
       break;
+    case 'glide': {
+      // Three blades of ice fanned out around a cold core.
+      for (const dir of [-1, 0, 1]) {
+        ctx.save();
+        ctx.rotate(dir * 0.7);
+        ctx.beginPath();
+        ctx.moveTo(0, 2); ctx.lineTo(4, -8); ctx.lineTo(0, -20); ctx.lineTo(-4, -8); ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
+      ctx.fillStyle = spec.dark;
+      ctx.beginPath();
+      ctx.arc(0, 0, 5, 0, TAU);
+      ctx.fill(); ctx.stroke();
+      break;
+    }
     default: // night
       ctx.beginPath();
       ctx.arc(0, -6, 11, 0.35 * Math.PI, 1.75 * Math.PI);
@@ -7892,6 +7956,7 @@ function drawEnemy(ctx, enemy, time) {
   const spec = enemy.spec;
   const slowed = enemy.slowUntil > time;
   const snared = enemy.snareUntil > time;
+  const frozen = enemy.freezeUntil > time;
 
   ctx.save();
   ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
@@ -7899,9 +7964,9 @@ function drawEnemy(ctx, enemy, time) {
   ctx.ellipse(enemy.x, enemy.y + spec.size * 0.7, spec.size * 0.8, spec.size * 0.35, 0, 0, TAU);
   ctx.fill();
 
-  ctx.fillStyle = slowed ? '#bfe9ff' : spec.color;
-  ctx.strokeStyle = snared ? '#8ce6a8' : spec.dark;
-  ctx.lineWidth = snared ? 3 : 2;
+  ctx.fillStyle = frozen ? '#e6f7ff' : slowed ? '#bfe9ff' : spec.color;
+  ctx.strokeStyle = frozen ? '#8fd8ff' : snared ? '#8ce6a8' : spec.dark;
+  ctx.lineWidth = snared || frozen ? 3 : 2;
   ctx.beginPath();
   if (spec.boss) {
     for (let i = 0; i < 6; i += 1) {
@@ -7922,6 +7987,18 @@ function drawEnemy(ctx, enemy, time) {
     ctx.beginPath();
     ctx.arc(enemy.x, enemy.y, spec.size + 3, -0.8, 0.8);
     ctx.stroke();
+  }
+  if (frozen) {
+    ctx.strokeStyle = 'rgba(190, 236, 255, 0.85)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i += 1) {
+      const angle = (i / 3) * TAU + time * 0.8;
+      const r = spec.size + 4;
+      ctx.beginPath();
+      ctx.moveTo(enemy.x + Math.cos(angle) * r * 0.5, enemy.y + Math.sin(angle) * r * 0.5);
+      ctx.lineTo(enemy.x + Math.cos(angle) * r, enemy.y + Math.sin(angle) * r);
+      ctx.stroke();
+    }
   }
   if (enemy.dread.length > 0) {
     ctx.fillStyle = `rgba(169, 139, 255, ${0.25 + enemy.dread.length * 0.18})`;
@@ -8071,7 +8148,7 @@ function el(tag, className, text) {
   return node;
 }
 
-function sigil(spec, size = 34) {
+function sigil(spec, size = 28) {
   const canvas = el('canvas', 'df-sigil');
   const scale = Math.min(2, window.devicePixelRatio || 1);
   canvas.width = size * scale;

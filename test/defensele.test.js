@@ -65,9 +65,9 @@ function spotNearRoad(range = 120) {
 
 /* --------------------------------------------------------------- content */
 
-test('eight defenders, six enemies, fifteen waves', () => {
-  assert.equal(TOWERS.length, 8);
-  assert.equal(new Set(TOWERS.map((tower) => tower.id)).size, 8);
+test('nine defenders, six enemies, fifteen waves', () => {
+  assert.equal(TOWERS.length, 9);
+  assert.equal(new Set(TOWERS.map((tower) => tower.id)).size, 9);
   assert.equal(ENEMY_LIST.length, 6);
   assert.equal(WAVE_COUNT, 15);
   assert.equal(WAVES.length, 15);
@@ -78,11 +78,16 @@ test('eight defenders, six enemies, fifteen waves', () => {
   }
 });
 
-test('Claw-bind and Nightkon are in, and do what their names promise', () => {
+test('Claw-bind, Nightkon and Frostglide do what their names promise', () => {
   const claw = getTower('claw-bind');
   const night = getTower('nightkon');
+  const glide = getTower('frostglide');
   assert.ok(claw.snare.duration > 0, 'Claw-bind pins things in place');
   assert.ok(night.dread.damage > 0 && night.dread.stacks > 1, 'Nightkon stacks a burn');
+  assert.equal(glide.cost, 230);
+  assert.equal(glide.damage, 23);
+  assert.equal(glide.range, 100);
+  assert.deepEqual(glide.freeze, { duration: 1.5, damage: 12.5, interval: 0.5 });
 });
 
 test('every wave names a real enemy and gets harder', () => {
@@ -227,6 +232,25 @@ test('Frostpin slows and Claw-bind stops', () => {
   const held = sendOne(pinned, 'runner');
   run(pinned, 2);
   assert.ok(held.snareUntil > pinned.time || held.hp <= 0, 'Claw-bind got hold of it');
+});
+
+test('Frostglide freezes, and the cold bites every half second', () => {
+  const iced = quiet();
+  iced.gold = 400;
+  const spot = spotNearRoad(getTower('frostglide').range);
+  build(iced, 'frostglide', spot.col, spot.row);
+  const caught = sendOne(iced, 'brute');
+  run(iced, 1.2);
+  assert.ok(caught.freezeUntil > iced.time, 'the Brute is held in the ice');
+
+  // One shot (23) plus two bites of 12.5 by 1.2s in - armour does not stop cold.
+  const dealt = caught.maxHp - caught.hp;
+  assert.ok(dealt >= 23 + 12.5 * 2 - 0.5, `the cold kept biting (dealt ${dealt})`);
+
+  const free = quiet();
+  const loose = sendOne(free, 'brute');
+  run(free, 1.2);
+  assert.ok(caught.dist < loose.dist * 0.5, 'and it barely moved while frozen');
 });
 
 test('a Bastion stops the queue until it is rubble', () => {

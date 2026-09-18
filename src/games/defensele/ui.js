@@ -12,7 +12,7 @@ function el(tag, className, text) {
   return node;
 }
 
-function sigil(spec, size = 34) {
+function sigil(spec, size = 28) {
   const canvas = el('canvas', 'df-sigil');
   const scale = Math.min(2, window.devicePixelRatio || 1);
   canvas.width = size * scale;

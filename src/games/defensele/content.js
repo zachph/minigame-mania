@@ -1,5 +1,5 @@
 /**
- * Defensele's roster: eight defenders, six things that come down the road at
+ * Defensele's roster: nine defenders, six things that come down the road at
  * you, and the fifteen waves they arrive in.
  *
  * Every number here is data. The simulation in `rules.js` reads it and does not
@@ -40,7 +40,7 @@ export const TOWERS = [
   {
     id: 'lancer',
     name: 'Lancer',
-    cost: 120,
+    cost: 125,
     damage: 72,
     range: 226,
     rate: 0.55,
@@ -68,7 +68,7 @@ export const TOWERS = [
   {
     id: 'coilnest',
     name: 'Coilnest',
-    cost: 130,
+    cost: 160,
     damage: 19,
     range: 124,
     rate: 1.1,
@@ -82,7 +82,7 @@ export const TOWERS = [
   {
     id: 'bastion',
     name: 'Bastion',
-    cost: 90,
+    cost: 80,
     damage: 0,
     range: 0,
     rate: 0,
@@ -111,7 +111,7 @@ export const TOWERS = [
   {
     id: 'nightkon',
     name: 'Nightkon',
-    cost: 150,
+    cost: 200,
     damage: 6,
     range: 146,
     rate: 1.2,
@@ -121,6 +121,20 @@ export const TOWERS = [
     shape: 'night',
     blurb: 'Marks them with dread that keeps burning, and stacks three deep.',
     role: 'Melts anything with a big health bar.',
+  },
+  {
+    id: 'frostglide',
+    name: 'Frostglide',
+    cost: 230,
+    damage: 23,
+    range: 100,
+    rate: 1.0,
+    freeze: { duration: 1.5, damage: 12.5, interval: 0.5 },
+    color: '#e6f7ff',
+    dark: '#2b4f9e',
+    shape: 'glide',
+    blurb: 'Freezes one solid, and the cold keeps biting while it stands there.',
+    role: 'Short reach, heavy price. Put it where the road turns.',
   },
 ];
 
