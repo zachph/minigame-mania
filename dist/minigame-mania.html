@@ -896,8 +896,8 @@ canvas {
   display: flex;
   flex-wrap: nowrap;
   align-items: stretch;
-  gap: 0.3em;
-  padding: 0.4em 0.5em;
+  gap: 0.22em;
+  padding: 0.35em 0.4em;
   background: rgba(8, 16, 10, 0.9);
   border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
@@ -908,8 +908,8 @@ canvas {
   flex: 0 1 auto;
   min-width: 0;
   align-items: center;
-  gap: 0.25em;
-  padding: 0.15em 0.35em 0.15em 0.15em;
+  gap: 0.2em;
+  padding: 0.15em 0.3em 0.15em 0.1em;
   border-radius: 9px;
   border: 1px solid var(--line);
   border-bottom: 3px solid var(--tint);
@@ -924,23 +924,23 @@ canvas {
 .df-tower.is-broke { opacity: 0.4; }
 
 .df-tower-meta { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; line-height: 1.1; white-space: nowrap; }
-.df-tower-meta strong { max-width: 100%; overflow: hidden; font-size: 0.8em; text-overflow: ellipsis; }
-.df-cost { color: var(--accent); font-size: 0.74em; font-weight: 700; }
+.df-tower-meta strong { max-width: 100%; overflow: hidden; font-size: 0.72em; text-overflow: ellipsis; }
+.df-cost { color: var(--accent); font-size: 0.68em; font-weight: 700; }
 .df-sigil { display: block; }
 
 /* Clamped, because a long blurb reflowing the bar would shrink the board. */
 .df-detail {
-  flex: 1 1 6em;
-  max-height: 3.4em;
+  flex: 1 1 4.5em;
+  max-height: 3.2em;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 1px;
-  padding-left: 0.6em;
+  padding-left: 0.4em;
   min-width: 0;
   color: var(--muted);
-  font-size: 0.82em;
+  font-size: 0.76em;
 }
 
 .df-detail strong { color: var(--text); font-size: 0.95em; }
@@ -7088,7 +7088,7 @@ registerGame({
 // ---- src/games/defensele/content.js ------------------------------
 __modules["src/games/defensele/content.js"] = (function () {
 /**
- * Defensele's roster: nine defenders, six things that come down the road at
+ * Defensele's roster: ten defenders, seven things that come down the road at
  * you, and the fifteen waves they arrive in.
  *
  * Every number here is data. The simulation in `rules.js` reads it and does not
@@ -7225,6 +7225,20 @@ const TOWERS = [
     blurb: 'Freezes one solid, and the cold keeps biting while it stands there.',
     role: 'Short reach, heavy price. Put it where the road turns.',
   },
+  {
+    id: 'money-tree',
+    name: 'Money Tree',
+    cost: 150,
+    damage: 0,
+    range: 0,
+    rate: 0,
+    income: { amount: 100, interval: 6.5 },  // pays out on its own clock
+    color: '#9be08a',
+    dark: '#2c6b2f',
+    shape: 'tree',
+    blurb: 'Fruits 100 gold every 6.5 seconds. It does not shoot at anything.',
+    role: 'Pays for itself in ten seconds, then funds everything else.',
+  },
 ];
 
 const TOWER_BY_ID = new Map(TOWERS.map((tower) => [tower.id, tower]));
@@ -7242,6 +7256,7 @@ const ENEMIES = {
   brute: { id: 'brute', name: 'Brute', hp: 430, speed: 32, bounty: 22, leak: 2, size: 15, color: '#ff8b6b', dark: '#7f2f14' },
   shieldbearer: { id: 'shieldbearer', name: 'Shieldbearer', hp: 260, speed: 40, bounty: 20, leak: 2, size: 13, armour: 9, color: '#9fb4e8', dark: '#2d3f70' },
   swarm: { id: 'swarm', name: 'Swarm', hp: 34, speed: 62, bounty: 4, leak: 1, size: 7, color: '#ffb0e0', dark: '#7a2a5e' },
+  cripplestone: { id: 'cripplestone', name: 'Cripplestone', hp: 1270, speed: 87, bounty: 75, leak: 8, size: 17, stun: { duration: 3.5, interval: 4, range: 132 }, color: '#c9c2a8', dark: '#4a4230' },
   colossus: { id: 'colossus', name: 'Colossus', hp: 2700, speed: 24, bounty: 140, leak: 10, size: 22, armour: 7, slowResist: 0.5, color: '#d0b0ff', dark: '#3a2070', boss: true },
 };
 
@@ -7261,13 +7276,13 @@ const WAVES = [
   wave(['shieldbearer', 4, 1.8], ['creeper', 10, 0.8, 1]),
   wave(['swarm', 22, 0.28], ['runner', 10, 0.5, 4]),
   wave(['brute', 6, 1.6], ['shieldbearer', 4, 1.6, 2]),
-  wave(['runner', 18, 0.35], ['swarm', 18, 0.3, 3]),
+  wave(['runner', 18, 0.35], ['swarm', 18, 0.3, 3], ['cripplestone', 1, 1, 6]),
   wave(['colossus', 1, 1], ['creeper', 12, 0.7, 2]),
-  wave(['shieldbearer', 8, 1.1], ['brute', 5, 1.6, 3]),
+  wave(['shieldbearer', 8, 1.1], ['brute', 5, 1.6, 3], ['cripplestone', 2, 4, 5]),
   wave(['swarm', 30, 0.22], ['brute', 6, 1.4, 4]),
-  wave(['runner', 28, 0.24], ['shieldbearer', 8, 1.2, 3], ['colossus', 1, 1, 10]),
-  wave(['brute', 12, 0.8], ['colossus', 2, 5, 6], ['swarm', 20, 0.3, 2]),
-  wave(['colossus', 3, 5], ['swarm', 34, 0.2, 2], ['runner', 20, 0.3, 6], ['brute', 8, 1.2, 12]),
+  wave(['runner', 28, 0.24], ['shieldbearer', 8, 1.2, 3], ['colossus', 1, 1, 10], ['cripplestone', 2, 3.5, 7]),
+  wave(['brute', 12, 0.8], ['colossus', 2, 5, 6], ['swarm', 20, 0.3, 2], ['cripplestone', 3, 3, 4]),
+  wave(['colossus', 3, 5], ['swarm', 34, 0.2, 2], ['runner', 20, 0.3, 6], ['brute', 8, 1.2, 12], ['cripplestone', 4, 3, 8]),
 ];
 
 const WAVE_COUNT = WAVES.length;
@@ -7391,7 +7406,7 @@ function createRun({ random = Math.random } = {}) {
     waveIndex: 0,        // waves already released
     waveTimer: 3,        // until the first one walks in
     queue: [],           // enemies still to spawn from released waves
-    stats: { kills: 0, leaked: 0, spent: 0, earned: 0 },
+    stats: { kills: 0, leaked: 0, spent: 0, earned: 0, stunned: 0 },
     over: false,
     won: false,
     reason: null,
@@ -7430,6 +7445,9 @@ function build(state, towerId, col, row) {
     maxHp: spec.hp || 0,
     gate: spec.onRoad ? roadDistanceOf(col, row) : null,
     angle: 0,
+    stunUntil: 0,
+    earned: 0,
+    payAt: spec.income ? state.time + spec.income.interval : 0,
   };
   state.towers.push(tower);
   return tower;
@@ -7475,6 +7493,7 @@ function spawn(state, enemyId) {
     freezeTickAt: 0,
     freeze: null,
     dread: [],
+    stunAt: spec.stun ? state.time + spec.stun.interval : 0,
     blocking: null,
     x: PATH.points[0].x,
     y: PATH.points[0].y,
@@ -7539,6 +7558,8 @@ function update(state, dt) {
   }
 
   moveEnemies(state, dt);
+  tickIncome(state);
+  tickStunners(state);
   fireTowers(state, dt);
   moveShells(state, dt);
   tickEffects(state, dt);
@@ -7587,6 +7608,54 @@ function moveEnemies(state, dt) {
   }
 }
 
+/** Money Trees fruit on their own clock. A stunned one holds its payout. */
+function tickIncome(state) {
+  for (const tower of state.towers) {
+    const income = tower.spec.income;
+    if (!income) continue;
+    if (tower.stunUntil > state.time) continue;   // a stunned tree fruits nothing
+    while (state.time >= tower.payAt) {
+      state.gold += income.amount;
+      state.stats.earned += income.amount;
+      tower.earned += income.amount;
+      tower.payAt += income.interval;
+      state.hits.push({ x: tower.x, y: tower.y, life: 0.6, maxLife: 0.6, size: 16, color: '#ffd166' });
+    }
+  }
+}
+
+/**
+ * A Cripplestone reaches out and puts a tower's lights out. The clock runs from
+ * the moment it walks in, and when it comes round it takes whatever is nearest
+ * and still working. Nothing in reach means it holds the charge rather than
+ * wasting it - at 87 a side of the map, it is never near one tower for long.
+ */
+function tickStunners(state) {
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0 || enemy.leaked) continue;
+    const stun = enemy.spec.stun;
+    if (!stun) continue;
+    if (state.time < enemy.stunAt) continue;
+
+    let best = null;
+    let bestGap = stun.range;
+    for (const tower of state.towers) {
+      if (!tower.spec.rate && !tower.spec.income) continue;  // a wall has nothing to switch off
+      if (tower.stunUntil > state.time) continue;
+      const gap = Math.hypot(tower.x - enemy.x, tower.y - enemy.y);
+      if (gap <= bestGap) { bestGap = gap; best = tower; }
+    }
+    if (!best) continue;
+
+    best.stunUntil = state.time + stun.duration;
+    state.stats.stunned += 1;
+    if (best.spec.income) best.payAt = Math.max(best.payAt, best.stunUntil);
+    enemy.stunAt = state.time + stun.interval;
+    state.beams.push({ x1: enemy.x, y1: enemy.y, x2: best.x, y2: best.y, life: 0.3, maxLife: 0.3, color: enemy.spec.color });
+    state.hits.push({ x: best.x, y: best.y, life: 0.5, maxLife: 0.5, size: 18, color: enemy.spec.color });
+  }
+}
+
 /** Targets whatever is furthest along the road - the classic, and the clearest. */
 function pickTarget(state, tower) {
   let best = null;
@@ -7602,6 +7671,7 @@ function fireTowers(state, dt) {
   for (const tower of state.towers) {
     const spec = tower.spec;
     if (!spec.rate) continue;
+    if (tower.stunUntil > state.time) continue;
     tower.cooldown -= dt;
     if (tower.cooldown > 0) continue;
 
@@ -7810,10 +7880,12 @@ function drawRoad(ctx) {
 
 /* ----------------------------------------------------------------- towers */
 
-function drawTower(ctx, tower, options = {}) {
+function drawTower(ctx, tower, options = {}, time = 0) {
   const spec = tower.spec;
   const { x, y } = tower;
+  const stunned = tower.stunUntil > time;
   ctx.save();
+  if (stunned) ctx.globalAlpha = 0.45;
 
   if (options.showRange && spec.range > 0) {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
@@ -7841,6 +7913,18 @@ function drawTower(ctx, tower, options = {}) {
     roundedRect(ctx, x - 16, y - 22, Math.max(2, 32 * ratio), 5, 2.5);
     ctx.fill();
   }
+  if (stunned) {
+    // Broken arcs jittering over the top: the lights are out.
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#ffe07a';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i += 1) {
+      const angle = (i / 3) * TAU + time * 6;
+      ctx.beginPath();
+      ctx.arc(x, y - 2, 17, angle, angle + 0.8);
+      ctx.stroke();
+    }
+  }
   if (options.selected) {
     ctx.strokeStyle = '#ffd166';
     ctx.lineWidth = 2.5;
@@ -7850,7 +7934,7 @@ function drawTower(ctx, tower, options = {}) {
   ctx.restore();
 }
 
-/** A silhouette per defender, so nine towers do not look like nine boxes. */
+/** A silhouette per defender, so ten towers do not look like ten boxes. */
 function drawTowerShape(ctx, spec, x, y, scale = 1, angle = 0) {
   ctx.save();
   ctx.translate(x, y);
@@ -7927,6 +8011,25 @@ function drawTowerShape(ctx, spec, x, y, scale = 1, angle = 0) {
         ctx.fill(); ctx.stroke();
       }
       break;
+    case 'tree': {
+      ctx.fillStyle = spec.dark;
+      ctx.beginPath();
+      roundedRect(ctx, -3, -6, 6, 14, 2);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = spec.color;
+      for (const [cx, cy, r] of [[0, -14, 9], [-7, -7, 7], [7, -7, 7]]) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, TAU);
+        ctx.fill(); ctx.stroke();
+      }
+      ctx.fillStyle = '#ffd166';   // the coins it is heavy with
+      for (const [cx, cy] of [[-6, -10], [5, -12], [0, -4]]) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, 2.6, 0, TAU);
+        ctx.fill();
+      }
+      break;
+    }
     case 'glide': {
       // Three blades of ice fanned out around a cold core.
       for (const dir of [-1, 0, 1]) {
@@ -7972,7 +8075,14 @@ function drawEnemy(ctx, enemy, time) {
   ctx.strokeStyle = frozen ? '#8fd8ff' : snared ? '#8ce6a8' : spec.dark;
   ctx.lineWidth = snared || frozen ? 3 : 2;
   ctx.beginPath();
-  if (spec.boss) {
+  if (spec.stun) {
+    const r = spec.size;
+    for (let i = 0; i < 4; i += 1) {
+      const angle = (i / 4) * TAU + 0.35;
+      ctx.lineTo(enemy.x + Math.cos(angle) * r, enemy.y + Math.sin(angle) * r);
+    }
+    ctx.closePath();
+  } else if (spec.boss) {
     for (let i = 0; i < 6; i += 1) {
       const angle = (i / 6) * TAU - Math.PI / 2;
       const r = spec.size * (i % 2 === 0 ? 1 : 0.78);
@@ -7985,6 +8095,21 @@ function drawEnemy(ctx, enemy, time) {
   ctx.fill();
   ctx.stroke();
 
+  if (spec.stun) {
+    // A crack across the stone, and the reach it can put a tower out from.
+    ctx.strokeStyle = 'rgba(30, 26, 18, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(enemy.x - spec.size * 0.5, enemy.y - spec.size * 0.4);
+    ctx.lineTo(enemy.x + spec.size * 0.1, enemy.y);
+    ctx.lineTo(enemy.x - spec.size * 0.2, enemy.y + spec.size * 0.5);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(201, 194, 168, ${0.12 + 0.06 * Math.sin(time * 3)})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(enemy.x, enemy.y, spec.stun.range, 0, TAU);
+    ctx.stroke();
+  }
   if (spec.armour) {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.lineWidth = 2;
@@ -8152,7 +8277,7 @@ function el(tag, className, text) {
   return node;
 }
 
-function sigil(spec, size = 28) {
+function sigil(spec, size = 24) {
   const canvas = el('canvas', 'df-sigil');
   const scale = Math.min(2, window.devicePixelRatio || 1);
   canvas.width = size * scale;
@@ -8210,7 +8335,10 @@ class BuildBar {
     if (selectedTower) {
       const refund = Math.round(selectedTower.spec.cost * SELL_RETURN);
       this.detail.append(el('strong', null, selectedTower.spec.name));
-      this.detail.append(el('span', null, `${selectedTower.kills} kill${selectedTower.kills === 1 ? '' : 's'}`));
+      // A Money Tree has never killed anything; what it has earned is the point.
+      this.detail.append(selectedTower.spec.income
+        ? el('span', null, `${selectedTower.earned}g fruited`)
+        : el('span', null, `${selectedTower.kills} kill${selectedTower.kills === 1 ? '' : 's'}`));
       const sell = el('button', 'btn btn--ghost df-sell', `Sell for ${refund}g`);
       sell.type = 'button';
       sell.addEventListener('click', () => this.onSell(selectedTower));
@@ -8334,7 +8462,7 @@ class DefenseleGame {
       drawTower(ctx, tower, {
         selected: this.selected && this.selected.uid === tower.uid,
         showRange: this.selected && this.selected.uid === tower.uid,
-      });
+      }, this.state.time);
     }
     for (const enemy of this.state.enemies) drawEnemy(ctx, enemy, this.state.time);
     drawShots(ctx, this.state);

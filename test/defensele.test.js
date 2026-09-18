@@ -65,16 +65,17 @@ function spotNearRoad(range = 120) {
 
 /* --------------------------------------------------------------- content */
 
-test('nine defenders, six enemies, fifteen waves', () => {
-  assert.equal(TOWERS.length, 9);
-  assert.equal(new Set(TOWERS.map((tower) => tower.id)).size, 9);
-  assert.equal(ENEMY_LIST.length, 6);
+test('ten defenders, seven enemies, fifteen waves', () => {
+  assert.equal(TOWERS.length, 10);
+  assert.equal(new Set(TOWERS.map((tower) => tower.id)).size, 10);
+  assert.equal(ENEMY_LIST.length, 7);
   assert.equal(WAVE_COUNT, 15);
   assert.equal(WAVES.length, 15);
   for (const tower of TOWERS) {
     assert.ok(tower.cost > 0, `${tower.name} costs something`);
     assert.ok(tower.blurb.length > 10, `${tower.name} says what it does`);
-    if (!tower.onRoad) assert.ok(tower.range > 0 && tower.rate > 0, `${tower.name} shoots`);
+    // Everything either shoots, blocks the road, or earns.
+    if (!tower.onRoad && !tower.income) assert.ok(tower.range > 0 && tower.rate > 0, `${tower.name} shoots`);
   }
 });
 
@@ -253,6 +254,61 @@ test('Frostglide freezes, and the cold bites every half second', () => {
   assert.ok(caught.dist < loose.dist * 0.5, 'and it barely moved while frozen');
 });
 
+test('a Money Tree fruits 100 gold every 6.5 seconds', () => {
+  const state = quiet();
+  state.gold = 400;
+  const tree = build(state, 'money-tree', 1, 1);
+  const goldBefore = state.gold;
+
+  run(state, 6.4);
+  assert.equal(state.gold, goldBefore, 'nothing before the clock comes round');
+  run(state, 0.3);
+  assert.equal(state.gold, goldBefore + 100, 'and 100 when it does');
+  run(state, 6.6);
+  assert.equal(state.gold, goldBefore + 200, 'then another, on the same clock');
+  assert.equal(tree.earned, 200);
+
+  // It pays for itself in two fruits and buys nothing else along the way.
+  assert.ok(tree.spec.cost < 200, 'a tree costs less than it makes in 13 seconds');
+  assert.equal(tree.kills, 0);
+});
+
+test('a Cripplestone puts a tower out for 3.5s every 4s', () => {
+  const state = quiet();
+  state.gold = 400;
+  const spot = spotNearRoad(getTower('pylon').range);
+  const gun = build(state, 'pylon', spot.col, spot.row);
+
+  const stone = sendOne(state, 'cripplestone');
+  stone.spec = { ...stone.spec, speed: 0 };               // hold it beside the tower
+  stone.dist = roadDistanceOf(spot.col, spot.row) || 0;
+  run(state, 0.1);
+  assert.equal(gun.stunUntil > state.time, false, 'it does not reach out the instant it arrives');
+
+  run(state, 4.2);
+  assert.ok(gun.stunUntil > state.time, 'four seconds later the tower is out');
+  const out = gun.stunUntil - state.time;
+  assert.ok(out > 3 && out <= 3.5, `and stays out for about 3.5s (${out.toFixed(2)})`);
+
+  // A stunned tower does not shoot.
+  const before = stone.hp;
+  const hpAtStun = stone.hp;
+  run(state, 0.5);
+  assert.equal(stone.hp, hpAtStun, 'the tower is silent while it is out');
+  assert.ok(before >= stone.hp);
+});
+
+test('Cripplestone is fast, tanky and expensive to let through', () => {
+  const stone = ENEMIES.cripplestone;
+  assert.equal(stone.hp, 1270);
+  assert.equal(stone.speed, 87);
+  assert.equal(stone.leak, 8);
+  assert.equal(stone.stun.duration, 3.5);
+  assert.equal(stone.stun.interval, 4);
+  assert.ok(stone.speed > ENEMIES.brute.speed * 2, 'it moves like a Runner, not a Brute');
+  assert.ok(stone.bounty > ENEMIES.brute.bounty, 'and pays out for killing it');
+});
+
 test('a Bastion stops the queue until it is rubble', () => {
   const state = quiet();
   const gate = build(state, 'bastion', 9, 5);
@@ -321,10 +377,14 @@ test('an undefended base is overrun; a real defence turns all fifteen waves back
 
   // The same scripted build the balance pass uses: a spread of roles, opening
   // cheap. With no supply bonus on wave one the opening 100 gold is all there
-  // is for a while, so the guns have to come before the expensive answers.
+  // is for a while, so the guns have to come before the expensive answers. It
+  // has to keep buying to the end - the last waves bring Cripplestones, and a
+  // build that stops at sixteen towers is overrun by them.
   const defended = createRun();
   const plan = ['pylon', 'pylon', 'pylon', 'frostpin', 'lancer', 'mortar', 'frostpin', 'lancer',
-    'coilnest', 'mortar', 'claw-bind', 'lancer', 'nightkon', 'mortar', 'lancer', 'frostglide'];
+    'coilnest', 'mortar', 'claw-bind', 'lancer', 'nightkon', 'mortar', 'lancer', 'frostglide',
+    'lancer', 'mortar', 'nightkon', 'frostglide', 'lancer', 'coilnest', 'mortar', 'lancer',
+    'nightkon', 'frostglide', 'lancer', 'mortar', 'lancer', 'nightkon'];
   const taken = new Set();
   let next = 0;
   for (let elapsed = 0; elapsed < 600 && !defended.over; elapsed += 1 / 20) {

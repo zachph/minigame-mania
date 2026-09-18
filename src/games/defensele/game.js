@@ -101,7 +101,7 @@ class DefenseleGame {
       drawTower(ctx, tower, {
         selected: this.selected && this.selected.uid === tower.uid,
         showRange: this.selected && this.selected.uid === tower.uid,
-      });
+      }, this.state.time);
     }
     for (const enemy of this.state.enemies) drawEnemy(ctx, enemy, this.state.time);
     drawShots(ctx, this.state);

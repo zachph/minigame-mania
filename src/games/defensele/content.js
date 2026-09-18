@@ -1,5 +1,5 @@
 /**
- * Defensele's roster: nine defenders, six things that come down the road at
+ * Defensele's roster: ten defenders, seven things that come down the road at
  * you, and the fifteen waves they arrive in.
  *
  * Every number here is data. The simulation in `rules.js` reads it and does not
@@ -136,6 +136,20 @@ export const TOWERS = [
     blurb: 'Freezes one solid, and the cold keeps biting while it stands there.',
     role: 'Short reach, heavy price. Put it where the road turns.',
   },
+  {
+    id: 'money-tree',
+    name: 'Money Tree',
+    cost: 150,
+    damage: 0,
+    range: 0,
+    rate: 0,
+    income: { amount: 100, interval: 6.5 },  // pays out on its own clock
+    color: '#9be08a',
+    dark: '#2c6b2f',
+    shape: 'tree',
+    blurb: 'Fruits 100 gold every 6.5 seconds. It does not shoot at anything.',
+    role: 'Pays for itself in ten seconds, then funds everything else.',
+  },
 ];
 
 export const TOWER_BY_ID = new Map(TOWERS.map((tower) => [tower.id, tower]));
@@ -153,6 +167,7 @@ export const ENEMIES = {
   brute: { id: 'brute', name: 'Brute', hp: 430, speed: 32, bounty: 22, leak: 2, size: 15, color: '#ff8b6b', dark: '#7f2f14' },
   shieldbearer: { id: 'shieldbearer', name: 'Shieldbearer', hp: 260, speed: 40, bounty: 20, leak: 2, size: 13, armour: 9, color: '#9fb4e8', dark: '#2d3f70' },
   swarm: { id: 'swarm', name: 'Swarm', hp: 34, speed: 62, bounty: 4, leak: 1, size: 7, color: '#ffb0e0', dark: '#7a2a5e' },
+  cripplestone: { id: 'cripplestone', name: 'Cripplestone', hp: 1270, speed: 87, bounty: 75, leak: 8, size: 17, stun: { duration: 3.5, interval: 4, range: 132 }, color: '#c9c2a8', dark: '#4a4230' },
   colossus: { id: 'colossus', name: 'Colossus', hp: 2700, speed: 24, bounty: 140, leak: 10, size: 22, armour: 7, slowResist: 0.5, color: '#d0b0ff', dark: '#3a2070', boss: true },
 };
 
@@ -172,13 +187,13 @@ export const WAVES = [
   wave(['shieldbearer', 4, 1.8], ['creeper', 10, 0.8, 1]),
   wave(['swarm', 22, 0.28], ['runner', 10, 0.5, 4]),
   wave(['brute', 6, 1.6], ['shieldbearer', 4, 1.6, 2]),
-  wave(['runner', 18, 0.35], ['swarm', 18, 0.3, 3]),
+  wave(['runner', 18, 0.35], ['swarm', 18, 0.3, 3], ['cripplestone', 1, 1, 6]),
   wave(['colossus', 1, 1], ['creeper', 12, 0.7, 2]),
-  wave(['shieldbearer', 8, 1.1], ['brute', 5, 1.6, 3]),
+  wave(['shieldbearer', 8, 1.1], ['brute', 5, 1.6, 3], ['cripplestone', 2, 4, 5]),
   wave(['swarm', 30, 0.22], ['brute', 6, 1.4, 4]),
-  wave(['runner', 28, 0.24], ['shieldbearer', 8, 1.2, 3], ['colossus', 1, 1, 10]),
-  wave(['brute', 12, 0.8], ['colossus', 2, 5, 6], ['swarm', 20, 0.3, 2]),
-  wave(['colossus', 3, 5], ['swarm', 34, 0.2, 2], ['runner', 20, 0.3, 6], ['brute', 8, 1.2, 12]),
+  wave(['runner', 28, 0.24], ['shieldbearer', 8, 1.2, 3], ['colossus', 1, 1, 10], ['cripplestone', 2, 3.5, 7]),
+  wave(['brute', 12, 0.8], ['colossus', 2, 5, 6], ['swarm', 20, 0.3, 2], ['cripplestone', 3, 3, 4]),
+  wave(['colossus', 3, 5], ['swarm', 34, 0.2, 2], ['runner', 20, 0.3, 6], ['brute', 8, 1.2, 12], ['cripplestone', 4, 3, 8]),
 ];
 
 export const WAVE_COUNT = WAVES.length;
