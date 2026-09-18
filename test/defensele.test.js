@@ -65,12 +65,12 @@ function spotNearRoad(range = 120) {
 
 /* --------------------------------------------------------------- content */
 
-test('ten defenders, seven enemies, fifteen waves', () => {
+test('ten defenders, eight enemies, seventeen waves', () => {
   assert.equal(TOWERS.length, 10);
   assert.equal(new Set(TOWERS.map((tower) => tower.id)).size, 10);
-  assert.equal(ENEMY_LIST.length, 7);
-  assert.equal(WAVE_COUNT, 15);
-  assert.equal(WAVES.length, 15);
+  assert.equal(ENEMY_LIST.length, 8);
+  assert.equal(WAVE_COUNT, 17);
+  assert.equal(WAVES.length, 17);
   for (const tower of TOWERS) {
     assert.ok(tower.cost > 0, `${tower.name} costs something`);
     assert.ok(tower.blurb.length > 10, `${tower.name} says what it does`);
@@ -99,8 +99,10 @@ test('every wave names a real enemy and gets harder', () => {
       assert.ok(group.count > 0 && group.gap > 0);
     }
   }
-  const size = (wave) => wave.reduce((total, group) => total + group.count, 0);
-  assert.ok(size(WAVES.at(-1)) > size(WAVES[0]) * 3, 'the last wave dwarfs the first');
+  // The last waves are few but enormous, so weigh them by health, not headcount.
+  const weight = (wave) => wave.reduce((total, group) => total + group.count * ENEMIES[group.enemy].hp, 0);
+  assert.ok(weight(WAVES.at(-1)) > weight(WAVES[0]) * 3, 'the last wave dwarfs the first');
+  assert.ok(weight(WAVES[9]) > weight(WAVES[2]), 'and the middle outweighs the opening');
   assert.ok(waveBonus(10) > waveBonus(1), 'and pays better');
 });
 
@@ -309,6 +311,71 @@ test('Cripplestone is fast, tanky and expensive to let through', () => {
   assert.ok(stone.bounty > ENEMIES.brute.bounty, 'and pays out for killing it');
 });
 
+test('Skeleflame lights the road every 5s, and it burns for 7', () => {
+  const state = quiet();
+  const stone = sendOne(state, 'skeleflame');
+  const flame = ENEMIES.skeleflame.flameRoad;
+
+  run(state, 4.5);
+  assert.equal(state.flameUntil > state.time, false, 'it waits out its cooldown first');
+  run(state, 0.8);
+  assert.ok(state.flameUntil > state.time, 'then the track catches');
+
+  // Seven seconds of fire, and the next cooldown only starts once it is out.
+  const lit = state.time;
+  run(state, 6.5);
+  assert.ok(state.flameUntil > state.time, 'still alight at 6.5s');
+  run(state, 0.8);
+  assert.equal(state.flameUntil > state.time, false, 'out by 7.3s');
+  assert.ok(stone.flameAt - (lit + flame.duration) > flame.cooldown - 0.5, 'the 5s starts after the fire, not with it');
+
+  run(state, 5.2);
+  assert.ok(state.flameUntil > state.time, 'and it lights again five seconds later');
+  assert.ok(state.stats.burns >= 2);
+});
+
+test('Flame Road eats Bastions and shuts the ice towers off', () => {
+  const state = quiet();
+  state.gold = 900;
+  const wall = build(state, 'bastion', 9, 5);
+  const spot = spotNearRoad(getTower('frostglide').range);
+  build(state, 'frostglide', spot.col, spot.row);
+
+  const stone = sendOne(state, 'skeleflame');
+  stone.spec = { ...stone.spec, speed: 0 };     // hold it in the Frostglide's reach
+  stone.dist = roadDistanceOf(spot.col, spot.row) || 0;
+
+  run(state, 4.9);
+  assert.ok(stone.freezeUntil > state.time, 'before the fire, the ice holds it');
+  const wallBefore = wall.hp;
+
+  run(state, 2.0);   // a second into the burn
+  assert.ok(state.flameUntil > state.time, 'the road is alight');
+  assert.equal(stone.freezeUntil > state.time, false, 'nothing on a burning road can be frozen');
+
+  // 1% of full health every 0.2s: about 5% a second.
+  const lost = wallBefore - wall.hp;
+  assert.ok(lost > wall.maxHp * 0.03, `the Bastion is burning down (${lost.toFixed(0)} of ${wall.maxHp})`);
+  assert.ok(lost < wall.maxHp * 0.12, 'but not instantly');
+});
+
+test('Skeleflame is the heaviest thing on the road', () => {
+  const flame = ENEMIES.skeleflame;
+  assert.equal(flame.hp, 1865);
+  assert.equal(flame.speed, 75);
+  assert.equal(flame.bounty, 210);
+  assert.equal(flame.leak, 18);
+  assert.equal(flame.flameRoad.duration, 7);
+  assert.equal(flame.flameRoad.cooldown, 5);
+
+  // Waves 16 and 17 are nothing but Skeleflames: two, then four.
+  const count = (wave, id) => wave.filter((g) => g.enemy === id).reduce((n, g) => n + g.count, 0);
+  assert.equal(WAVES[15].length, 1);
+  assert.equal(count(WAVES[15], 'skeleflame'), 2);
+  assert.equal(WAVES[16].length, 1);
+  assert.equal(count(WAVES[16], 'skeleflame'), 4);
+});
+
 test('a Bastion stops the queue until it is rubble', () => {
   const state = quiet();
   const gate = build(state, 'bastion', 9, 5);
@@ -369,7 +436,7 @@ test('losing every life ends the run', () => {
   assert.match(state.reason, /overrun/);
 });
 
-test('an undefended base is overrun; a real defence turns all fifteen waves back', () => {
+test('an undefended base is overrun; a real defence turns all seventeen waves back', () => {
   const naked = createRun();
   run(naked, 400, 1 / 20);
   assert.equal(naked.over, true);

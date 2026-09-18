@@ -10,6 +10,7 @@ import {
   drawHud,
   drawPlacement,
   drawRoad,
+  drawRoadFire,
   drawShots,
   drawTower,
 } from './render.js';
@@ -96,6 +97,9 @@ class DefenseleGame {
     const { width, height } = this.context;
     drawGround(ctx, width, height, this.state.time);
     drawRoad(ctx);
+    // The fire goes over the road and under everything walking on it.
+    const burning = this.state.flameUntil - this.state.time;
+    if (burning > 0) drawRoadFire(ctx, this.state.time, Math.min(1, burning / 0.6));
 
     for (const tower of this.state.towers) {
       drawTower(ctx, tower, {

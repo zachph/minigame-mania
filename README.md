@@ -264,12 +264,20 @@ slows, and costs ten lives if it gets through).
 Cripplestones walk in from wave 9 and get thicker every time, so the back half
 of the run is fought with part of your defence dark at any moment.
 
-Fifteen waves, twenty lives. Kills pay, and each wave arriving pays a supply
+**Skeleflame** closes the game out: 1865 HP at speed 75, eighteen lives if it
+gets through, and **Flame Road** - every five seconds the whole track catches
+fire for seven. While it burns, every Bastion loses 1% of its health every 0.2
+seconds and nothing on the road can be frozen or chilled, so Frostpin and
+Frostglide are dead weight until it goes out. The five-second wait only starts
+once the fire does go out, so two of them overlapping means a road that is alight
+almost the whole way. Waves 16 and 17 are nothing else: two of them, then four.
+
+Seventeen waves, twenty lives. Kills pay, and each wave arriving pays a supply
 bonus so the money keeps moving.
 
 ### How it is balanced
 
-Every number was swept with a scripted builder playing all fifteen waves:
+Every number was swept with a scripted builder playing all seventeen waves:
 
 - **Wave gap, 16 seconds.** At 7 seconds nothing survived past wave 8 — waves
   stacked faster than any economy could answer. At 16 the pressure is constant
@@ -286,12 +294,17 @@ Every number was swept with a scripted builder playing all fifteen waves:
 - **Keep buying.** Cripplestones from wave 9 mean a build that stops at sixteen
   towers is overrun on the last waves. The spread that wins clean is thirty
   towers deep and lands 26 stuns on the way.
+- **The last two waves are the real test.** The thirty-tower spread that walks
+  through wave 15 finishes wave 17 with 2 lives left - one Skeleflame got past
+  it, and one is worth eighteen. Eleven Flame Roads go off across the two waves.
 - **The Money Tree is the strongest thing in the game, on purpose.** It costs
   150 and makes that back in thirteen seconds, and a single tree bought early
   fruits about 3700 gold over a run - more than wave bonuses and bounties put
   together. From roughly wave 3 on, gold stops being the thing that limits you;
   good ground and good timing do. Three trees before any guns still loses at
-  wave 4, so it is not a free win, but it does switch the economy off.
+  wave 4, so it is not a free win. With Skeleflames at the end there is finally
+  enough to spend it on: two trees and a long build finishes wave 17 on 15 lives
+  against the same build's 2 without them.
 - Sloppy builds fail: **pylons only** is overrun at wave 14 and **cheap swarm**
   at wave 13. **Lancers only** survives with half its lives gone, and a **spread
   of roles** wins clean — which is the curve you want: mastery is rewarded,
@@ -348,7 +361,7 @@ src/
     ui.js              the deck-choice screen
     game.js            turn flow, targeting, scoring
   games/defensele/
-    content.js         the ten defenders, seven enemies and fifteen waves
+    content.js         the ten defenders, eight enemies and seventeen waves
     rules.js           the road, building, movement, shooting, waves (pure logic)
     render.js          the map, the road, everything standing on it
     ui.js              the build bar

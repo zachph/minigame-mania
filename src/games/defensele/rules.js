@@ -105,7 +105,10 @@ export function createRun({ random = Math.random } = {}) {
     waveIndex: 0,        // waves already released
     waveTimer: 3,        // until the first one walks in
     queue: [],           // enemies still to spawn from released waves
-    stats: { kills: 0, leaked: 0, spent: 0, earned: 0, stunned: 0 },
+    stats: { kills: 0, leaked: 0, spent: 0, earned: 0, stunned: 0, burns: 0 },
+    flameUntil: 0,       // the road is alight while this is ahead of `time`
+    flameTickAt: 0,      // when the fire next bites the Bastions
+    flame: null,         // the Flame Road numbers of whatever lit it
     over: false,
     won: false,
     reason: null,
@@ -193,6 +196,7 @@ function spawn(state, enemyId) {
     freeze: null,
     dread: [],
     stunAt: spec.stun ? state.time + spec.stun.interval : 0,
+    flameAt: spec.flameRoad ? state.time + spec.flameRoad.cooldown : 0,
     blocking: null,
     x: PATH.points[0].x,
     y: PATH.points[0].y,
@@ -256,6 +260,7 @@ export function update(state, dt) {
     spawn(state, state.queue.shift().enemy);
   }
 
+  tickFlameRoad(state);
   moveEnemies(state, dt);
   tickIncome(state);
   tickStunners(state);
@@ -304,6 +309,54 @@ function moveEnemies(state, dt) {
       enemy.hp = 0;
       enemy.leaked = true;
     }
+  }
+}
+
+/** Whether the track is alight right now. Nothing on it can be chilled. */
+export const roadIsBurning = (state) => state.flameUntil > state.time;
+
+/**
+ * Flame Road. Every Skeleflame runs its own clock: five seconds of waiting,
+ * then seven seconds with the track on fire - and the next five only start once
+ * the fire is out. While it burns, every Bastion loses 1% of its health every
+ * 0.2s and every ice tower is wasted, so two Skeleflames overlapping means the
+ * road is alight almost the whole way.
+ */
+function tickFlameRoad(state) {
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0 || enemy.leaked) continue;
+    const flame = enemy.spec.flameRoad;
+    if (!flame) continue;
+    if (state.time < enemy.flameAt) continue;
+
+    // Light the road, and only start the next cooldown once this one burns out.
+    const until = state.time + flame.duration;
+    if (!roadIsBurning(state)) state.flameTickAt = state.time + flame.tick;
+    state.flame = flame;
+    state.flameUntil = Math.max(state.flameUntil, until);
+    enemy.flameAt = until + flame.cooldown;
+    state.stats.burns += 1;
+    state.hits.push({ x: enemy.x, y: enemy.y, life: 0.7, maxLife: 0.7, size: 34, color: enemy.spec.color });
+  }
+
+  if (!roadIsBurning(state)) return;
+
+  // The fire eats at whatever is standing in the road.
+  const { bastionShare: share, tick: step } = state.flame;
+  while (state.time >= state.flameTickAt) {
+    for (const tower of state.towers) {
+      if (!tower.spec.onRoad || tower.maxHp <= 0) continue;
+      tower.hp -= tower.maxHp * share;
+    }
+    state.flameTickAt += step;
+  }
+
+  // Nothing burning can be held by ice.
+  for (const enemy of state.enemies) {
+    enemy.slowUntil = 0;
+    enemy.slowFactor = 1;
+    enemy.freezeUntil = 0;
+    enemy.freeze = null;
   }
 }
 
@@ -408,8 +461,17 @@ function fireTowers(state, dt) {
   }
 }
 
+/** Frostpin and Frostglide - the two that work by cold. */
+const isIceTower = (spec) => Boolean(spec.slow || spec.freeze);
+
 function hit(state, tower, enemy) {
   const spec = tower.spec;
+  // A Skeleflame's fire makes everything on the road immune to ice, so an ice
+  // tower's shot is simply wasted while the track is alight.
+  if (isIceTower(spec) && roadIsBurning(state)) {
+    state.beams.push({ x1: tower.x, y1: tower.y, x2: enemy.x, y2: enemy.y, life: 0.12, maxLife: 0.12, color: '#6b7a86' });
+    return;
+  }
   state.beams.push({ x1: tower.x, y1: tower.y, x2: enemy.x, y2: enemy.y, life: 0.12, maxLife: 0.12, color: spec.color });
   if (spec.damage > 0) applyDamage(state, enemy, spec.damage);
   if (spec.slow) applySlow(enemy, spec.slow.factor, spec.slow.duration, state.time);

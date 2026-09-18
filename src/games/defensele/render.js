@@ -1,6 +1,6 @@
 import { TAU, clamp, roundedRect } from '../../core/utils.js';
 import { GRID, START_LIVES, WAVE_COUNT } from './content.js';
-import { PATH } from './rules.js';
+import { PATH, pointAt } from './rules.js';
 
 /** The map, the road, everything standing on it, and the strip along the top. */
 const ROAD_WIDTH = 30;
@@ -84,6 +84,47 @@ export function drawRoad(ctx) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('BASE', end.x + 2, end.y + 12);
+  ctx.restore();
+}
+
+/**
+ * Flame Road: the whole track alight. Drawn over the road and under everything
+ * that walks on it, so it reads as the ground burning rather than an effect on
+ * any one enemy.
+ */
+export function drawRoadFire(ctx, time, fade = 1) {
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const trace = () => {
+    ctx.beginPath();
+    ctx.moveTo(PATH.points[0].x, PATH.points[0].y);
+    for (const point of PATH.points.slice(1)) ctx.lineTo(point.x, point.y);
+  };
+
+  const flicker = 0.75 + 0.25 * Math.sin(time * 11);
+  ctx.globalAlpha = clamp(fade, 0, 1);
+  ctx.strokeStyle = `rgba(122, 31, 12, ${0.55 * flicker})`;
+  ctx.lineWidth = ROAD_WIDTH;
+  trace();
+  ctx.stroke();
+  ctx.strokeStyle = `rgba(255, 138, 61, ${0.45 * flicker})`;
+  ctx.lineWidth = ROAD_WIDTH - 10;
+  trace();
+  ctx.stroke();
+
+  // Tongues of flame licking along the length of it.
+  ctx.globalAlpha = clamp(fade, 0, 1) * 0.85;
+  for (let d = 0; d < PATH.length; d += 26) {
+    const p = pointAt(d + ((time * 60) % 26));
+    const lift = 7 + 5 * Math.sin(time * 9 + d * 0.13);
+    ctx.fillStyle = d % 52 === 0 ? '#ffd166' : '#ff8a3d';
+    ctx.beginPath();
+    ctx.moveTo(p.x - 4, p.y + 4);
+    ctx.quadraticCurveTo(p.x, p.y - lift, p.x + 4, p.y + 4);
+    ctx.closePath();
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -284,7 +325,17 @@ export function drawEnemy(ctx, enemy, time) {
   ctx.strokeStyle = frozen ? '#8fd8ff' : snared ? '#8ce6a8' : spec.dark;
   ctx.lineWidth = snared || frozen ? 3 : 2;
   ctx.beginPath();
-  if (spec.stun) {
+  if (spec.flameRoad) {
+    // A ragged flame, taller than it is wide, guttering as it walks.
+    const r = spec.size;
+    const gutter = 1 + 0.12 * Math.sin(time * 8 + enemy.uid);
+    ctx.moveTo(enemy.x, enemy.y + r * 0.9);
+    ctx.quadraticCurveTo(enemy.x - r, enemy.y + r * 0.2, enemy.x - r * 0.45, enemy.y - r * 0.5);
+    ctx.quadraticCurveTo(enemy.x - r * 0.6, enemy.y - r * 0.2, enemy.x - r * 0.1, enemy.y - r * 1.2 * gutter);
+    ctx.quadraticCurveTo(enemy.x + r * 0.25, enemy.y - r * 0.55, enemy.x + r * 0.55, enemy.y - r * 1.05 * gutter);
+    ctx.quadraticCurveTo(enemy.x + r, enemy.y + r * 0.1, enemy.x, enemy.y + r * 0.9);
+    ctx.closePath();
+  } else if (spec.stun) {
     const r = spec.size;
     for (let i = 0; i < 4; i += 1) {
       const angle = (i / 4) * TAU + 0.35;
@@ -304,6 +355,15 @@ export function drawEnemy(ctx, enemy, time) {
   ctx.fill();
   ctx.stroke();
 
+  if (spec.flameRoad) {
+    // Two hollow eyes, so it reads as a skull inside the fire.
+    ctx.fillStyle = '#2a0c04';
+    for (const dir of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(enemy.x + dir * spec.size * 0.24, enemy.y - spec.size * 0.1, 2.6, 3.4, 0, 0, TAU);
+      ctx.fill();
+    }
+  }
   if (spec.stun) {
     // A crack across the stone, and the reach it can put a tower out from.
     ctx.strokeStyle = 'rgba(30, 26, 18, 0.8)';
