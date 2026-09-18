@@ -1,6 +1,6 @@
 /**
- * Defensele's roster: ten defenders, seven things that come down the road at
- * you, and the fifteen waves they arrive in.
+ * Defensele's roster: ten defenders, eight things that come down the road at
+ * you, and the seventeen waves they arrive in.
  *
  * Every number here is data. The simulation in `rules.js` reads it and does not
  * care what any of it is called, so renaming or re-costing a defender is a one
@@ -168,6 +168,14 @@ export const ENEMIES = {
   shieldbearer: { id: 'shieldbearer', name: 'Shieldbearer', hp: 260, speed: 40, bounty: 20, leak: 2, size: 13, armour: 9, color: '#9fb4e8', dark: '#2d3f70' },
   swarm: { id: 'swarm', name: 'Swarm', hp: 34, speed: 62, bounty: 4, leak: 1, size: 7, color: '#ffb0e0', dark: '#7a2a5e' },
   cripplestone: { id: 'cripplestone', name: 'Cripplestone', hp: 1270, speed: 87, bounty: 75, leak: 8, size: 17, stun: { duration: 3.5, interval: 4, range: 132 }, color: '#c9c2a8', dark: '#4a4230' },
+  skeleflame: {
+    id: 'skeleflame', name: 'Skeleflame', hp: 1865, speed: 75, bounty: 210, leak: 18, size: 20,
+    // Flame Road: the track catches fire for 7s, then it waits 5s and does it
+    // again. While it burns, Bastions lose 1% of their health every 0.2s and
+    // nothing on the road can be frozen or chilled.
+    flameRoad: { duration: 7, cooldown: 5, tick: 0.2, bastionShare: 0.01 },
+    color: '#ff8a3d', dark: '#7a1f0c', boss: true,
+  },
   colossus: { id: 'colossus', name: 'Colossus', hp: 2700, speed: 24, bounty: 140, leak: 10, size: 22, armour: 7, slowResist: 0.5, color: '#d0b0ff', dark: '#3a2070', boss: true },
 };
 
@@ -194,6 +202,8 @@ export const WAVES = [
   wave(['runner', 28, 0.24], ['shieldbearer', 8, 1.2, 3], ['colossus', 1, 1, 10], ['cripplestone', 2, 3.5, 7]),
   wave(['brute', 12, 0.8], ['colossus', 2, 5, 6], ['swarm', 20, 0.3, 2], ['cripplestone', 3, 3, 4]),
   wave(['colossus', 3, 5], ['swarm', 34, 0.2, 2], ['runner', 20, 0.3, 6], ['brute', 8, 1.2, 12], ['cripplestone', 4, 3, 8]),
+  wave(['skeleflame', 2, 6]),
+  wave(['skeleflame', 4, 5]),
 ];
 
 export const WAVE_COUNT = WAVES.length;
