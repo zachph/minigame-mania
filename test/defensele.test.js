@@ -86,7 +86,7 @@ test('Claw-bind, Nightkon and Frostglide do what their names promise', () => {
   const glide = getTower('frostglide');
   assert.ok(claw.snare.duration > 0, 'Claw-bind pins things in place');
   assert.ok(night.dread.damage > 0 && night.dread.stacks > 1, 'Nightkon stacks a burn');
-  assert.equal(glide.cost, 330);
+  assert.equal(glide.cost, 465);
   assert.equal(glide.damage, 23);
   assert.equal(glide.range, 100);
   assert.deepEqual(glide.freeze, { duration: 1.5, damage: 12.5, interval: 0.5 });
@@ -132,6 +132,7 @@ test('cells know whether they are road', () => {
 
 test('defenders go on open ground, and the Bastion goes in the road', () => {
   const state = quiet();
+  state.gold = 2000;   // this is about where things go, not what you can afford
   const open = spotNearRoad();
   const pylon = getTower('pylon');
   const bastion = getTower('bastion');
@@ -179,7 +180,7 @@ test('selling gives most of it back', () => {
 
 test('a defender shoots what walks past, and a kill pays a bounty', () => {
   const state = quiet();
-  state.gold = 900;
+  state.gold = 2000;
   // A Lancer, because a lone Pylon only just out-damages a Creeper walking by.
   const spot = spotNearRoad(getTower('lancer').range);
   build(state, 'lancer', spot.col, spot.row);
@@ -224,6 +225,7 @@ test('Frostpin slows and Claw-bind stops', () => {
   const freeDistance = runner.dist;
 
   const slowed = quiet();
+  slowed.gold = 2000;
   const spot = spotNearRoad(getTower('frostpin').range);
   build(slowed, 'frostpin', spot.col, spot.row);
   const chilled = sendOne(slowed, 'runner');
@@ -232,6 +234,7 @@ test('Frostpin slows and Claw-bind stops', () => {
   assert.ok(chilled.slowUntil > 0, 'and is visibly chilled');
 
   const pinned = quiet();
+  pinned.gold = 2000;
   build(pinned, 'claw-bind', spot.col, spot.row);
   const held = sendOne(pinned, 'runner');
   run(pinned, 2);
@@ -240,7 +243,7 @@ test('Frostpin slows and Claw-bind stops', () => {
 
 test('Frostglide freezes, and the cold bites every half second', () => {
   const iced = quiet();
-  iced.gold = 400;
+  iced.gold = 2000;
   const spot = spotNearRoad(getTower('frostglide').range);
   build(iced, 'frostglide', spot.col, spot.row);
   const caught = sendOne(iced, 'brute');
@@ -281,7 +284,7 @@ test('every copy of a defender costs 20% more than the last', () => {
 
 test('a Money Tree fruits 100 gold every 6.5 seconds', () => {
   const state = quiet();
-  state.gold = 900;
+  state.gold = 2000;
   const tree = build(state, 'money-tree', 1, 1);
   const goldBefore = state.gold;
 
@@ -293,16 +296,15 @@ test('a Money Tree fruits 100 gold every 6.5 seconds', () => {
   assert.equal(state.gold, goldBefore + 200, 'then another, on the same clock');
   assert.equal(tree.earned, 200);
 
-  // It costs more than any gun on the bar, and pays itself back in four fruits.
-  assert.ok(tree.spec.cost > Math.max(...TOWERS.filter((t) => t.damage > 0).map((t) => t.cost)),
-    'a tree is the most expensive thing you can build');
-  assert.ok(tree.spec.cost < tree.spec.income.amount * 5, 'and it still pays itself back inside half a minute');
+  // It costs about as much as a heavy gun and pays itself back in three fruits.
+  assert.ok(tree.spec.cost > getTower('lancer').cost, 'a tree costs more than a Lancer');
+  assert.ok(tree.spec.cost < tree.spec.income.amount * 4, 'and pays itself back inside twenty seconds');
   assert.equal(tree.kills, 0);
 });
 
 test('a Cripplestone puts a tower out for 3.5s every 4s', () => {
   const state = quiet();
-  state.gold = 900;
+  state.gold = 2000;
   const spot = spotNearRoad(getTower('pylon').range);
   const gun = build(state, 'pylon', spot.col, spot.row);
 
@@ -361,7 +363,7 @@ test('Skeleflame lights the road every 5s, and it burns for 7', () => {
 
 test('Flame Road eats Bastions and shuts the ice towers off', () => {
   const state = quiet();
-  state.gold = 900;
+  state.gold = 2000;
   const wall = build(state, 'bastion', 9, 5);
   const spot = spotNearRoad(getTower('frostglide').range);
   build(state, 'frostglide', spot.col, spot.row);
@@ -403,6 +405,7 @@ test('Skeleflame is the heaviest thing on the road', () => {
 
 test('a Bastion stops the queue until it is rubble', () => {
   const state = quiet();
+  state.gold = 2000;
   const gate = build(state, 'bastion', 9, 5);
   assert.ok(gate.gate > 0, 'it knows where in the road it stands');
 
@@ -467,12 +470,13 @@ test('an undefended base is overrun; a real defence turns all seventeen waves ba
   assert.equal(naked.over, true);
   assert.equal(naked.won, false, 'building nothing loses');
 
-  // The same scripted build the balance pass uses: three cheap guns down first,
-  // then a rotation of roles that never runs out, so every coin gets spent. It
-  // has to keep buying to the end - the last waves bring Cripplestones and then
-  // Skeleflames - and every repeat of a defender costs more than the last.
+  // The same scripted build the balance pass uses: four cheap guns, then the
+  // Money Tree, then a rotation of roles that never runs out so every coin gets
+  // spent. At these prices the tree is not optional - the sweep cannot find a
+  // build without one that survives past wave 12 - and its timing is the whole
+  // opening: bought before the fourth Pylon the run dies at wave 6 instead.
   const defended = createRun();
-  const opening = ['pylon', 'pylon', 'pylon', 'frostpin'];
+  const opening = ['pylon', 'pylon', 'pylon', 'pylon', 'money-tree'];
   // Cheap guns woven through the heavy ones on purpose: with every repeat
   // costing 20% more, a rotation that leans on Lancers loses this run.
   const cycle = ['pylon', 'lancer', 'frostpin', 'mortar', 'pylon', 'claw-bind',
@@ -499,9 +503,21 @@ test('an undefended base is overrun; a real defence turns all seventeen waves ba
   assert.ok(defended.stats.kills > 300, `and kills most of them (${defended.stats.kills})`);
 });
 
-/** The open cell covering the most road, ignoring any already used. */
+/**
+ * The open cell covering the most road, ignoring any already used. A Money Tree
+ * has no range and shoots at nothing, so it just takes the first corner going.
+ */
 function bestFreeSpot(taken, range) {
   let best = null;
+  if (!range) {
+    for (let col = GRID.cols - 1; col >= 0; col -= 1) {
+      for (let row = 0; row < GRID.rows; row += 1) {
+        if (isRoad(col, row) || taken.has(`${col},${row}`)) continue;
+        return { col, row, cover: 0 };
+      }
+    }
+    return null;
+  }
   for (let col = 0; col < GRID.cols; col += 1) {
     for (let row = 0; row < GRID.rows; row += 1) {
       if (isRoad(col, row) || taken.has(`${col},${row}`)) continue;
