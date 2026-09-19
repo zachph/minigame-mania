@@ -13,7 +13,7 @@ export const TOWERS = [
   {
     id: 'pylon',
     name: 'Pylon',
-    cost: 50,
+    cost: 40,
     damage: 12,
     range: 112,
     rate: 2.0,             // shots a second
@@ -26,7 +26,7 @@ export const TOWERS = [
   {
     id: 'frostpin',
     name: 'Frostpin',
-    cost: 65,
+    cost: 50,
     damage: 4,
     range: 104,
     rate: 1.5,
@@ -40,7 +40,7 @@ export const TOWERS = [
   {
     id: 'lancer',
     name: 'Lancer',
-    cost: 125,
+    cost: 180,
     damage: 72,
     range: 226,
     rate: 0.55,
@@ -53,7 +53,7 @@ export const TOWERS = [
   {
     id: 'mortar',
     name: 'Mortar',
-    cost: 140,
+    cost: 200,
     damage: 42,
     range: 196,
     rate: 0.5,
@@ -68,7 +68,7 @@ export const TOWERS = [
   {
     id: 'coilnest',
     name: 'Coilnest',
-    cost: 160,
+    cost: 230,
     damage: 19,
     range: 124,
     rate: 1.1,
@@ -82,7 +82,7 @@ export const TOWERS = [
   {
     id: 'bastion',
     name: 'Bastion',
-    cost: 80,
+    cost: 65,
     damage: 0,
     range: 0,
     rate: 0,
@@ -97,7 +97,7 @@ export const TOWERS = [
   {
     id: 'claw-bind',
     name: 'Claw-bind',
-    cost: 100,
+    cost: 80,
     damage: 9,
     range: 98,
     rate: 0.8,
@@ -111,7 +111,7 @@ export const TOWERS = [
   {
     id: 'nightkon',
     name: 'Nightkon',
-    cost: 200,
+    cost: 290,
     damage: 6,
     range: 146,
     rate: 1.2,
@@ -125,7 +125,7 @@ export const TOWERS = [
   {
     id: 'frostglide',
     name: 'Frostglide',
-    cost: 230,
+    cost: 330,
     damage: 23,
     range: 100,
     rate: 1.0,
@@ -139,7 +139,7 @@ export const TOWERS = [
   {
     id: 'money-tree',
     name: 'Money Tree',
-    cost: 150,
+    cost: 400,
     damage: 0,
     range: 0,
     rate: 0,
@@ -148,7 +148,7 @@ export const TOWERS = [
     dark: '#2c6b2f',
     shape: 'tree',
     blurb: 'Fruits 100 gold every 6.5 seconds. It does not shoot at anything.',
-    role: 'Pays for itself in ten seconds, then funds everything else.',
+    role: 'Costs more than any gun. Pays itself back in half a minute.',
   },
 ];
 
@@ -218,6 +218,15 @@ export const START_GOLD = 100;
 export const START_LIVES = 20;
 export const WAVE_GAP = 16;     // seconds between one wave starting and the next
 export const SELL_RETURN = 0.6; // what you get back for taking a tower down
+
+/**
+ * Every copy of a defender you already own adds this much to the next one's
+ * price. The first of anything is always the price on the bar, so the opening
+ * is untouched; it is the tenth Lancer that hurts, which is the point - by the
+ * back half you should be running out of things you can afford, not stamping
+ * out the same tower until the road is solid.
+ */
+export const COST_STEP = 0.2;
 
 /**
  * Paid out when a wave is released, so the money keeps moving. The first wave

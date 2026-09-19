@@ -17,6 +17,7 @@ import {
   PATH,
   build,
   canBuild,
+  costOf,
   createRun,
   isRoad,
   pointAt,
@@ -85,7 +86,7 @@ test('Claw-bind, Nightkon and Frostglide do what their names promise', () => {
   const glide = getTower('frostglide');
   assert.ok(claw.snare.duration > 0, 'Claw-bind pins things in place');
   assert.ok(night.dread.damage > 0 && night.dread.stacks > 1, 'Nightkon stacks a burn');
-  assert.equal(glide.cost, 230);
+  assert.equal(glide.cost, 330);
   assert.equal(glide.damage, 23);
   assert.equal(glide.range, 100);
   assert.deepEqual(glide.freeze, { duration: 1.5, damage: 12.5, interval: 0.5 });
@@ -178,7 +179,7 @@ test('selling gives most of it back', () => {
 
 test('a defender shoots what walks past, and a kill pays a bounty', () => {
   const state = quiet();
-  state.gold = 400;
+  state.gold = 900;
   // A Lancer, because a lone Pylon only just out-damages a Creeper walking by.
   const spot = spotNearRoad(getTower('lancer').range);
   build(state, 'lancer', spot.col, spot.row);
@@ -256,9 +257,31 @@ test('Frostglide freezes, and the cold bites every half second', () => {
   assert.ok(caught.dist < loose.dist * 0.5, 'and it barely moved while frozen');
 });
 
+test('every copy of a defender costs 20% more than the last', () => {
+  const state = quiet();
+  state.gold = 5000;
+  const pylon = getTower('pylon');
+
+  assert.equal(costOf(state, pylon), pylon.cost, 'the first is the price on the bar');
+  const first = build(state, 'pylon', 1, 1);
+  assert.equal(first.paid, pylon.cost);
+  assert.equal(costOf(state, pylon), Math.round((pylon.cost * 1.2) / 5) * 5, 'the second is dearer');
+  build(state, 'pylon', 1, 2);
+  assert.equal(costOf(state, pylon), Math.round((pylon.cost * 1.4) / 5) * 5, 'and the third dearer again');
+
+  // It is per defender, not across the bar.
+  assert.equal(costOf(state, getTower('lancer')), getTower('lancer').cost, 'a Lancer is untouched by owning Pylons');
+
+  // Selling one brings the next price back down, and refunds what you paid.
+  const second = state.towers[1];
+  const refund = sell(state, second);
+  assert.equal(refund, Math.round(second.paid * SELL_RETURN), 'you get back a share of what you paid');
+  assert.equal(costOf(state, pylon), Math.round((pylon.cost * 1.2) / 5) * 5, 'and the price steps back');
+});
+
 test('a Money Tree fruits 100 gold every 6.5 seconds', () => {
   const state = quiet();
-  state.gold = 400;
+  state.gold = 900;
   const tree = build(state, 'money-tree', 1, 1);
   const goldBefore = state.gold;
 
@@ -270,14 +293,16 @@ test('a Money Tree fruits 100 gold every 6.5 seconds', () => {
   assert.equal(state.gold, goldBefore + 200, 'then another, on the same clock');
   assert.equal(tree.earned, 200);
 
-  // It pays for itself in two fruits and buys nothing else along the way.
-  assert.ok(tree.spec.cost < 200, 'a tree costs less than it makes in 13 seconds');
+  // It costs more than any gun on the bar, and pays itself back in four fruits.
+  assert.ok(tree.spec.cost > Math.max(...TOWERS.filter((t) => t.damage > 0).map((t) => t.cost)),
+    'a tree is the most expensive thing you can build');
+  assert.ok(tree.spec.cost < tree.spec.income.amount * 5, 'and it still pays itself back inside half a minute');
   assert.equal(tree.kills, 0);
 });
 
 test('a Cripplestone puts a tower out for 3.5s every 4s', () => {
   const state = quiet();
-  state.gold = 400;
+  state.gold = 900;
   const spot = spotNearRoad(getTower('pylon').range);
   const gun = build(state, 'pylon', spot.col, spot.row);
 
@@ -442,29 +467,32 @@ test('an undefended base is overrun; a real defence turns all seventeen waves ba
   assert.equal(naked.over, true);
   assert.equal(naked.won, false, 'building nothing loses');
 
-  // The same scripted build the balance pass uses: a spread of roles, opening
-  // cheap. With no supply bonus on wave one the opening 100 gold is all there
-  // is for a while, so the guns have to come before the expensive answers. It
-  // has to keep buying to the end - the last waves bring Cripplestones, and a
-  // build that stops at sixteen towers is overrun by them.
+  // The same scripted build the balance pass uses: three cheap guns down first,
+  // then a rotation of roles that never runs out, so every coin gets spent. It
+  // has to keep buying to the end - the last waves bring Cripplestones and then
+  // Skeleflames - and every repeat of a defender costs more than the last.
   const defended = createRun();
-  const plan = ['pylon', 'pylon', 'pylon', 'frostpin', 'lancer', 'mortar', 'frostpin', 'lancer',
-    'coilnest', 'mortar', 'claw-bind', 'lancer', 'nightkon', 'mortar', 'lancer', 'frostglide',
-    'lancer', 'mortar', 'nightkon', 'frostglide', 'lancer', 'coilnest', 'mortar', 'lancer',
-    'nightkon', 'frostglide', 'lancer', 'mortar', 'lancer', 'nightkon'];
+  const opening = ['pylon', 'pylon', 'pylon', 'frostpin'];
+  // Cheap guns woven through the heavy ones on purpose: with every repeat
+  // costing 20% more, a rotation that leans on Lancers loses this run.
+  const cycle = ['pylon', 'lancer', 'frostpin', 'mortar', 'pylon', 'claw-bind',
+    'coilnest', 'lancer', 'pylon', 'mortar', 'nightkon', 'frostglide'];
+  const plan = [...opening];
+  for (let i = 0; i < 8; i += 1) plan.push(...cycle);
+
   const taken = new Set();
   let next = 0;
-  for (let elapsed = 0; elapsed < 600 && !defended.over; elapsed += 1 / 20) {
+  for (let elapsed = 0; elapsed < 600 && !defended.over; elapsed += 1 / 60) {
     while (next < plan.length) {
       const spec = getTower(plan[next]);
-      if (defended.gold < spec.cost) break;
+      if (defended.gold < costOf(defended, spec)) break;
       const spot = bestFreeSpot(taken, spec.range);
-      if (!spot) { next += 1; continue; }
+      if (!spot || !canBuild(defended, spec, spot.col, spot.row)) { next += 1; continue; }
       build(defended, spec.id, spot.col, spot.row);
       taken.add(`${spot.col},${spot.row}`);
       next += 1;
     }
-    update(defended, 1 / 20);
+    update(defended, 1 / 60);
   }
   assert.equal(defended.over, true, 'the run finished');
   assert.equal(defended.won, true, `a spread of defenders holds: ${defended.reason}`);

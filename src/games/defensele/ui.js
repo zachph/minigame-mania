@@ -1,4 +1,5 @@
 import { SELL_RETURN, TOWERS } from './content.js';
+import { costOf } from './rules.js';
 import { drawTowerShape } from './render.js';
 
 /**
@@ -34,6 +35,7 @@ export class BuildBar {
     container.append(this.root);
 
     this.buttons = new Map();
+    this.costs = new Map();
     for (const spec of TOWERS) {
       const button = el('button', 'df-tower');
       button.type = 'button';
@@ -41,13 +43,15 @@ export class BuildBar {
       button.append(sigil(spec));
       const meta = el('div', 'df-tower-meta');
       meta.append(el('strong', null, spec.name));
-      meta.append(el('span', 'df-cost', `${spec.cost}g`));
+      const cost = el('span', 'df-cost', `${spec.cost}g`);
+      meta.append(cost);
+      this.costs.set(spec.id, cost);
       button.append(meta);
       button.title = `${spec.blurb}\n${spec.role}`;
       button.addEventListener('click', () => {
         this.picked = this.picked === spec.id ? null : spec.id;
         this.onPick(this.picked);
-        this.refresh(this.lastGold ?? 0);
+        if (this.lastState) this.refresh(this.lastState);
       });
       this.buttons.set(spec.id, button);
       this.root.append(button);
@@ -57,18 +61,27 @@ export class BuildBar {
     this.root.append(this.detail);
   }
 
-  /** Greys out what you cannot afford and marks what you are holding. */
-  refresh(gold, selectedTower = null) {
-    this.lastGold = gold;
+  /**
+   * Greys out what you cannot afford, marks what you are holding, and shows
+   * what each one costs *now* - every copy you own puts the next one's price up.
+   */
+  refresh(state, selectedTower = null) {
+    this.lastState = state;
+    const gold = state.gold;
     for (const spec of TOWERS) {
       const button = this.buttons.get(spec.id);
+      const price = costOf(state, spec);
       button.classList.toggle('is-picked', this.picked === spec.id);
-      button.classList.toggle('is-broke', gold < spec.cost);
+      button.classList.toggle('is-broke', gold < price);
+      const cost = this.costs.get(spec.id);
+      const label = `${price}g`;
+      if (cost.textContent !== label) cost.textContent = label;
+      cost.classList.toggle('is-raised', price > spec.cost);
     }
 
     this.detail.replaceChildren();
     if (selectedTower) {
-      const refund = Math.round(selectedTower.spec.cost * SELL_RETURN);
+      const refund = Math.round(selectedTower.paid * SELL_RETURN);
       this.detail.append(el('strong', null, selectedTower.spec.name));
       // A Money Tree has never killed anything; what it has earned is the point.
       this.detail.append(selectedTower.spec.income
@@ -91,7 +104,7 @@ export class BuildBar {
 
   clearPick() {
     this.picked = null;
-    this.refresh(this.lastGold ?? 0);
+    if (this.lastState) this.refresh(this.lastState);
   }
 
   destroy() {
