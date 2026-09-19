@@ -13,7 +13,7 @@ export const TOWERS = [
   {
     id: 'pylon',
     name: 'Pylon',
-    cost: 40,
+    cost: 45,
     damage: 12,
     range: 112,
     rate: 2.0,             // shots a second
@@ -26,7 +26,7 @@ export const TOWERS = [
   {
     id: 'frostpin',
     name: 'Frostpin',
-    cost: 50,
+    cost: 80,
     damage: 4,
     range: 104,
     rate: 1.5,
@@ -40,7 +40,7 @@ export const TOWERS = [
   {
     id: 'lancer',
     name: 'Lancer',
-    cost: 180,
+    cost: 200,
     damage: 72,
     range: 226,
     rate: 0.55,
@@ -53,7 +53,7 @@ export const TOWERS = [
   {
     id: 'mortar',
     name: 'Mortar',
-    cost: 200,
+    cost: 275,
     damage: 42,
     range: 196,
     rate: 0.5,
@@ -68,7 +68,7 @@ export const TOWERS = [
   {
     id: 'coilnest',
     name: 'Coilnest',
-    cost: 230,
+    cost: 345,
     damage: 19,
     range: 124,
     rate: 1.1,
@@ -82,7 +82,7 @@ export const TOWERS = [
   {
     id: 'bastion',
     name: 'Bastion',
-    cost: 65,
+    cost: 115,
     damage: 0,
     range: 0,
     rate: 0,
@@ -97,7 +97,7 @@ export const TOWERS = [
   {
     id: 'claw-bind',
     name: 'Claw-bind',
-    cost: 80,
+    cost: 135,
     damage: 9,
     range: 98,
     rate: 0.8,
@@ -111,7 +111,7 @@ export const TOWERS = [
   {
     id: 'nightkon',
     name: 'Nightkon',
-    cost: 290,
+    cost: 390,
     damage: 6,
     range: 146,
     rate: 1.2,
@@ -125,7 +125,7 @@ export const TOWERS = [
   {
     id: 'frostglide',
     name: 'Frostglide',
-    cost: 330,
+    cost: 465,
     damage: 23,
     range: 100,
     rate: 1.0,
@@ -139,7 +139,7 @@ export const TOWERS = [
   {
     id: 'money-tree',
     name: 'Money Tree',
-    cost: 400,
+    cost: 285,
     damage: 0,
     range: 0,
     rate: 0,
@@ -148,7 +148,7 @@ export const TOWERS = [
     dark: '#2c6b2f',
     shape: 'tree',
     blurb: 'Fruits 100 gold every 6.5 seconds. It does not shoot at anything.',
-    role: 'Costs more than any gun. Pays itself back in half a minute.',
+    role: 'Pays itself back in twenty seconds, then funds everything else.',
   },
 ];
 

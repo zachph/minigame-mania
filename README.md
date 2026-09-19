@@ -242,16 +242,16 @@ walking towards you.
 
 | Defender | First one | What it does |
 | --- | --- | --- |
-| **Pylon** | 40 | Two shots a second. The one you open with. |
-| **Frostpin** | 50 | Barely scratches, but halves the speed of everything it touches. |
-| **Bastion** | 65 | The only one built **in the road**. Nothing walks past until it is rubble. |
-| **Claw-bind** | 80 | Grabs one enemy and pins it where it stands. |
-| **Lancer** | 180 | One heavy shot from a long way off. Answers armour. |
-| **Mortar** | 200 | A slow shell that catches everything near the landing. The answer to a Swarm. |
-| **Coilnest** | 230 | Arcs from one target to the next, up to three. |
-| **Nightkon** | 290 | Marks them with dread that keeps burning, three stacks deep, and ignores armour. |
-| **Frostglide** | 330 | Freezes one enemy solid for 1.5s, biting 12.5 through armour every 0.5s. Short reach. |
-| **Money Tree** | 400 | Fruits 100 gold every 6.5 seconds. Shoots at nothing, and a stun stops it paying. |
+| **Pylon** | 45 | Two shots a second. The one you open with. |
+| **Frostpin** | 80 | Barely scratches, but halves the speed of everything it touches. |
+| **Bastion** | 115 | The only one built **in the road**. Nothing walks past until it is rubble. |
+| **Claw-bind** | 135 | Grabs one enemy and pins it where it stands. |
+| **Lancer** | 200 | One heavy shot from a long way off. Answers armour. |
+| **Mortar** | 275 | A slow shell that catches everything near the landing. The answer to a Swarm. |
+| **Coilnest** | 345 | Arcs from one target to the next, up to three. |
+| **Nightkon** | 390 | Marks them with dread that keeps burning, three stacks deep, and ignores armour. |
+| **Frostglide** | 465 | Freezes one enemy solid for 1.5s, biting 12.5 through armour every 0.5s. Short reach. |
+| **Money Tree** | 285 | Fruits 100 gold every 6.5 seconds. Shoots at nothing, and a stun stops it paying. |
 
 **Every repeat costs 20% more.** The column above is what the *first* one costs;
 your second Pylon is 50, the third 55, the fifth 70. It is counted per defender,
@@ -294,15 +294,22 @@ Every number was swept with a scripted builder playing all seventeen waves:
   a 133-gold opening handed over three seconds late. Without the wave bonus
   entirely, a Lancer-first build could only afford two towers in eight waves.
 - **Open cheap.** With no wave-one bonus the guns have to come before the
-  expensive answers. 100 gold is two Pylons with 20 left over, and four towers
-  standing by the end of wave 3.
+  expensive answers. 100 gold is two Pylons with 10 left over, and everything
+  else on the bar is out of reach until the supply bonuses start landing.
+- **The Money Tree is the run.** At these prices the sweep cannot find a build
+  without one that survives past wave 12 - not a Pylon spam, not a spread of
+  roles, not a Lancer-led rotation. With one it wins comfortably. **When** you
+  buy it is the whole opening: four Pylons then the tree wins with 17-20 lives,
+  two Pylons then the tree is a coin flip between a 2-life finish and dying on
+  wave 6, and the tree before any gun at all is dead by wave 4. Three trees is
+  dead by wave 6.
 - **Keep buying.** Cripplestones from wave 9 mean a build that stops at sixteen
   towers is overrun on the last waves. The spread that wins clean is thirty
   towers deep and lands 26 stuns on the way.
-- **The last two waves are the real test.** A rotation that keeps buying to the
-  end finishes wave 17 within a couple of lives either side of zero - one
-  Skeleflame past you is worth eighteen. Eleven Flame Roads go off across the
-  two waves.
+- **The last two waves are the real test** for a run that got there without a
+  tree's money behind it - one Skeleflame past you is worth eighteen lives, and
+  eleven Flame Roads go off across the two waves. A run with a tree arrives with
+  40-odd towers standing and turns them back without losing a life.
 - **Prices are the whole difficulty curve, and a flat price list could not carry
   it.** Sweeping every flat re-costing from 0.75x to 2.6x, nothing fixed both
   ends at once: cheap enough to open with meant 44-57 towers standing by wave 17
