@@ -926,6 +926,8 @@ canvas {
 .df-tower-meta { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; line-height: 1.1; white-space: nowrap; }
 .df-tower-meta strong { max-width: 100%; overflow: hidden; font-size: 0.72em; text-overflow: ellipsis; }
 .df-cost { color: var(--accent); font-size: 0.68em; font-weight: 700; }
+/* Marked up from the price on the tin, because you already own some. */
+.df-cost.is-raised { color: #ff9f6b; }
 .df-sigil { display: block; }
 
 /* Clamped, because a long blurb reflowing the bar would shrink the board. */
@@ -7102,7 +7104,7 @@ const TOWERS = [
   {
     id: 'pylon',
     name: 'Pylon',
-    cost: 50,
+    cost: 40,
     damage: 12,
     range: 112,
     rate: 2.0,             // shots a second
@@ -7115,7 +7117,7 @@ const TOWERS = [
   {
     id: 'frostpin',
     name: 'Frostpin',
-    cost: 65,
+    cost: 50,
     damage: 4,
     range: 104,
     rate: 1.5,
@@ -7129,7 +7131,7 @@ const TOWERS = [
   {
     id: 'lancer',
     name: 'Lancer',
-    cost: 125,
+    cost: 180,
     damage: 72,
     range: 226,
     rate: 0.55,
@@ -7142,7 +7144,7 @@ const TOWERS = [
   {
     id: 'mortar',
     name: 'Mortar',
-    cost: 140,
+    cost: 200,
     damage: 42,
     range: 196,
     rate: 0.5,
@@ -7157,7 +7159,7 @@ const TOWERS = [
   {
     id: 'coilnest',
     name: 'Coilnest',
-    cost: 160,
+    cost: 230,
     damage: 19,
     range: 124,
     rate: 1.1,
@@ -7171,7 +7173,7 @@ const TOWERS = [
   {
     id: 'bastion',
     name: 'Bastion',
-    cost: 80,
+    cost: 65,
     damage: 0,
     range: 0,
     rate: 0,
@@ -7186,7 +7188,7 @@ const TOWERS = [
   {
     id: 'claw-bind',
     name: 'Claw-bind',
-    cost: 100,
+    cost: 80,
     damage: 9,
     range: 98,
     rate: 0.8,
@@ -7200,7 +7202,7 @@ const TOWERS = [
   {
     id: 'nightkon',
     name: 'Nightkon',
-    cost: 200,
+    cost: 290,
     damage: 6,
     range: 146,
     rate: 1.2,
@@ -7214,7 +7216,7 @@ const TOWERS = [
   {
     id: 'frostglide',
     name: 'Frostglide',
-    cost: 230,
+    cost: 330,
     damage: 23,
     range: 100,
     rate: 1.0,
@@ -7228,7 +7230,7 @@ const TOWERS = [
   {
     id: 'money-tree',
     name: 'Money Tree',
-    cost: 150,
+    cost: 400,
     damage: 0,
     range: 0,
     rate: 0,
@@ -7237,7 +7239,7 @@ const TOWERS = [
     dark: '#2c6b2f',
     shape: 'tree',
     blurb: 'Fruits 100 gold every 6.5 seconds. It does not shoot at anything.',
-    role: 'Pays for itself in ten seconds, then funds everything else.',
+    role: 'Costs more than any gun. Pays itself back in half a minute.',
   },
 ];
 
@@ -7309,18 +7311,27 @@ const WAVE_GAP = 16;     // seconds between one wave starting and the next
 const SELL_RETURN = 0.6; // what you get back for taking a tower down
 
 /**
+ * Every copy of a defender you already own adds this much to the next one's
+ * price. The first of anything is always the price on the bar, so the opening
+ * is untouched; it is the tenth Lancer that hurts, which is the point - by the
+ * back half you should be running out of things you can afford, not stamping
+ * out the same tower until the road is solid.
+ */
+const COST_STEP = 0.2;
+
+/**
  * Paid out when a wave is released, so the money keeps moving. The first wave
  * pays nothing: the opening gold above is already the wave-one budget, and
  * handing over another 33 three seconds in would quietly make the opening 133.
  */
 const waveBonus = (waveNumber) => (waveNumber <= 1 ? 0 : 25 + waveNumber * 8);
 
-  return { TOWERS, TOWER_BY_ID, getTower, ENEMIES, ENEMY_LIST, WAVES, WAVE_COUNT, PATH_CELLS, GRID, START_GOLD, START_LIVES, WAVE_GAP, SELL_RETURN, waveBonus };
+  return { TOWERS, TOWER_BY_ID, getTower, ENEMIES, ENEMY_LIST, WAVES, WAVE_COUNT, PATH_CELLS, GRID, START_GOLD, START_LIVES, WAVE_GAP, SELL_RETURN, COST_STEP, waveBonus };
 })();
 
 // ---- src/games/defensele/rules.js --------------------------------
 __modules["src/games/defensele/rules.js"] = (function () {
-  const { ENEMIES, GRID, PATH_CELLS, SELL_RETURN, START_GOLD, START_LIVES, WAVES, WAVE_GAP, getTower, waveBonus } = __modules["src/games/defensele/content.js"];
+  const { COST_STEP, ENEMIES, GRID, PATH_CELLS, SELL_RETURN, START_GOLD, START_LIVES, WAVES, WAVE_GAP, getTower, waveBonus } = __modules["src/games/defensele/content.js"];
 
 /**
  * The Defensele simulation. Pure logic, driven by `update(state, dt)` - no
@@ -7428,6 +7439,19 @@ function createRun({ random = Math.random } = {}) {
 
 const enemyDps = (spec) => Math.max(8, Math.round(spec.hp / 25));
 
+/** How many of this defender are already standing. */
+const ownedCount = (state, specId) =>
+  state.towers.reduce((n, tower) => n + (tower.spec.id === specId ? 1 : 0), 0);
+
+/**
+ * What the next copy of `spec` costs right now: the price on the bar plus 20%
+ * of it for every one already built. Rounded to 5 so the bar stays readable.
+ */
+function costOf(state, spec) {
+  const owned = ownedCount(state, spec.id);
+  return Math.round((spec.cost * (1 + COST_STEP * owned)) / 5) * 5;
+}
+
 function towerAt(state, col, row) {
   return state.towers.find((tower) => tower.col === col && tower.row === row) || null;
 }
@@ -7436,15 +7460,16 @@ function towerAt(state, col, row) {
 function canBuild(state, spec, col, row) {
   if (!inBounds(col, row)) return false;
   if (towerAt(state, col, row)) return false;
-  if (state.gold < spec.cost) return false;
+  if (state.gold < costOf(state, spec)) return false;
   return spec.onRoad ? isRoad(col, row) : !isRoad(col, row);
 }
 
 function build(state, towerId, col, row) {
   const spec = getTower(towerId);
   if (!canBuild(state, spec, col, row)) throw new Error(`${spec.name} cannot go there`);
-  state.gold -= spec.cost;
-  state.stats.spent += spec.cost;
+  const price = costOf(state, spec);
+  state.gold -= price;
+  state.stats.spent += price;
   const tower = {
     uid: nextUid(),
     spec,
@@ -7456,6 +7481,7 @@ function build(state, towerId, col, row) {
     kills: 0,
     hp: spec.hp || 0,
     maxHp: spec.hp || 0,
+    paid: price,           // what this one cost, for the refund
     gate: spec.onRoad ? roadDistanceOf(col, row) : null,
     angle: 0,
     stunUntil: 0,
@@ -7468,7 +7494,7 @@ function build(state, towerId, col, row) {
 
 function sell(state, tower) {
   state.towers = state.towers.filter((entry) => entry.uid !== tower.uid);
-  const refund = Math.round(tower.spec.cost * SELL_RETURN);
+  const refund = Math.round(tower.paid * SELL_RETURN);
   state.gold += refund;
   return refund;
 }
@@ -7856,7 +7882,7 @@ function checkEnd(state) {
   }
 }
 
-  return { PATH, pointAt, roadDistanceOf, isRoad, inBounds, createRun, towerAt, canBuild, build, sell, releaseWave, applyDamage, update, roadIsBurning, GRID, WAVES, START_GOLD, START_LIVES };
+  return { PATH, pointAt, roadDistanceOf, isRoad, inBounds, createRun, ownedCount, costOf, towerAt, canBuild, build, sell, releaseWave, applyDamage, update, roadIsBurning, GRID, WAVES, START_GOLD, START_LIVES };
 })();
 
 // ---- src/games/defensele/render.js -------------------------------
@@ -8396,6 +8422,7 @@ function drawBanner(ctx, width, text, subtext, alpha) {
 // ---- src/games/defensele/ui.js -----------------------------------
 __modules["src/games/defensele/ui.js"] = (function () {
   const { SELL_RETURN, TOWERS } = __modules["src/games/defensele/content.js"];
+  const { costOf } = __modules["src/games/defensele/rules.js"];
   const { drawTowerShape } = __modules["src/games/defensele/render.js"];
 
 /**
@@ -8431,6 +8458,7 @@ class BuildBar {
     container.append(this.root);
 
     this.buttons = new Map();
+    this.costs = new Map();
     for (const spec of TOWERS) {
       const button = el('button', 'df-tower');
       button.type = 'button';
@@ -8438,13 +8466,15 @@ class BuildBar {
       button.append(sigil(spec));
       const meta = el('div', 'df-tower-meta');
       meta.append(el('strong', null, spec.name));
-      meta.append(el('span', 'df-cost', `${spec.cost}g`));
+      const cost = el('span', 'df-cost', `${spec.cost}g`);
+      meta.append(cost);
+      this.costs.set(spec.id, cost);
       button.append(meta);
       button.title = `${spec.blurb}\n${spec.role}`;
       button.addEventListener('click', () => {
         this.picked = this.picked === spec.id ? null : spec.id;
         this.onPick(this.picked);
-        this.refresh(this.lastGold ?? 0);
+        if (this.lastState) this.refresh(this.lastState);
       });
       this.buttons.set(spec.id, button);
       this.root.append(button);
@@ -8454,18 +8484,27 @@ class BuildBar {
     this.root.append(this.detail);
   }
 
-  /** Greys out what you cannot afford and marks what you are holding. */
-  refresh(gold, selectedTower = null) {
-    this.lastGold = gold;
+  /**
+   * Greys out what you cannot afford, marks what you are holding, and shows
+   * what each one costs *now* - every copy you own puts the next one's price up.
+   */
+  refresh(state, selectedTower = null) {
+    this.lastState = state;
+    const gold = state.gold;
     for (const spec of TOWERS) {
       const button = this.buttons.get(spec.id);
+      const price = costOf(state, spec);
       button.classList.toggle('is-picked', this.picked === spec.id);
-      button.classList.toggle('is-broke', gold < spec.cost);
+      button.classList.toggle('is-broke', gold < price);
+      const cost = this.costs.get(spec.id);
+      const label = `${price}g`;
+      if (cost.textContent !== label) cost.textContent = label;
+      cost.classList.toggle('is-raised', price > spec.cost);
     }
 
     this.detail.replaceChildren();
     if (selectedTower) {
-      const refund = Math.round(selectedTower.spec.cost * SELL_RETURN);
+      const refund = Math.round(selectedTower.paid * SELL_RETURN);
       this.detail.append(el('strong', null, selectedTower.spec.name));
       // A Money Tree has never killed anything; what it has earned is the point.
       this.detail.append(selectedTower.spec.income
@@ -8488,7 +8527,7 @@ class BuildBar {
 
   clearPick() {
     this.picked = null;
-    this.refresh(this.lastGold ?? 0);
+    if (this.lastState) this.refresh(this.lastState);
   }
 
   destroy() {
@@ -8503,7 +8542,7 @@ class BuildBar {
 __modules["src/games/defensele/game.js"] = (function () {
   const { clamp } = __modules["src/core/utils.js"];
   const { GRID, START_LIVES, WAVE_COUNT, getTower } = __modules["src/games/defensele/content.js"];
-  const { build, canBuild, createRun, isRoad, sell, towerAt, update } = __modules["src/games/defensele/rules.js"];
+  const { build, canBuild, costOf, createRun, isRoad, sell, towerAt, update } = __modules["src/games/defensele/rules.js"];
   const { BuildBar } = __modules["src/games/defensele/ui.js"];
   const { cellOf, drawBanner, drawEnemy, drawGround, drawHud, drawPlacement, drawRoad, drawRoadFire, drawShots, drawTower } = __modules["src/games/defensele/render.js"];
 
@@ -8529,10 +8568,10 @@ class DefenseleGame {
       onSell: (tower) => {
         sell(this.state, tower);
         this.selected = null;
-        this.bar.refresh(this.state.gold, null);
+        this.bar.refresh(this.state, null);
       },
     });
-    this.bar.refresh(this.state.gold);
+    this.bar.refresh(this.state);
   }
 
   update(dt, input) {
@@ -8545,7 +8584,7 @@ class DefenseleGame {
     this._handleInput(input);
 
     if (this.state.gold !== goldBefore || this.state.over) {
-      this.bar.refresh(this.state.gold, this.selected);
+      this.bar.refresh(this.state, this.selected);
     }
     if (this.state.over) this._finish();
   }
@@ -8565,7 +8604,7 @@ class DefenseleGame {
       this.holding = null;
       this.bar.clearPick();
       this.selected = existing;
-      this.bar.refresh(this.state.gold, this.selected);
+      this.bar.refresh(this.state, this.selected);
       return;
     }
 
@@ -8573,16 +8612,17 @@ class DefenseleGame {
       if (canBuild(this.state, this.holding, col, row)) {
         build(this.state, this.holding.id, col, row);
         // Keep holding it while you can still afford another.
-        if (this.state.gold < this.holding.cost) {
+        // The one you just put down made the next one dearer.
+        if (this.state.gold < costOf(this.state, this.holding)) {
           this.holding = null;
           this.bar.clearPick();
         }
-        this.bar.refresh(this.state.gold, null);
+        this.bar.refresh(this.state, null);
       }
       return;
     }
     this.selected = null;
-    this.bar.refresh(this.state.gold, null);
+    this.bar.refresh(this.state, null);
   }
 
   render(ctx) {
@@ -8670,7 +8710,7 @@ registerGame({
   howTo: [
     'Enemies walk the road from the left to your base. Every one that reaches it <strong>costs you lives</strong>.',
     'Pick a defender from the bar and click <strong>open ground</strong> to build it. <strong>Bastion is the exception</strong> - it goes in the road itself and blocks the way until it is rubble.',
-    'Gold comes from kills and from each wave arriving. Click a defender you built to <strong>sell</strong> it back.',
+    'Gold comes from kills and from each wave arriving. <strong>Every repeat costs 20% more</strong> - your second Pylon is dearer than your first - so spread out rather than stamping out the same tower. Click a defender you built to <strong>sell</strong> it back.',
     '<strong>Nothing pauses.</strong> The next wave starts on its own timer whether or not you are ready.',
     'Seventeen waves, and the last two are nothing but Skeleflames. Turn them all back and the road is yours.',
   ],

@@ -240,18 +240,24 @@ walking towards you.
 
 ### The defenders
 
-| Defender | Cost | What it does |
+| Defender | First one | What it does |
 | --- | --- | --- |
-| **Pylon** | 50 | Two shots a second. The one you open with. |
-| **Frostpin** | 65 | Barely scratches, but halves the speed of everything it touches. |
-| **Bastion** | 80 | The only one built **in the road**. Nothing walks past until it is rubble. |
-| **Claw-bind** | 100 | Grabs one enemy and pins it where it stands. |
-| **Lancer** | 125 | One heavy shot from a long way off. Answers armour. |
-| **Mortar** | 140 | A slow shell that catches everything near the landing. The answer to a Swarm. |
-| **Coilnest** | 160 | Arcs from one target to the next, up to three. |
-| **Nightkon** | 200 | Marks them with dread that keeps burning, three stacks deep, and ignores armour. |
-| **Frostglide** | 230 | Freezes one enemy solid for 1.5s, biting 12.5 through armour every 0.5s. Short reach. |
-| **Money Tree** | 150 | Fruits 100 gold every 6.5 seconds. Shoots at nothing, and a stun stops it paying. |
+| **Pylon** | 40 | Two shots a second. The one you open with. |
+| **Frostpin** | 50 | Barely scratches, but halves the speed of everything it touches. |
+| **Bastion** | 65 | The only one built **in the road**. Nothing walks past until it is rubble. |
+| **Claw-bind** | 80 | Grabs one enemy and pins it where it stands. |
+| **Lancer** | 180 | One heavy shot from a long way off. Answers armour. |
+| **Mortar** | 200 | A slow shell that catches everything near the landing. The answer to a Swarm. |
+| **Coilnest** | 230 | Arcs from one target to the next, up to three. |
+| **Nightkon** | 290 | Marks them with dread that keeps burning, three stacks deep, and ignores armour. |
+| **Frostglide** | 330 | Freezes one enemy solid for 1.5s, biting 12.5 through armour every 0.5s. Short reach. |
+| **Money Tree** | 400 | Fruits 100 gold every 6.5 seconds. Shoots at nothing, and a stun stops it paying. |
+
+**Every repeat costs 20% more.** The column above is what the *first* one costs;
+your second Pylon is 50, the third 55, the fifth 70. It is counted per defender,
+so owning six Pylons does nothing to the price of your first Lancer, and selling
+one steps its price back down. The opening is untouched - it is the tenth Lancer
+that hurts.
 
 ### What comes at you
 
@@ -288,15 +294,23 @@ Every number was swept with a scripted builder playing all seventeen waves:
   a 133-gold opening handed over three seconds late. Without the wave bonus
   entirely, a Lancer-first build could only afford two towers in eight waves.
 - **Open cheap.** With no wave-one bonus the guns have to come before the
-  expensive answers. Three Pylons then a Frostpin wins with all twenty lives
-  intact; the same spread with a Lancer bought third ends the last wave on
-  nothing left.
+  expensive answers. 100 gold is two Pylons with 20 left over, and four towers
+  standing by the end of wave 3.
 - **Keep buying.** Cripplestones from wave 9 mean a build that stops at sixteen
   towers is overrun on the last waves. The spread that wins clean is thirty
   towers deep and lands 26 stuns on the way.
-- **The last two waves are the real test.** The thirty-tower spread that walks
-  through wave 15 finishes wave 17 with 2 lives left - one Skeleflame got past
-  it, and one is worth eighteen. Eleven Flame Roads go off across the two waves.
+- **The last two waves are the real test.** A rotation that keeps buying to the
+  end finishes wave 17 within a couple of lives either side of zero - one
+  Skeleflame past you is worth eighteen. Eleven Flame Roads go off across the
+  two waves.
+- **Prices are the whole difficulty curve, and a flat price list could not carry
+  it.** Sweeping every flat re-costing from 0.75x to 2.6x, nothing fixed both
+  ends at once: cheap enough to open with meant 44-57 towers standing by wave 17
+  and a walkover, and dear enough to bite at wave 17 meant collapsing at wave 12.
+  Cutting the supply bonus instead only made the opening worse. The 20%-per-
+  repeat step is what separates the two: the first of everything stayed cheap
+  and the seventh Lancer went from 180 to 395, which took the finish from 44
+  towers and twenty lives to 32 towers and two.
 - **The Money Tree is the strongest thing in the game, on purpose.** It costs
   150 and makes that back in thirteen seconds, and a single tree bought early
   fruits about 3700 gold over a run - more than wave bonuses and bounties put

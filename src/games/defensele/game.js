@@ -1,6 +1,6 @@
 import { clamp } from '../../core/utils.js';
 import { GRID, START_LIVES, WAVE_COUNT, getTower } from './content.js';
-import { build, canBuild, createRun, isRoad, sell, towerAt, update } from './rules.js';
+import { build, canBuild, costOf, createRun, isRoad, sell, towerAt, update } from './rules.js';
 import { BuildBar } from './ui.js';
 import {
   cellOf,
@@ -37,10 +37,10 @@ class DefenseleGame {
       onSell: (tower) => {
         sell(this.state, tower);
         this.selected = null;
-        this.bar.refresh(this.state.gold, null);
+        this.bar.refresh(this.state, null);
       },
     });
-    this.bar.refresh(this.state.gold);
+    this.bar.refresh(this.state);
   }
 
   update(dt, input) {
@@ -53,7 +53,7 @@ class DefenseleGame {
     this._handleInput(input);
 
     if (this.state.gold !== goldBefore || this.state.over) {
-      this.bar.refresh(this.state.gold, this.selected);
+      this.bar.refresh(this.state, this.selected);
     }
     if (this.state.over) this._finish();
   }
@@ -73,7 +73,7 @@ class DefenseleGame {
       this.holding = null;
       this.bar.clearPick();
       this.selected = existing;
-      this.bar.refresh(this.state.gold, this.selected);
+      this.bar.refresh(this.state, this.selected);
       return;
     }
 
@@ -81,16 +81,17 @@ class DefenseleGame {
       if (canBuild(this.state, this.holding, col, row)) {
         build(this.state, this.holding.id, col, row);
         // Keep holding it while you can still afford another.
-        if (this.state.gold < this.holding.cost) {
+        // The one you just put down made the next one dearer.
+        if (this.state.gold < costOf(this.state, this.holding)) {
           this.holding = null;
           this.bar.clearPick();
         }
-        this.bar.refresh(this.state.gold, null);
+        this.bar.refresh(this.state, null);
       }
       return;
     }
     this.selected = null;
-    this.bar.refresh(this.state.gold, null);
+    this.bar.refresh(this.state, null);
   }
 
   render(ctx) {

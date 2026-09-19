@@ -919,6 +919,8 @@ canvas {
 .df-tower-meta { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; line-height: 1.1; white-space: nowrap; }
 .df-tower-meta strong { max-width: 100%; overflow: hidden; font-size: 0.72em; text-overflow: ellipsis; }
 .df-cost { color: var(--accent); font-size: 0.68em; font-weight: 700; }
+/* Marked up from the price on the tin, because you already own some. */
+.df-cost.is-raised { color: #ff9f6b; }
 .df-sigil { display: block; }
 
 /* Clamped, because a long blurb reflowing the bar would shrink the board. */

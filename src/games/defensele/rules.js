@@ -1,4 +1,5 @@
 import {
+  COST_STEP,
   ENEMIES,
   GRID,
   PATH_CELLS,
@@ -117,6 +118,19 @@ export function createRun({ random = Math.random } = {}) {
 
 const enemyDps = (spec) => Math.max(8, Math.round(spec.hp / 25));
 
+/** How many of this defender are already standing. */
+export const ownedCount = (state, specId) =>
+  state.towers.reduce((n, tower) => n + (tower.spec.id === specId ? 1 : 0), 0);
+
+/**
+ * What the next copy of `spec` costs right now: the price on the bar plus 20%
+ * of it for every one already built. Rounded to 5 so the bar stays readable.
+ */
+export function costOf(state, spec) {
+  const owned = ownedCount(state, spec.id);
+  return Math.round((spec.cost * (1 + COST_STEP * owned)) / 5) * 5;
+}
+
 export function towerAt(state, col, row) {
   return state.towers.find((tower) => tower.col === col && tower.row === row) || null;
 }
@@ -125,15 +139,16 @@ export function towerAt(state, col, row) {
 export function canBuild(state, spec, col, row) {
   if (!inBounds(col, row)) return false;
   if (towerAt(state, col, row)) return false;
-  if (state.gold < spec.cost) return false;
+  if (state.gold < costOf(state, spec)) return false;
   return spec.onRoad ? isRoad(col, row) : !isRoad(col, row);
 }
 
 export function build(state, towerId, col, row) {
   const spec = getTower(towerId);
   if (!canBuild(state, spec, col, row)) throw new Error(`${spec.name} cannot go there`);
-  state.gold -= spec.cost;
-  state.stats.spent += spec.cost;
+  const price = costOf(state, spec);
+  state.gold -= price;
+  state.stats.spent += price;
   const tower = {
     uid: nextUid(),
     spec,
@@ -145,6 +160,7 @@ export function build(state, towerId, col, row) {
     kills: 0,
     hp: spec.hp || 0,
     maxHp: spec.hp || 0,
+    paid: price,           // what this one cost, for the refund
     gate: spec.onRoad ? roadDistanceOf(col, row) : null,
     angle: 0,
     stunUntil: 0,
@@ -157,7 +173,7 @@ export function build(state, towerId, col, row) {
 
 export function sell(state, tower) {
   state.towers = state.towers.filter((entry) => entry.uid !== tower.uid);
-  const refund = Math.round(tower.spec.cost * SELL_RETURN);
+  const refund = Math.round(tower.paid * SELL_RETURN);
   state.gold += refund;
   return refund;
 }
