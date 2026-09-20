@@ -18,16 +18,18 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ENTRY = 'src/main.js';
 
-const IMPORT_RE = /^import\s+(?:([\w$]+)\s*,\s*)?(?:\{([\s\S]*?)\}\s+)?(?:from\s+)?['"]([^'"]+)['"];?[ \t]*$/gm;
+const IMPORT_RE = /^import\s+(?:\*\s+as\s+([\w$]+)\s+|([\w$]+)\s*,\s*)?(?:\{([\s\S]*?)\}\s+)?(?:from\s+)?['"]([^'"]+)['"];?[ \t]*$/gm;
 const EXPORT_DECL_RE = /^export\s+(?:async\s+)?(?:const|let|var|function|class)\s+([\w$]+)/gm;
 const EXPORT_LIST_RE = /^export\s*\{([^}]*)\};?[ \t]*$/gm;
 
 function parseModule(path, source) {
   const imports = [];
-  const body = source.replace(IMPORT_RE, (match, defaultName, named, specifier) => {
+  const body = source.replace(IMPORT_RE, (match, namespace, defaultName, named, specifier) => {
     if (defaultName) throw new Error(`${path}: default imports are not supported (${match.trim()})`);
     imports.push({
       specifier,
+      // `import * as thing from './x.js'` binds the whole export record.
+      namespace: namespace || null,
       bindings: (named || '')
         .split(',')
         .map((entry) => entry.trim())
@@ -93,10 +95,12 @@ function emit(modules) {
     const bindings = module.imports
       .filter((entry) => entry.bindings.length > 0)
       .map((entry) => {
+        const from = `__modules[${JSON.stringify(entry.path)}]`;
+        if (entry.namespace) return `  const ${entry.namespace} = ${from};`;
         const list = entry.bindings
           .map(({ name, alias }) => (name === alias ? name : `${name}: ${alias}`))
           .join(', ');
-        return `  const { ${list} } = __modules[${JSON.stringify(entry.path)}];`;
+        return `  const { ${list} } = ${from};`;
       })
       .join('\n');
 

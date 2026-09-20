@@ -5,7 +5,7 @@
 const PREFIX = 'minigamemania:';
 const memory = new Map();
 
-function read(key) {
+export function read(key) {
   try {
     const raw = localStorage.getItem(PREFIX + key);
     return raw == null ? null : JSON.parse(raw);
@@ -14,7 +14,7 @@ function read(key) {
   }
 }
 
-function write(key, value) {
+export function write(key, value) {
   memory.set(key, value);
   try {
     localStorage.setItem(PREFIX + key, JSON.stringify(value));

@@ -982,6 +982,179 @@ kbd {
   .brand-text { font-size: 18px; }
   .footer { display: none; }
 }
+
+/* ---------- Name, friends and challenges ---------- */
+
+.account-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  margin-left: auto;
+  padding: 0.35em 0.85em;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.account-pill:hover { background: rgba(255, 255, 255, 0.1); }
+.account-pill.has-news { border-color: var(--accent); }
+
+/* The unanswered-things badge, drawn from a data attribute so it needs no node. */
+.account-pill.has-news::after {
+  content: attr(data-count);
+  min-width: 1.4em;
+  padding: 0 0.3em;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #1b1405;
+  font-size: 0.78em;
+  font-weight: 700;
+  text-align: center;
+}
+
+.account-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #6b7280;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+  flex: none;
+}
+
+.account-dot.is-online { background: #58d68d; }
+
+.overlay--friends {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(6, 10, 20, 0.72);
+}
+
+.panel--friends {
+  width: min(560px, 100%);
+  max-height: min(80vh, 640px);
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.friends-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+}
+
+.friends-titlebar h2 { margin: 0; }
+
+.friends-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  margin-top: 0.8em;
+  overflow-y: auto;
+}
+
+.friends-lead { margin: 0; color: var(--muted); font-size: 0.92em; }
+.friends-fineprint { margin: 0.4em 0 0; color: var(--muted); font-size: 0.8em; line-height: 1.45; }
+.friends-heading { margin: 0.6em 0 0; font-size: 0.95em; }
+.friends-label { color: var(--muted); font-size: 0.8em; }
+
+.friends-notice {
+  margin: 0;
+  padding: 0.5em 0.7em;
+  border-radius: 8px;
+  border-left: 3px solid var(--accent);
+  background: rgba(255, 209, 102, 0.12);
+  font-size: 0.9em;
+}
+
+.friends-notice.is-bad {
+  border-left-color: #ff8b6b;
+  background: rgba(255, 139, 107, 0.14);
+}
+
+.friends-form, .friends-server {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.friends-server { margin-top: 0.4em; }
+
+.friends-input {
+  flex: 1 1 10em;
+  min-width: 0;
+  padding: 0.5em 0.7em;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92em;
+}
+
+.friends-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.friends-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding: 0.55em 0.7em;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.92em;
+}
+
+.friends-card.is-challenge { border-color: var(--accent); background: rgba(255, 209, 102, 0.1); }
+.friends-card.is-quiet { opacity: 0.6; }
+
+.friends-who { display: flex; align-items: center; gap: 0.45em; min-width: 0; }
+.friends-record { color: var(--muted); font-size: 0.82em; }
+
+.friends-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding-bottom: 0.4em;
+  border-bottom: 1px solid var(--line);
+}
+
+.friends-status { color: var(--muted); font-size: 0.82em; }
+.friends-status.is-online { color: #58d68d; }
+
+.friends-actions { display: flex; align-items: center; gap: 0.35em; }
+.friends-actions .btn { padding: 0.3em 0.7em; font-size: 0.85em; }
+
+.friends-pick {
+  padding: 0.3em 0.4em;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85em;
+}
+
+.friends-foot { margin-top: 0.6em; padding-top: 0.6em; border-top: 1px solid var(--line); }
+.friends-foot .btn { font-size: 0.82em; }
+
+@media (max-width: 560px) {
+  .account-pill span:not(.account-dot) { max-width: 7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .friends-card { flex-direction: column; align-items: flex-start; }
+}
 </style>
 </head>
 <body>
@@ -990,6 +1163,10 @@ kbd {
       <button class="brand" id="brand" type="button" title="Back to the menu">
         <span class="brand-mark" aria-hidden="true"></span>
         <span class="brand-text">Minigame<em>Mania</em></span>
+      </button>
+      <button class="account-pill" id="btn-account" type="button" title="Your name and friends">
+        <span class="account-dot" id="account-dot"></span>
+        <span id="account-name">Set a name</span>
       </button>
       <div class="topbar-right" id="topbar-right"></div>
     </header>
@@ -1045,6 +1222,17 @@ kbd {
       </section>
     </main>
 
+    <!-- Name, friends and challenges -->
+    <div class="overlay overlay--friends" id="overlay-friends" hidden>
+      <div class="panel panel--friends">
+        <div class="friends-titlebar">
+          <h2>Friends</h2>
+          <button class="btn btn--ghost" id="btn-friends-close" type="button">Close</button>
+        </div>
+        <div class="friends-body" id="friends-body"></div>
+      </div>
+    </div>
+
     <footer class="footer">
       <span>Arrow keys / WASD + Space also work. <kbd>Esc</kbd> pauses.</span>
     </footer>
@@ -1052,6 +1240,590 @@ kbd {
 
 <script type="module">
 const __modules = {};
+
+// ---- src/core/storage.js -----------------------------------------
+__modules["src/core/storage.js"] = (function () {
+/**
+ * Thin, failure-tolerant wrapper around localStorage. Private browsing and
+ * blocked site data both throw on access, so every call falls back to memory.
+ */
+const PREFIX = 'minigamemania:';
+const memory = new Map();
+
+function read(key) {
+  try {
+    const raw = localStorage.getItem(PREFIX + key);
+    return raw == null ? null : JSON.parse(raw);
+  } catch {
+    return memory.has(key) ? memory.get(key) : null;
+  }
+}
+
+function write(key, value) {
+  memory.set(key, value);
+  try {
+    localStorage.setItem(PREFIX + key, JSON.stringify(value));
+  } catch {
+    /* memory-only for this session */
+  }
+}
+
+function getHighScore(gameId) {
+  const value = read(`highscore:${gameId}`);
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/** Stores the score when it beats the record. Returns true if it did. */
+function submitHighScore(gameId, score) {
+  if (!Number.isFinite(score) || score <= getHighScore(gameId)) return false;
+  write(`highscore:${gameId}`, Math.round(score));
+  return true;
+}
+
+/** Per-game collection of things the player has found, as `{ [entryId]: count }`. */
+function getCollection(gameId) {
+  const value = read(`collection:${gameId}`);
+  return value && typeof value === 'object' ? value : {};
+}
+
+/** Merges `{ [entryId]: count }` into the stored collection; returns newly discovered ids. */
+function addToCollection(gameId, counts) {
+  const collection = getCollection(gameId);
+  const discovered = [];
+  for (const [entryId, count] of Object.entries(counts)) {
+    if (!count) continue;
+    if (!collection[entryId]) discovered.push(entryId);
+    collection[entryId] = (collection[entryId] || 0) + count;
+  }
+  write(`collection:${gameId}`, collection);
+  return discovered;
+}
+
+  return { read, write, getHighScore, submitHighScore, getCollection, addToCollection };
+})();
+
+// ---- src/core/account.js -----------------------------------------
+__modules["src/core/account.js"] = (function () {
+  const { read, write } = __modules["src/core/storage.js"];
+
+/**
+ * Your name on this machine, and the line to the friends server.
+ *
+ * The server hands out one token when you claim a name, and that token is the
+ * whole login - there is no password. It lives in this browser and nowhere
+ * else, so claiming the same name on a second device is not possible; you
+ * carry the token over or you pick another name. Simple, and nothing worth
+ * stealing ever leaves the machine.
+ */
+
+
+const DEFAULT_SERVER = 'http://localhost:8787';
+
+let listeners = new Set();
+let stream = null;
+let state = {
+  server: read('server') || DEFAULT_SERVER,
+  player: read('player') || null,      // { id, name }
+  token: read('token') || null,
+  roster: { friends: [], incoming: [], outgoing: [], challenges: { incoming: [], outgoing: [] } },
+  connected: false,
+  error: null,
+};
+
+const getState = () => state;
+const signedIn = () => Boolean(state.token && state.player);
+
+function update(patch) {
+  state = { ...state, ...patch };
+  for (const listener of listeners) listener(state);
+}
+
+function subscribe(listener) {
+  listeners.add(listener);
+  listener(state);
+  return () => listeners.delete(listener);
+}
+
+/* -------------------------------------------------------------- the wire */
+
+function setServer(url) {
+  const trimmed = String(url || '').trim().replace(/\/+$/, '');
+  write('server', trimmed);
+  update({ server: trimmed });
+}
+
+async function api(path, { method = 'GET', body } = {}) {
+  const res = await fetch(state.server + path, {
+    method,
+    headers: {
+      ...(body ? { 'content-type': 'application/json' } : {}),
+      ...(state.token ? { authorization: `Bearer ${state.token}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  const parsed = text ? JSON.parse(text) : null;
+  if (!res.ok) throw Object.assign(new Error(parsed?.error || `http-${res.status}`), { code: parsed?.error, status: res.status });
+  return parsed;
+}
+
+/** Anything the server says about friends and challenges lands here. */
+function takeRoster(payload) {
+  if (!payload) return;
+  const { friends, incoming, outgoing, challenges } = payload;
+  if (!friends && !incoming && !outgoing && !challenges) return;
+  update({
+    roster: {
+      friends: friends || [],
+      incoming: incoming || [],
+      outgoing: outgoing || [],
+      challenges: challenges || { incoming: [], outgoing: [] },
+    },
+  });
+}
+
+/* ------------------------------------------------------------- the calls */
+
+async function claimName(name) {
+  const made = await api('/api/signup', { method: 'POST', body: { name } });
+  write('player', made.player);
+  write('token', made.token);
+  update({ player: made.player, token: made.token, error: null });
+  connect();
+  return made.player;
+}
+
+function signOut() {
+  disconnect();
+  write('player', null);
+  write('token', null);
+  update({ player: null, token: null, connected: false, roster: { friends: [], incoming: [], outgoing: [], challenges: { incoming: [], outgoing: [] } } });
+}
+
+async function refresh() {
+  if (!signedIn()) return null;
+  const me = await api('/api/me');
+  update({ player: me.player });
+  write('player', me.player);
+  takeRoster(me);
+  return me;
+}
+
+const searchPlayers = (q) => api(`/api/players?q=${encodeURIComponent(q)}`).then((r) => r.players);
+const askToBeFriends = (name) => api('/api/friends/request', { method: 'POST', body: { name } }).then((r) => (takeRoster(r), r));
+const answerFriend = (id, accept) => api('/api/friends/respond', { method: 'POST', body: { id, accept } }).then((r) => (takeRoster(r), r));
+const removeFriend = (id) => api('/api/friends/remove', { method: 'POST', body: { id } }).then((r) => (takeRoster(r), r));
+
+const challenge = (id, gameId) => api('/api/challenges', { method: 'POST', body: { id, gameId } });
+const answerChallenge = (id, accept) => api('/api/challenges/respond', { method: 'POST', body: { id, accept } });
+const cancelChallenge = (id) => api('/api/challenges/cancel', { method: 'POST', body: { id } });
+
+const sendMatchEvent = (matchId, event) => api('/api/match/send', { method: 'POST', body: { matchId, event } });
+const finishMatch = (matchId, result) => api('/api/match/finish', { method: 'POST', body: { matchId, result } });
+const quitMatch = (matchId) => api('/api/match/quit', { method: 'POST', body: { matchId } });
+
+/* ------------------------------------------------------------ the stream */
+
+const pushHandlers = new Map();
+
+/** Listens for one kind of server push: `on('challenge', fn)`. */
+function on(type, handler) {
+  if (!pushHandlers.has(type)) pushHandlers.set(type, new Set());
+  pushHandlers.get(type).add(handler);
+  return () => pushHandlers.get(type).delete(handler);
+}
+
+function emit(type, data) {
+  for (const handler of pushHandlers.get(type) || []) handler(data);
+}
+
+function connect() {
+  if (!signedIn() || stream) return;
+  // EventSource cannot set headers, so the token rides in the query string.
+  const url = `${state.server}/api/stream?token=${encodeURIComponent(state.token)}`;
+  stream = new EventSource(url);
+
+  stream.addEventListener('open', () => update({ connected: true, error: null }));
+  stream.addEventListener('error', () => update({ connected: false }));
+
+  const relay = (type, handle) => stream.addEventListener(type, (event) => {
+    let data = null;
+    try {
+      data = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    if (handle) handle(data);
+    emit(type, data);
+  });
+
+  relay('ready', (data) => { takeRoster(data); update({ connected: true }); });
+  relay('presence', () => { refresh().catch(() => {}); });
+  relay('friend-request', () => { refresh().catch(() => {}); });
+  relay('friend-accepted', () => { refresh().catch(() => {}); });
+  relay('friend-removed', () => { refresh().catch(() => {}); });
+  relay('challenge', () => { refresh().catch(() => {}); });
+  relay('challenge-declined', () => { refresh().catch(() => {}); });
+  relay('challenge-cancelled', () => { refresh().catch(() => {}); });
+  relay('match-start');
+  relay('match-event');
+  relay('match-result');
+  relay('match-abandoned');
+}
+
+function disconnect() {
+  if (!stream) return;
+  stream.close();
+  stream = null;
+  update({ connected: false });
+}
+
+/** Called once at boot: reconnects if this browser already has a name. */
+function restore() {
+  if (signedIn()) {
+    connect();
+    refresh().catch((error) => update({ error: error.code || 'offline' }));
+  }
+}
+
+  return { getState, signedIn, subscribe, setServer, claimName, signOut, refresh, searchPlayers, askToBeFriends, answerFriend, removeFriend, challenge, answerChallenge, cancelChallenge, sendMatchEvent, finishMatch, quitMatch, on, connect, disconnect, restore };
+})();
+
+// ---- src/core/registry.js ----------------------------------------
+__modules["src/core/registry.js"] = (function () {
+/**
+ * The catalogue of minigames the shell knows how to run.
+ *
+ * A minigame is registered as `{ ...meta, create(ctx) }` where `create` returns
+ * an instance implementing the contract documented in `shell.js`.
+ */
+const games = new Map();
+
+function registerGame(definition) {
+  const { id, name, create } = definition;
+  if (!id) throw new Error('A minigame needs an id');
+  if (typeof create !== 'function') throw new Error(`Minigame "${id}" needs a create() factory`);
+  if (games.has(id)) throw new Error(`Minigame "${id}" is already registered`);
+  games.set(id, { tagline: '', description: '', howTo: [], status: 'ready', ...definition, name: name || id });
+  return definition;
+}
+
+function getGame(id) {
+  return games.get(id) || null;
+}
+
+function listGames() {
+  return [...games.values()];
+}
+
+  return { registerGame, getGame, listGames };
+})();
+
+// ---- src/core/friends.js -----------------------------------------
+__modules["src/core/friends.js"] = (function () {
+  const { listGames } = __modules["src/core/registry.js"];
+
+/**
+ * The friends panel: claim a name, find people, and send challenges.
+ *
+ * Every name on this screen came from another player, so it is only ever put
+ * on the page as text. Nothing here builds markup out of anything the server
+ * said.
+ */
+
+const el = (tag, className, text) => {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+};
+
+const button = (label, className = 'btn') => {
+  const node = el('button', className, label);
+  node.type = 'button';
+  return node;
+};
+
+class FriendsPanel {
+  constructor({ onMatchStart }) {
+    this.onMatchStart = onMatchStart;
+    this.root = document.getElementById('overlay-friends');
+    this.body = document.getElementById('friends-body');
+    this.pill = document.getElementById('btn-account');
+    this.pillName = document.getElementById('account-name');
+    this.dot = document.getElementById('account-dot');
+    this.open = false;
+    this.notice = null;
+    this.pendingChallenge = null;   // one we sent, waiting on an answer
+
+    this.pill.addEventListener('click', () => this.toggle());
+    document.getElementById('btn-friends-close').addEventListener('click', () => this.hide());
+    this.root.addEventListener('click', (event) => {
+      if (event.target === this.root) this.hide();
+    });
+
+    account.subscribe(() => this._paint());
+    account.on('challenge', (data) => this._say(`${data.fromPlayer?.name || 'Someone'} challenged you`, 'good'));
+    account.on('challenge-declined', (data) => this._say(`${data.byPlayer?.name || 'They'} said no`, 'bad'));
+    account.on('friend-request', (data) => this._say(`${data.name} wants to be friends`, 'good'));
+    account.on('friend-accepted', (data) => this._say(`${data.name} is now a friend`, 'good'));
+    account.on('match-start', (data) => {
+      this.pendingChallenge = null;
+      this.hide();
+      this.onMatchStart(data);
+    });
+  }
+
+  toggle() {
+    if (this.open) this.hide();
+    else this.show();
+  }
+
+  show() {
+    this.open = true;
+    this.root.hidden = false;
+    if (account.signedIn()) account.refresh().catch(() => {});
+    this._paint();
+  }
+
+  hide() {
+    this.open = false;
+    this.root.hidden = true;
+  }
+
+  _say(text, tone = 'good') {
+    this.notice = { text, tone };
+    this._paint();
+    clearTimeout(this._noticeTimer);
+    this._noticeTimer = setTimeout(() => {
+      this.notice = null;
+      this._paint();
+    }, 6000);
+  }
+
+  async _run(action, done) {
+    try {
+      const result = await action();
+      if (done) done(result);
+    } catch (error) {
+      this._say(this._explain(error), 'bad');
+    }
+  }
+
+  _explain(error) {
+    const said = {
+      'bad-name': 'Names are 3-16 letters, numbers, spaces, - or _',
+      'name-taken': 'Someone already has that name',
+      'no-such-player': 'Nobody by that name',
+      'already-friends': 'You are already friends',
+      'already-asked': 'You already asked them',
+      'not-friends': 'You can only challenge a friend',
+      'already-challenged': 'There is already a challenge between you',
+      'no-name-yet': 'This browser has no name on the server any more',
+      'slow-down': 'Too fast - give it a second',
+      self: 'You cannot friend yourself',
+    }[error.code];
+    if (said) return said;
+    return `Cannot reach the server at ${account.getState().server}`;
+  }
+
+  /* ------------------------------------------------------------ painting */
+
+  _paint() {
+    const state = account.getState();
+
+    this.pillName.textContent = state.player ? state.player.name : 'Set a name';
+    this.dot.className = `account-dot${state.connected ? ' is-online' : ''}`;
+    const waiting = state.roster.incoming.length + state.roster.challenges.incoming.length;
+    this.pill.classList.toggle('has-news', waiting > 0);
+    this.pill.dataset.count = waiting > 0 ? String(waiting) : '';
+
+    if (!this.open) return;
+    this.body.replaceChildren();
+    if (this.notice) {
+      this.body.append(el('p', `friends-notice is-${this.notice.tone}`, this.notice.text));
+    }
+    if (!account.signedIn()) this._paintSignup(state);
+    else this._paintRoster(state);
+  }
+
+  _paintSignup(state) {
+    this.body.append(el('p', 'friends-lead', 'Pick a name and other players can find you, add you as a friend and challenge you to any of the games.'));
+
+    const form = el('form', 'friends-form');
+    const input = el('input', 'friends-input');
+    input.type = 'text';
+    input.placeholder = 'Your name';
+    input.maxLength = 16;
+    input.autocomplete = 'off';
+    const go = button('Claim it', 'btn btn--primary');
+    go.type = 'submit';
+    form.append(input, go);
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (!input.value.trim()) return;
+      this._run(() => account.claimName(input.value), () => this._say('That name is yours', 'good'));
+    });
+    this.body.append(form);
+
+    this.body.append(this._serverRow(state));
+    this.body.append(el('p', 'friends-fineprint', 'Your name is kept on the friends server along with who your friends are. There is no password: this browser holds a key the server gave it, so keep playing on this device, and clearing site data means picking a new name.'));
+  }
+
+  _serverRow(state) {
+    const row = el('div', 'friends-server');
+    row.append(el('label', 'friends-label', 'Friends server'));
+    const input = el('input', 'friends-input');
+    input.type = 'url';
+    input.value = state.server;
+    input.spellcheck = false;
+    const save = button('Use this');
+    save.addEventListener('click', () => {
+      account.setServer(input.value);
+      account.disconnect();
+      account.restore();
+      this._say('Server set', 'good');
+    });
+    row.append(input, save);
+    return row;
+  }
+
+  _paintRoster(state) {
+    const head = el('div', 'friends-head');
+    const who = el('div', 'friends-who');
+    who.append(el('strong', null, state.player.name));
+    who.append(el('span', 'friends-record', `${state.player.wins ?? 0}W / ${state.player.losses ?? 0}L`));
+    head.append(who);
+    head.append(el('span', `friends-status${state.connected ? ' is-online' : ''}`, state.connected ? 'Connected' : 'Offline'));
+    this.body.append(head);
+
+    // Someone has challenged you.
+    for (const challenge of state.roster.challenges.incoming) {
+      const card = el('div', 'friends-card is-challenge');
+      card.append(el('span', null, `${challenge.fromPlayer?.name || 'Someone'} challenges you to ${this._gameName(challenge.gameId)}`));
+      const actions = el('div', 'friends-actions');
+      const accept = button('Accept', 'btn btn--primary');
+      accept.addEventListener('click', () => this._run(
+        () => account.answerChallenge(challenge.id, true),
+        (result) => { if (result.match) { this.hide(); this.onMatchStart(result); } },
+      ));
+      const no = button('No thanks');
+      no.addEventListener('click', () => this._run(() => account.answerChallenge(challenge.id, false), () => account.refresh()));
+      actions.append(accept, no);
+      card.append(actions);
+      this.body.append(card);
+    }
+
+    // One you sent, still unanswered.
+    for (const challenge of state.roster.challenges.outgoing) {
+      const card = el('div', 'friends-card');
+      card.append(el('span', null, `Waiting on ${challenge.toPlayer?.name || 'them'} - ${this._gameName(challenge.gameId)}`));
+      const cancel = button('Take it back');
+      cancel.addEventListener('click', () => this._run(() => account.cancelChallenge(challenge.id), () => account.refresh()));
+      card.append(cancel);
+      this.body.append(card);
+    }
+
+    // People asking to be friends.
+    for (const person of state.roster.incoming) {
+      const card = el('div', 'friends-card');
+      card.append(el('span', null, `${person.name} wants to be friends`));
+      const actions = el('div', 'friends-actions');
+      const yes = button('Add', 'btn btn--primary');
+      yes.addEventListener('click', () => this._run(() => account.answerFriend(person.id, true)));
+      const no = button('Ignore');
+      no.addEventListener('click', () => this._run(() => account.answerFriend(person.id, false)));
+      actions.append(yes, no);
+      card.append(actions);
+      this.body.append(card);
+    }
+
+    this.body.append(this._addForm());
+
+    this.body.append(el('h3', 'friends-heading', `Friends (${state.roster.friends.length})`));
+    if (state.roster.friends.length === 0) {
+      this.body.append(el('p', 'friends-lead', 'Nobody yet. Add someone by their name above.'));
+    }
+    for (const friend of state.roster.friends) {
+      this.body.append(this._friendRow(friend, state));
+    }
+    for (const person of state.roster.outgoing) {
+      const card = el('div', 'friends-card is-quiet');
+      card.append(el('span', null, `Asked ${person.name}`));
+      this.body.append(card);
+    }
+
+    const foot = el('div', 'friends-foot');
+    const out = button('Forget my name on this device');
+    out.addEventListener('click', () => {
+      account.signOut();
+      this._say('Signed out on this device', 'good');
+    });
+    foot.append(out);
+    this.body.append(foot);
+  }
+
+  _addForm() {
+    const form = el('form', 'friends-form');
+    const input = el('input', 'friends-input');
+    input.type = 'text';
+    input.placeholder = "A friend's name";
+    input.maxLength = 16;
+    input.autocomplete = 'off';
+    const add = button('Add friend', 'btn btn--primary');
+    add.type = 'submit';
+    form.append(input, add);
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const name = input.value.trim();
+      if (!name) return;
+      this._run(() => account.askToBeFriends(name), (result) => {
+        input.value = '';
+        this._say(result.accepted ? `You and ${name} are friends` : `Asked ${name}`, 'good');
+      });
+    });
+    return form;
+  }
+
+  _friendRow(friend, state) {
+    const card = el('div', 'friends-card');
+    const who = el('div', 'friends-who');
+    const dot = el('span', `account-dot${friend.online ? ' is-online' : ''}`);
+    who.append(dot, el('strong', null, friend.name));
+    who.append(el('span', 'friends-record', `${friend.wins}W / ${friend.losses}L`));
+    card.append(who);
+
+    const actions = el('div', 'friends-actions');
+    const picker = el('select', 'friends-pick');
+    for (const def of listGames()) {
+      if (def.status === 'coming-soon') continue;
+      const option = el('option', null, def.name);
+      option.value = def.id;
+      picker.append(option);
+    }
+    const pending = state.roster.challenges.outgoing.some((c) => c.to === friend.id);
+    const go = button('Challenge', 'btn btn--primary');
+    go.disabled = !friend.online || pending;
+    go.title = friend.online ? '' : 'They are not online right now';
+    go.addEventListener('click', () => this._run(
+      () => account.challenge(friend.id, picker.value),
+      () => { this._say(`Challenge sent to ${friend.name}`, 'good'); account.refresh(); },
+    ));
+    const drop = button('Remove');
+    drop.addEventListener('click', () => this._run(() => account.removeFriend(friend.id)));
+    actions.append(picker, go, drop);
+    card.append(actions);
+    return card;
+  }
+
+  _gameName(gameId) {
+    const def = listGames().find((entry) => entry.id === gameId);
+    return def ? def.name : gameId;
+  }
+}
+
+  return { FriendsPanel };
+})();
 
 // ---- src/core/input.js -------------------------------------------
 __modules["src/core/input.js"] = (function () {
@@ -1162,99 +1934,9 @@ class Input {
   return { Input };
 })();
 
-// ---- src/core/registry.js ----------------------------------------
-__modules["src/core/registry.js"] = (function () {
-/**
- * The catalogue of minigames the shell knows how to run.
- *
- * A minigame is registered as `{ ...meta, create(ctx) }` where `create` returns
- * an instance implementing the contract documented in `shell.js`.
- */
-const games = new Map();
-
-function registerGame(definition) {
-  const { id, name, create } = definition;
-  if (!id) throw new Error('A minigame needs an id');
-  if (typeof create !== 'function') throw new Error(`Minigame "${id}" needs a create() factory`);
-  if (games.has(id)) throw new Error(`Minigame "${id}" is already registered`);
-  games.set(id, { tagline: '', description: '', howTo: [], status: 'ready', ...definition, name: name || id });
-  return definition;
-}
-
-function getGame(id) {
-  return games.get(id) || null;
-}
-
-function listGames() {
-  return [...games.values()];
-}
-
-  return { registerGame, getGame, listGames };
-})();
-
-// ---- src/core/storage.js -----------------------------------------
-__modules["src/core/storage.js"] = (function () {
-/**
- * Thin, failure-tolerant wrapper around localStorage. Private browsing and
- * blocked site data both throw on access, so every call falls back to memory.
- */
-const PREFIX = 'minigamemania:';
-const memory = new Map();
-
-function read(key) {
-  try {
-    const raw = localStorage.getItem(PREFIX + key);
-    return raw == null ? null : JSON.parse(raw);
-  } catch {
-    return memory.has(key) ? memory.get(key) : null;
-  }
-}
-
-function write(key, value) {
-  memory.set(key, value);
-  try {
-    localStorage.setItem(PREFIX + key, JSON.stringify(value));
-  } catch {
-    /* memory-only for this session */
-  }
-}
-
-function getHighScore(gameId) {
-  const value = read(`highscore:${gameId}`);
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
-}
-
-/** Stores the score when it beats the record. Returns true if it did. */
-function submitHighScore(gameId, score) {
-  if (!Number.isFinite(score) || score <= getHighScore(gameId)) return false;
-  write(`highscore:${gameId}`, Math.round(score));
-  return true;
-}
-
-/** Per-game collection of things the player has found, as `{ [entryId]: count }`. */
-function getCollection(gameId) {
-  const value = read(`collection:${gameId}`);
-  return value && typeof value === 'object' ? value : {};
-}
-
-/** Merges `{ [entryId]: count }` into the stored collection; returns newly discovered ids. */
-function addToCollection(gameId, counts) {
-  const collection = getCollection(gameId);
-  const discovered = [];
-  for (const [entryId, count] of Object.entries(counts)) {
-    if (!count) continue;
-    if (!collection[entryId]) discovered.push(entryId);
-    collection[entryId] = (collection[entryId] || 0) + count;
-  }
-  write(`collection:${gameId}`, collection);
-  return discovered;
-}
-
-  return { getHighScore, submitHighScore, getCollection, addToCollection };
-})();
-
 // ---- src/core/shell.js -------------------------------------------
 __modules["src/core/shell.js"] = (function () {
+  const { FriendsPanel } = __modules["src/core/friends.js"];
   const { Input } = __modules["src/core/input.js"];
   const { listGames, getGame } = __modules["src/core/registry.js"];
   const { getHighScore, submitHighScore } = __modules["src/core/storage.js"];
@@ -1301,6 +1983,7 @@ class Shell {
 
     this.game = null;
     this.gameDef = null;
+    this.duel = null;         // { matchId, opponent, gameId } while playing a friend
     this.state = 'menu'; // menu | howto | playing | paused | results
     this.rafId = 0;
     this.lastTime = 0;
@@ -1312,6 +1995,74 @@ class Shell {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && this.state === 'playing') this.pause();
     });
+  }
+
+  /** Brings up the name/friends panel and reconnects if this browser has a name. */
+  startFriends() {
+    this.friends = new FriendsPanel({ onMatchStart: (data) => this._beginDuel(data) });
+    account.on('match-result', (data) => this._duelResult(data));
+    account.on('match-abandoned', (data) => this._duelAbandoned(data));
+    account.restore();
+  }
+
+  /** A friend accepted, or you accepted theirs: straight into the game. */
+  _beginDuel(data) {
+    const def = getGame(data.match.gameId);
+    if (!def) return;
+    this.duel = {
+      matchId: data.match.id,
+      seed: data.match.seed,
+      opponent: data.opponent,
+      gameId: data.match.gameId,
+      reported: false,
+      theirs: null,
+    };
+    this.gameDef = def;
+    this.el.menuScreen.classList.remove('is-active');
+    this.el.playScreen.classList.add('is-active');
+    this.startRound();
+  }
+
+  /** Their score landed. If the server has called it, say who won. */
+  _duelResult(data) {
+    if (!this.duel || data.matchId !== this.duel.matchId) return;
+    this.duel.theirs = data.result;
+    this.duel.winner = data.winner;
+    this.duel.settled = data.state === 'over';
+    this._paintDuelVerdict();
+  }
+
+  _duelAbandoned(data) {
+    if (!this.duel || data.matchId !== this.duel.matchId) return;
+    this.duel.settled = true;
+    this.duel.winner = data.winner;
+    this.duel.walkout = data.by?.name || 'They';
+    this._paintDuelVerdict();
+  }
+
+  /** The line under the score that says how the duel went. */
+  _paintDuelVerdict() {
+    if (!this.duel || this.state !== 'results') return;
+    const me = account.getState().player;
+    const line = this.el.resultsBest;
+    if (this.duel.walkout) {
+      line.textContent = `${this.duel.walkout} left the match - you take it.`;
+      line.classList.add('is-record');
+      return;
+    }
+    if (!this.duel.settled) {
+      line.textContent = `Waiting for ${this.duel.opponent?.name || 'your opponent'}...`;
+      line.classList.remove('is-record');
+      return;
+    }
+    const won = me && this.duel.winner === me.id;
+    const drawn = !this.duel.winner;
+    const theirs = this.duel.theirs;
+    const detail = theirs ? ` (${this.duel.opponent?.name}: ${Math.round(theirs.score).toLocaleString()})` : '';
+    line.textContent = drawn ? `A draw against ${this.duel.opponent?.name}${detail}`
+      : won ? `You beat ${this.duel.opponent?.name}${detail}`
+        : `${this.duel.opponent?.name} beat you${detail}`;
+    line.classList.toggle('is-record', won);
   }
 
   _bindUi() {
@@ -1382,6 +2133,7 @@ class Shell {
   }
 
   showMenu() {
+    this._leaveDuel();
     this._stopLoop();
     this._destroyGame();
     this.state = 'menu';
@@ -1396,6 +2148,7 @@ class Shell {
   select(gameId) {
     const def = getGame(gameId);
     if (!def) return;
+    this._leaveDuel();
     this.gameDef = def;
     this.state = 'howto';
     this.el.menuScreen.classList.remove('is-active');
@@ -1473,6 +2226,39 @@ class Shell {
     this._renderCollected(result.collected, result.emptyText, result.detailTitle);
     this.el.results.hidden = false;
     this._renderTopbar();
+    this._reportDuel(result, score);
+  }
+
+  /** Hands this side's result to the server and waits on the other. */
+  _reportDuel(result, score) {
+    const duel = this.duel;
+    if (!duel || duel.gameId !== this.gameDef.id || duel.reported) return;
+    duel.reported = true;
+    this.el.resultsTitle.textContent = `${this.gameDef.name} vs ${duel.opponent?.name || 'your friend'}`;
+    this._paintDuelVerdict();
+    account.finishMatch(duel.matchId, {
+      score,
+      lives: Number.isFinite(result.lives) ? result.lives : score,
+      survived: Boolean(result.survived),
+    }).then((res) => {
+      if (!this.duel || this.duel.matchId !== duel.matchId) return;
+      this.duel.settled = res.match.state === 'over';
+      this.duel.winner = res.match.winner;
+      const me = account.getState().player;
+      const theirs = Object.entries(res.match.results || {}).find(([id]) => id !== me?.id);
+      if (theirs) this.duel.theirs = theirs[1];
+      this._paintDuelVerdict();
+    }).catch(() => {
+      this.el.resultsBest.textContent = 'Could not reach the friends server to report this one.';
+    });
+  }
+
+  /** Walking away from a live duel concedes it rather than leaving them hanging. */
+  _leaveDuel() {
+    const duel = this.duel;
+    this.duel = null;
+    if (!duel || duel.reported || duel.settled) return;
+    account.quitMatch(duel.matchId).catch(() => {});
   }
 
   _renderCollected(rows, emptyText, detailTitle) {
@@ -8726,6 +9512,7 @@ __modules["src/main.js"] = (function () {
 
 const shell = new Shell();
 shell.showMenu();
+shell.startFriends();
 
 // Handy while developing in the browser console.
 window.minigameMania = shell;

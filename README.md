@@ -463,3 +463,24 @@ small hits while dread ignores it, slows and snares, a Bastion holding the queue
 until it falls, lives lost to leaks, and — the one that guards the balance — an
 undefended base being overrun while a spread of defenders turns all fifteen
 waves back. No browser needed.
+
+## Playing a friend
+
+Pick a name from the pill in the top right and other players can find you, add
+you and challenge you to any of the games. Both of you drop into the same game
+at once, both scores go to the server, and it calls the winner.
+
+That needs somewhere for the names to live, so there is a small server in
+[`server/`](server/): Node builtins only, one JSON file for state, no framework
+and no database. Run it with `npm run server`, then put its address in the
+**Friends server** box in the friends panel.
+
+```sh
+npm run server     # :8787, state in server/data/players.json
+```
+
+The GitHub Pages site cannot host it - Pages serves files, not processes - so
+until the server is deployed somewhere with HTTPS, friend battles work between
+browsers that can both reach the same running copy.
+[`server/README.md`](server/README.md) covers deploying it and what the
+no-password accounts do and do not protect.

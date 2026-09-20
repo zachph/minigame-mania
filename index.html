@@ -15,6 +15,10 @@
         <span class="brand-mark" aria-hidden="true"></span>
         <span class="brand-text">Minigame<em>Mania</em></span>
       </button>
+      <button class="account-pill" id="btn-account" type="button" title="Your name and friends">
+        <span class="account-dot" id="account-dot"></span>
+        <span id="account-name">Set a name</span>
+      </button>
       <div class="topbar-right" id="topbar-right"></div>
     </header>
 
@@ -68,6 +72,17 @@
         </div>
       </section>
     </main>
+
+    <!-- Name, friends and challenges -->
+    <div class="overlay overlay--friends" id="overlay-friends" hidden>
+      <div class="panel panel--friends">
+        <div class="friends-titlebar">
+          <h2>Friends</h2>
+          <button class="btn btn--ghost" id="btn-friends-close" type="button">Close</button>
+        </div>
+        <div class="friends-body" id="friends-body"></div>
+      </div>
+    </div>
 
     <footer class="footer">
       <span>Arrow keys / WASD + Space also work. <kbd>Esc</kbd> pauses.</span>
