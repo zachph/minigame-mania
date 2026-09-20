@@ -975,3 +975,226 @@ kbd {
   .brand-text { font-size: 18px; }
   .footer { display: none; }
 }
+
+/* ---------- Name, friends and challenges ---------- */
+
+.account-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  margin-left: auto;
+  padding: 0.35em 0.85em;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.account-pill:hover { background: rgba(255, 255, 255, 0.1); }
+.account-pill.has-news { border-color: var(--accent); }
+
+/* The unanswered-things badge, drawn from a data attribute so it needs no node. */
+.account-pill.has-news::after {
+  content: attr(data-count);
+  min-width: 1.4em;
+  padding: 0 0.3em;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #1b1405;
+  font-size: 0.78em;
+  font-weight: 700;
+  text-align: center;
+}
+
+.account-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #6b7280;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+  flex: none;
+}
+
+.account-dot.is-online { background: #58d68d; }
+
+.overlay--friends {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(6, 10, 20, 0.72);
+}
+
+.panel--friends {
+  width: min(560px, 100%);
+  max-height: min(80vh, 640px);
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.friends-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+}
+
+.friends-titlebar h2 { margin: 0; }
+
+.friends-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  margin-top: 0.8em;
+  overflow-y: auto;
+}
+
+.friends-lead { margin: 0; color: var(--muted); font-size: 0.92em; }
+.friends-fineprint { margin: 0.4em 0 0; color: var(--muted); font-size: 0.8em; line-height: 1.45; }
+.friends-heading { margin: 0.6em 0 0; font-size: 0.95em; }
+.friends-label { color: var(--muted); font-size: 0.8em; }
+
+.friends-notice {
+  margin: 0;
+  padding: 0.5em 0.7em;
+  border-radius: 8px;
+  border-left: 3px solid var(--accent);
+  background: rgba(255, 209, 102, 0.12);
+  font-size: 0.9em;
+}
+
+.friends-notice.is-bad {
+  border-left-color: #ff8b6b;
+  background: rgba(255, 139, 107, 0.14);
+}
+
+.friends-form, .friends-server {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.friends-server { margin-top: 0.4em; }
+
+.friends-input {
+  flex: 1 1 10em;
+  min-width: 0;
+  padding: 0.5em 0.7em;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92em;
+}
+
+.friends-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.friends-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding: 0.55em 0.7em;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.92em;
+}
+
+.friends-card.is-challenge { border-color: var(--accent); background: rgba(255, 209, 102, 0.1); }
+.friends-card.is-quiet { opacity: 0.6; }
+
+.friends-who { display: flex; align-items: center; gap: 0.45em; min-width: 0; }
+.friends-record { color: var(--muted); font-size: 0.82em; }
+
+.friends-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding-bottom: 0.4em;
+  border-bottom: 1px solid var(--line);
+}
+
+.friends-status { color: var(--muted); font-size: 0.82em; }
+.friends-status.is-online { color: #58d68d; }
+
+.friends-actions { display: flex; align-items: center; gap: 0.35em; }
+.friends-actions .btn { padding: 0.3em 0.7em; font-size: 0.85em; }
+
+.friends-pick {
+  padding: 0.3em 0.4em;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85em;
+}
+
+.friends-foot { margin-top: 0.6em; padding-top: 0.6em; border-top: 1px solid var(--line); }
+.friends-foot .btn { font-size: 0.82em; }
+
+@media (max-width: 560px) {
+  .account-pill span:not(.account-dot) { max-width: 7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .friends-card { flex-direction: column; align-items: flex-start; }
+}
+
+/* ---------- Defensele: the attack bar, duels only ---------- */
+
+.df-sends {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.22em;
+  padding: 0.3em 0.4em;
+  background: rgba(30, 8, 8, 0.9);
+  border-top: 1px solid rgba(255, 139, 107, 0.3);
+}
+
+.df-sends-label {
+  flex: none;
+  padding-right: 0.2em;
+  color: #ff9f6b;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.df-send {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0.15em 0.35em;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  border-bottom: 3px solid var(--tint);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.df-send:hover:not(:disabled) { background: rgba(255, 139, 107, 0.16); }
+.df-send.is-broke { opacity: 0.4; }
+.df-send:disabled { cursor: default; }
+
+.df-send-blip {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  flex: none;
+}

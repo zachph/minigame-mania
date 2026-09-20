@@ -1,3 +1,5 @@
+import * as account from './account.js';
+import { FriendsPanel } from './friends.js';
 import { Input } from './input.js';
 import { listGames, getGame } from './registry.js';
 import { getHighScore, submitHighScore } from './storage.js';
@@ -44,6 +46,7 @@ export class Shell {
 
     this.game = null;
     this.gameDef = null;
+    this.duel = null;         // { matchId, opponent, gameId } while playing a friend
     this.state = 'menu'; // menu | howto | playing | paused | results
     this.rafId = 0;
     this.lastTime = 0;
@@ -55,6 +58,74 @@ export class Shell {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && this.state === 'playing') this.pause();
     });
+  }
+
+  /** Brings up the name/friends panel and reconnects if this browser has a name. */
+  startFriends() {
+    this.friends = new FriendsPanel({ onMatchStart: (data) => this._beginDuel(data) });
+    account.on('match-result', (data) => this._duelResult(data));
+    account.on('match-abandoned', (data) => this._duelAbandoned(data));
+    account.restore();
+  }
+
+  /** A friend accepted, or you accepted theirs: straight into the game. */
+  _beginDuel(data) {
+    const def = getGame(data.match.gameId);
+    if (!def) return;
+    this.duel = {
+      matchId: data.match.id,
+      seed: data.match.seed,
+      opponent: data.opponent,
+      gameId: data.match.gameId,
+      reported: false,
+      theirs: null,
+    };
+    this.gameDef = def;
+    this.el.menuScreen.classList.remove('is-active');
+    this.el.playScreen.classList.add('is-active');
+    this.startRound();
+  }
+
+  /** Their score landed. If the server has called it, say who won. */
+  _duelResult(data) {
+    if (!this.duel || data.matchId !== this.duel.matchId) return;
+    this.duel.theirs = data.result;
+    this.duel.winner = data.winner;
+    this.duel.settled = data.state === 'over';
+    this._paintDuelVerdict();
+  }
+
+  _duelAbandoned(data) {
+    if (!this.duel || data.matchId !== this.duel.matchId) return;
+    this.duel.settled = true;
+    this.duel.winner = data.winner;
+    this.duel.walkout = data.by?.name || 'They';
+    this._paintDuelVerdict();
+  }
+
+  /** The line under the score that says how the duel went. */
+  _paintDuelVerdict() {
+    if (!this.duel || this.state !== 'results') return;
+    const me = account.getState().player;
+    const line = this.el.resultsBest;
+    if (this.duel.walkout) {
+      line.textContent = `${this.duel.walkout} left the match - you take it.`;
+      line.classList.add('is-record');
+      return;
+    }
+    if (!this.duel.settled) {
+      line.textContent = `Waiting for ${this.duel.opponent?.name || 'your opponent'}...`;
+      line.classList.remove('is-record');
+      return;
+    }
+    const won = me && this.duel.winner === me.id;
+    const drawn = !this.duel.winner;
+    const theirs = this.duel.theirs;
+    const detail = theirs ? ` (${this.duel.opponent?.name}: ${Math.round(theirs.score).toLocaleString()})` : '';
+    line.textContent = drawn ? `A draw against ${this.duel.opponent?.name}${detail}`
+      : won ? `You beat ${this.duel.opponent?.name}${detail}`
+        : `${this.duel.opponent?.name} beat you${detail}`;
+    line.classList.toggle('is-record', won);
   }
 
   _bindUi() {
@@ -125,6 +196,7 @@ export class Shell {
   }
 
   showMenu() {
+    this._leaveDuel();
     this._stopLoop();
     this._destroyGame();
     this.state = 'menu';
@@ -139,6 +211,7 @@ export class Shell {
   select(gameId) {
     const def = getGame(gameId);
     if (!def) return;
+    this._leaveDuel();
     this.gameDef = def;
     this.state = 'howto';
     this.el.menuScreen.classList.remove('is-active');
@@ -164,12 +237,22 @@ export class Shell {
     this._hideOverlays();
     this.input.reset();
 
+    const duel = this.duel && this.duel.gameId === this.gameDef.id ? this.duel : null;
     this.game = this.gameDef.create({
       width: VIEWPORT.width,
       height: VIEWPORT.height,
       highScore: getHighScore(this.gameDef.id),
       ui: this.el.ui,
       finish: (result) => this.finish(result),
+      // Only present in a duel: who you are playing, the shared seed, and the
+      // two calls a game needs to throw something at them and hear theirs.
+      duel: duel && { matchId: duel.matchId, seed: duel.seed, opponent: duel.opponent },
+      sendToOpponent: duel ? (event) => account.sendMatchEvent(duel.matchId, event).catch(() => {}) : null,
+      onOpponentEvent: duel
+        ? (handler) => account.on('match-event', (data) => {
+          if (data.matchId === duel.matchId) handler(data.event);
+        })
+        : null,
     });
 
     this.state = 'playing';
@@ -216,6 +299,39 @@ export class Shell {
     this._renderCollected(result.collected, result.emptyText, result.detailTitle);
     this.el.results.hidden = false;
     this._renderTopbar();
+    this._reportDuel(result, score);
+  }
+
+  /** Hands this side's result to the server and waits on the other. */
+  _reportDuel(result, score) {
+    const duel = this.duel;
+    if (!duel || duel.gameId !== this.gameDef.id || duel.reported) return;
+    duel.reported = true;
+    this.el.resultsTitle.textContent = `${this.gameDef.name} vs ${duel.opponent?.name || 'your friend'}`;
+    this._paintDuelVerdict();
+    account.finishMatch(duel.matchId, {
+      score,
+      lives: Number.isFinite(result.lives) ? result.lives : score,
+      survived: Boolean(result.survived),
+    }).then((res) => {
+      if (!this.duel || this.duel.matchId !== duel.matchId) return;
+      this.duel.settled = res.match.state === 'over';
+      this.duel.winner = res.match.winner;
+      const me = account.getState().player;
+      const theirs = Object.entries(res.match.results || {}).find(([id]) => id !== me?.id);
+      if (theirs) this.duel.theirs = theirs[1];
+      this._paintDuelVerdict();
+    }).catch(() => {
+      this.el.resultsBest.textContent = 'Could not reach the friends server to report this one.';
+    });
+  }
+
+  /** Walking away from a live duel concedes it rather than leaving them hanging. */
+  _leaveDuel() {
+    const duel = this.duel;
+    this.duel = null;
+    if (!duel || duel.reported || duel.settled) return;
+    account.quitMatch(duel.matchId).catch(() => {});
   }
 
   _renderCollected(rows, emptyText, detailTitle) {

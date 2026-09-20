@@ -2,6 +2,7 @@ import { clamp } from '../../core/utils.js';
 import { GRID, START_LIVES, WAVE_COUNT, getTower } from './content.js';
 import { build, canBuild, costOf, createRun, isRoad, sell, towerAt, update } from './rules.js';
 import { BuildBar } from './ui.js';
+import { createDefenseleVersus } from './versus.js';
 import {
   cellOf,
   drawBanner,
@@ -159,8 +160,9 @@ class DefenseleGame {
   }
 }
 
+/** A duel in the context means the friend-versus-friend board instead. */
 export function createDefensele(context) {
-  return new DefenseleGame(context);
+  return context.duel ? createDefenseleVersus(context) : new DefenseleGame(context);
 }
 
 export { DefenseleGame, isRoad };

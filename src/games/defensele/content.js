@@ -181,6 +181,27 @@ export const ENEMIES = {
 
 export const ENEMY_LIST = Object.values(ENEMIES);
 
+/**
+ * What it costs to send one at a friend in a duel, and how many go at once.
+ *
+ * Sending is a gamble rather than a purchase: the gold leaves your side now,
+ * and if they kill the thing you sent, its bounty pays *them*. Cheap sends are
+ * about pressure while they are still poor; the expensive ones are for when
+ * you think their road cannot hold.
+ */
+export const SENDS = [
+  { enemy: 'creeper', cost: 35, count: 2 },
+  { enemy: 'runner', cost: 45, count: 3 },
+  { enemy: 'swarm', cost: 60, count: 8 },
+  { enemy: 'shieldbearer', cost: 110, count: 1 },
+  { enemy: 'brute', cost: 130, count: 1 },
+  { enemy: 'cripplestone', cost: 240, count: 1 },
+  { enemy: 'colossus', cost: 380, count: 1 },
+  { enemy: 'skeleflame', cost: 460, count: 1 },
+];
+
+export const SEND_BY_ENEMY = new Map(SENDS.map((send) => [send.enemy, send]));
+
 /* --------------------------------------------------------------- the waves */
 
 /** `{ enemy, count, gap }` - gap is the seconds between one and the next. */

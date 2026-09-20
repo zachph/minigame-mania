@@ -463,3 +463,47 @@ small hits while dread ignores it, slows and snares, a Bastion holding the queue
 until it falls, lives lost to leaks, and — the one that guards the balance — an
 undefended base being overrun while a spread of defenders turns all fifteen
 waves back. No browser needed.
+
+## Playing a friend
+
+Pick a name from the pill in the top right and other players can find you, add
+you and challenge you to any of the games. Both of you drop into the same game
+at once, both scores go to the server, and it calls the winner.
+
+### Defensele in a duel
+
+Defensele gets its own versus board when the challenge is for it. You each
+defend your own road against **the same waves** - both sides seed their
+randomness from the match, so no wave script ever goes over the wire - and a
+second bar appears under the build bar: gold spent there drops enemies on the
+*other* player's road.
+
+| Send | Cost | What lands on them |
+| --- | --- | --- |
+| Creeper x2 | 35 | Early pressure while they are still poor |
+| Runner x3 | 45 | Fast, and past a thin defence before it can turn |
+| Swarm x8 | 60 | Eight at once - a Mortar answers it, nothing else does |
+| Shieldbearer | 110 | Bounces small hits |
+| Brute | 130 | 430 HP walking at them |
+| Cripplestone | 240 | Puts one of their towers out every four seconds |
+| Colossus | 380 | 2700 HP, ten of their lives if it lands |
+| Skeleflame | 460 | Sets their road on fire and shuts their ice towers off |
+
+The trade is the point: gold sent is gold not spent on your own road, and
+anything they kill pays *them* its bounty, so a send that bounces has funded
+your opponent. Whoever has more lives at the end takes it.
+
+That needs somewhere for the names to live, so there is a small server in
+[`server/`](server/): Node builtins only, one JSON file for state, no framework
+and no database. Run it with `npm run server`, then put its address in the
+**Friends server** box in the friends panel.
+
+```sh
+npm run server     # :8787, state in server/data/players.json
+```
+
+The GitHub Pages site cannot host it - Pages serves files, not processes - so
+until the server is deployed somewhere with HTTPS, friend battles work between
+browsers that can both reach the same running copy.
+[`server/README.md`](server/README.md) covers deploying it and what the
+no-password accounts do and do not protect.
