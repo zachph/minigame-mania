@@ -1,5 +1,5 @@
 import { TAU, clamp, roundedRect } from '../../core/utils.js';
-import { GRID, START_LIVES, WAVE_COUNT } from './content.js';
+import { ENEMIES, GRID, START_LIVES, WAVE_COUNT } from './content.js';
 import { PATH, pointAt } from './rules.js';
 
 /** The map, the road, everything standing on it, and the strip along the top. */
@@ -502,6 +502,46 @@ export function drawPlacement(ctx, spec, col, row, allowed) {
   ctx.fill();
   ctx.globalAlpha = allowed ? 0.9 : 0.4;
   drawTowerShape(ctx, spec, x, y, 0.9, 0);
+  ctx.restore();
+}
+
+/** The strip that says how your opponent is doing and what just arrived. */
+export function drawVersusHud(ctx, width, { opponent, theirLives, yourLives, incoming }) {
+  ctx.save();
+  ctx.font = '700 13px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+
+  const label = `${opponent}: ${theirLives} lives`;
+  const boxWidth = Math.max(150, ctx.measureText(label).width + 26);
+  ctx.fillStyle = 'rgba(8, 16, 10, 0.85)';
+  roundedRect(ctx, width - boxWidth - 10, GRID.top + 8, boxWidth, 26, 8);
+  ctx.fill();
+  ctx.strokeStyle = theirLives > yourLives ? 'rgba(255, 139, 107, 0.7)' : 'rgba(142, 240, 168, 0.7)';
+  ctx.lineWidth = 1.5;
+  roundedRect(ctx, width - boxWidth - 10, GRID.top + 8, boxWidth, 26, 8);
+  ctx.stroke();
+  ctx.fillStyle = theirLives > yourLives ? '#ff8b6b' : '#8ef0a8';
+  ctx.textAlign = 'left';
+  ctx.fillText(label, width - boxWidth + 3, GRID.top + 21);
+
+  let y = GRID.top + 44;
+  for (const note of incoming) {
+    const spec = ENEMIES[note.enemy];
+    if (!spec) continue;
+    ctx.globalAlpha = clamp(note.life / 3.5, 0, 1);
+    const text = `incoming: ${note.count} x ${spec.name}`;
+    const w = ctx.measureText(text).width + 24;
+    ctx.fillStyle = 'rgba(40, 8, 8, 0.85)';
+    roundedRect(ctx, width - w - 10, y, w, 22, 7);
+    ctx.fill();
+    ctx.fillStyle = spec.color;
+    ctx.beginPath();
+    ctx.arc(width - w + 2, y + 11, 5, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#ffd8cf';
+    ctx.fillText(text, width - w + 12, y + 12);
+    y += 26;
+  }
   ctx.restore();
 }
 

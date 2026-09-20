@@ -1148,3 +1148,53 @@ kbd {
   .account-pill span:not(.account-dot) { max-width: 7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .friends-card { flex-direction: column; align-items: flex-start; }
 }
+
+/* ---------- Defensele: the attack bar, duels only ---------- */
+
+.df-sends {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.22em;
+  padding: 0.3em 0.4em;
+  background: rgba(30, 8, 8, 0.9);
+  border-top: 1px solid rgba(255, 139, 107, 0.3);
+}
+
+.df-sends-label {
+  flex: none;
+  padding-right: 0.2em;
+  color: #ff9f6b;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.df-send {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0.15em 0.35em;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  border-bottom: 3px solid var(--tint);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.df-send:hover:not(:disabled) { background: rgba(255, 139, 107, 0.16); }
+.df-send.is-broke { opacity: 0.4; }
+.df-send:disabled { cursor: default; }
+
+.df-send-blip {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  flex: none;
+}

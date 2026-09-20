@@ -196,6 +196,17 @@ export function releaseWave(state) {
   return state;
 }
 
+/**
+ * Drops an enemy onto the road right now, outside the wave script. This is how
+ * an opponent's attack arrives in a duel: it walks in from the left like
+ * anything else and is worth its usual bounty to whoever kills it.
+ */
+export function sendEnemy(state, enemyId) {
+  if (!ENEMIES[enemyId]) throw new Error(`Unknown enemy: ${enemyId}`);
+  spawn(state, enemyId);
+  return state.enemies[state.enemies.length - 1];
+}
+
 function spawn(state, enemyId) {
   const spec = ENEMIES[enemyId];
   state.enemies.push({

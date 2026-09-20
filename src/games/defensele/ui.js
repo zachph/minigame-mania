@@ -1,4 +1,4 @@
-import { SELL_RETURN, TOWERS } from './content.js';
+import { ENEMIES, SELL_RETURN, SENDS, TOWERS } from './content.js';
 import { costOf } from './rules.js';
 import { drawTowerShape } from './render.js';
 
@@ -105,6 +105,52 @@ export class BuildBar {
   clearPick() {
     this.picked = null;
     if (this.lastState) this.refresh(this.lastState);
+  }
+
+  destroy() {
+    this.root.remove();
+  }
+}
+
+
+/**
+ * The attack bar, only up in a duel. Each button buys a pack of enemies that
+ * walk down the *other* player's road.
+ */
+export class SendBar {
+  constructor(container, { onSend }) {
+    this.onSend = onSend;
+    this.root = el('div', 'df-sends');
+    container.append(this.root);
+
+    this.root.append(el('span', 'df-sends-label', 'Send'));
+    this.buttons = new Map();
+    for (const send of SENDS) {
+      const spec = ENEMIES[send.enemy];
+      const button = el('button', 'df-send');
+      button.type = 'button';
+      button.style.setProperty('--tint', spec.color);
+      const blip = el('span', 'df-send-blip');
+      blip.style.background = spec.color;
+      button.append(blip);
+      const meta = el('div', 'df-tower-meta');
+      meta.append(el('strong', null, send.count > 1 ? `${spec.name} x${send.count}` : spec.name));
+      meta.append(el('span', 'df-cost', `${send.cost}g`));
+      button.append(meta);
+      button.title = `Send ${send.count} ${spec.name}${send.count > 1 ? 's' : ''} at your opponent for ${send.cost} gold. If they kill it, the bounty is theirs.`;
+      button.addEventListener('click', () => this.onSend(send));
+      this.buttons.set(send.enemy, button);
+      this.root.append(button);
+    }
+  }
+
+  refresh(state) {
+    for (const send of SENDS) {
+      const button = this.buttons.get(send.enemy);
+      const broke = state.gold < send.cost;
+      button.classList.toggle('is-broke', broke);
+      button.disabled = broke || state.over;
+    }
   }
 
   destroy() {

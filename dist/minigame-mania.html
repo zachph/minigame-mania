@@ -1155,6 +1155,56 @@ kbd {
   .account-pill span:not(.account-dot) { max-width: 7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .friends-card { flex-direction: column; align-items: flex-start; }
 }
+
+/* ---------- Defensele: the attack bar, duels only ---------- */
+
+.df-sends {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.22em;
+  padding: 0.3em 0.4em;
+  background: rgba(30, 8, 8, 0.9);
+  border-top: 1px solid rgba(255, 139, 107, 0.3);
+}
+
+.df-sends-label {
+  flex: none;
+  padding-right: 0.2em;
+  color: #ff9f6b;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.df-send {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0.15em 0.35em;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  border-bottom: 3px solid var(--tint);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.df-send:hover:not(:disabled) { background: rgba(255, 139, 107, 0.16); }
+.df-send.is-broke { opacity: 0.4; }
+.df-send:disabled { cursor: default; }
+
+.df-send-blip {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  flex: none;
+}
 </style>
 </head>
 <body>
@@ -2174,12 +2224,22 @@ class Shell {
     this._hideOverlays();
     this.input.reset();
 
+    const duel = this.duel && this.duel.gameId === this.gameDef.id ? this.duel : null;
     this.game = this.gameDef.create({
       width: VIEWPORT.width,
       height: VIEWPORT.height,
       highScore: getHighScore(this.gameDef.id),
       ui: this.el.ui,
       finish: (result) => this.finish(result),
+      // Only present in a duel: who you are playing, the shared seed, and the
+      // two calls a game needs to throw something at them and hear theirs.
+      duel: duel && { matchId: duel.matchId, seed: duel.seed, opponent: duel.opponent },
+      sendToOpponent: duel ? (event) => account.sendMatchEvent(duel.matchId, event).catch(() => {}) : null,
+      onOpponentEvent: duel
+        ? (handler) => account.on('match-event', (data) => {
+          if (data.matchId === duel.matchId) handler(data.event);
+        })
+        : null,
     });
 
     this.state = 'playing';
@@ -2389,6 +2449,22 @@ const lerp = (a, b, t) => a + (b - a) * t;
 
 const randomRange = (min, max) => min + Math.random() * (max - min);
 
+/**
+ * A small, fast seeded generator (mulberry32). Two machines given the same
+ * seed produce the same sequence, which is how both sides of a duel get the
+ * same waves without sending a single one over the wire.
+ */
+function seededRandom(seed) {
+  let a = (seed >>> 0) || 1;
+  return function next() {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 const randomInt = (min, max) => Math.floor(randomRange(min, max + 1));
 
 const distance = (ax, ay, bx, by) => Math.hypot(bx - ax, by - ay);
@@ -2430,7 +2506,7 @@ function roundedRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-  return { TAU, clamp, lerp, randomRange, randomInt, distance, weightedPick, approach, formatTime, roundedRect };
+  return { TAU, clamp, lerp, randomRange, seededRandom, randomInt, distance, weightedPick, approach, formatTime, roundedRect };
 })();
 
 // ---- src/games/catchmon/types.js ---------------------------------
@@ -8058,6 +8134,27 @@ const ENEMIES = {
 
 const ENEMY_LIST = Object.values(ENEMIES);
 
+/**
+ * What it costs to send one at a friend in a duel, and how many go at once.
+ *
+ * Sending is a gamble rather than a purchase: the gold leaves your side now,
+ * and if they kill the thing you sent, its bounty pays *them*. Cheap sends are
+ * about pressure while they are still poor; the expensive ones are for when
+ * you think their road cannot hold.
+ */
+const SENDS = [
+  { enemy: 'creeper', cost: 35, count: 2 },
+  { enemy: 'runner', cost: 45, count: 3 },
+  { enemy: 'swarm', cost: 60, count: 8 },
+  { enemy: 'shieldbearer', cost: 110, count: 1 },
+  { enemy: 'brute', cost: 130, count: 1 },
+  { enemy: 'cripplestone', cost: 240, count: 1 },
+  { enemy: 'colossus', cost: 380, count: 1 },
+  { enemy: 'skeleflame', cost: 460, count: 1 },
+];
+
+const SEND_BY_ENEMY = new Map(SENDS.map((send) => [send.enemy, send]));
+
 /* --------------------------------------------------------------- the waves */
 
 /** `{ enemy, count, gap }` - gap is the seconds between one and the next. */
@@ -8112,7 +8209,7 @@ const COST_STEP = 0.2;
  */
 const waveBonus = (waveNumber) => (waveNumber <= 1 ? 0 : 25 + waveNumber * 8);
 
-  return { TOWERS, TOWER_BY_ID, getTower, ENEMIES, ENEMY_LIST, WAVES, WAVE_COUNT, PATH_CELLS, GRID, START_GOLD, START_LIVES, WAVE_GAP, SELL_RETURN, COST_STEP, waveBonus };
+  return { TOWERS, TOWER_BY_ID, getTower, ENEMIES, ENEMY_LIST, SENDS, SEND_BY_ENEMY, WAVES, WAVE_COUNT, PATH_CELLS, GRID, START_GOLD, START_LIVES, WAVE_GAP, SELL_RETURN, COST_STEP, waveBonus };
 })();
 
 // ---- src/games/defensele/rules.js --------------------------------
@@ -8301,6 +8398,17 @@ function releaseWave(state) {
   state.stats.earned += bonus;
   state.waveTimer = WAVE_GAP;
   return state;
+}
+
+/**
+ * Drops an enemy onto the road right now, outside the wave script. This is how
+ * an opponent's attack arrives in a duel: it walks in from the left like
+ * anything else and is worth its usual bounty to whoever kills it.
+ */
+function sendEnemy(state, enemyId) {
+  if (!ENEMIES[enemyId]) throw new Error(`Unknown enemy: ${enemyId}`);
+  spawn(state, enemyId);
+  return state.enemies[state.enemies.length - 1];
 }
 
 function spawn(state, enemyId) {
@@ -8668,13 +8776,13 @@ function checkEnd(state) {
   }
 }
 
-  return { PATH, pointAt, roadDistanceOf, isRoad, inBounds, createRun, ownedCount, costOf, towerAt, canBuild, build, sell, releaseWave, applyDamage, update, roadIsBurning, GRID, WAVES, START_GOLD, START_LIVES };
+  return { PATH, pointAt, roadDistanceOf, isRoad, inBounds, createRun, ownedCount, costOf, towerAt, canBuild, build, sell, releaseWave, sendEnemy, applyDamage, update, roadIsBurning, GRID, WAVES, START_GOLD, START_LIVES };
 })();
 
 // ---- src/games/defensele/render.js -------------------------------
 __modules["src/games/defensele/render.js"] = (function () {
   const { TAU, clamp, roundedRect } = __modules["src/core/utils.js"];
-  const { GRID, START_LIVES, WAVE_COUNT } = __modules["src/games/defensele/content.js"];
+  const { ENEMIES, GRID, START_LIVES, WAVE_COUNT } = __modules["src/games/defensele/content.js"];
   const { PATH, pointAt } = __modules["src/games/defensele/rules.js"];
 
 /** The map, the road, everything standing on it, and the strip along the top. */
@@ -9180,6 +9288,46 @@ function drawPlacement(ctx, spec, col, row, allowed) {
   ctx.restore();
 }
 
+/** The strip that says how your opponent is doing and what just arrived. */
+function drawVersusHud(ctx, width, { opponent, theirLives, yourLives, incoming }) {
+  ctx.save();
+  ctx.font = '700 13px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+
+  const label = `${opponent}: ${theirLives} lives`;
+  const boxWidth = Math.max(150, ctx.measureText(label).width + 26);
+  ctx.fillStyle = 'rgba(8, 16, 10, 0.85)';
+  roundedRect(ctx, width - boxWidth - 10, GRID.top + 8, boxWidth, 26, 8);
+  ctx.fill();
+  ctx.strokeStyle = theirLives > yourLives ? 'rgba(255, 139, 107, 0.7)' : 'rgba(142, 240, 168, 0.7)';
+  ctx.lineWidth = 1.5;
+  roundedRect(ctx, width - boxWidth - 10, GRID.top + 8, boxWidth, 26, 8);
+  ctx.stroke();
+  ctx.fillStyle = theirLives > yourLives ? '#ff8b6b' : '#8ef0a8';
+  ctx.textAlign = 'left';
+  ctx.fillText(label, width - boxWidth + 3, GRID.top + 21);
+
+  let y = GRID.top + 44;
+  for (const note of incoming) {
+    const spec = ENEMIES[note.enemy];
+    if (!spec) continue;
+    ctx.globalAlpha = clamp(note.life / 3.5, 0, 1);
+    const text = `incoming: ${note.count} x ${spec.name}`;
+    const w = ctx.measureText(text).width + 24;
+    ctx.fillStyle = 'rgba(40, 8, 8, 0.85)';
+    roundedRect(ctx, width - w - 10, y, w, 22, 7);
+    ctx.fill();
+    ctx.fillStyle = spec.color;
+    ctx.beginPath();
+    ctx.arc(width - w + 2, y + 11, 5, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#ffd8cf';
+    ctx.fillText(text, width - w + 12, y + 12);
+    y += 26;
+  }
+  ctx.restore();
+}
+
 function drawBanner(ctx, width, text, subtext, alpha) {
   if (!text || alpha <= 0) return;
   ctx.save();
@@ -9202,12 +9350,12 @@ function drawBanner(ctx, width, text, subtext, alpha) {
   ctx.restore();
 }
 
-  return { cellOf, cellCentre, drawGround, drawRoad, drawRoadFire, drawTower, drawTowerShape, drawEnemy, drawShots, drawHud, drawPlacement, drawBanner };
+  return { cellOf, cellCentre, drawGround, drawRoad, drawRoadFire, drawTower, drawTowerShape, drawEnemy, drawShots, drawHud, drawPlacement, drawVersusHud, drawBanner };
 })();
 
 // ---- src/games/defensele/ui.js -----------------------------------
 __modules["src/games/defensele/ui.js"] = (function () {
-  const { SELL_RETURN, TOWERS } = __modules["src/games/defensele/content.js"];
+  const { ENEMIES, SELL_RETURN, SENDS, TOWERS } = __modules["src/games/defensele/content.js"];
   const { costOf } = __modules["src/games/defensele/rules.js"];
   const { drawTowerShape } = __modules["src/games/defensele/render.js"];
 
@@ -9321,7 +9469,270 @@ class BuildBar {
   }
 }
 
-  return { BuildBar };
+
+/**
+ * The attack bar, only up in a duel. Each button buys a pack of enemies that
+ * walk down the *other* player's road.
+ */
+class SendBar {
+  constructor(container, { onSend }) {
+    this.onSend = onSend;
+    this.root = el('div', 'df-sends');
+    container.append(this.root);
+
+    this.root.append(el('span', 'df-sends-label', 'Send'));
+    this.buttons = new Map();
+    for (const send of SENDS) {
+      const spec = ENEMIES[send.enemy];
+      const button = el('button', 'df-send');
+      button.type = 'button';
+      button.style.setProperty('--tint', spec.color);
+      const blip = el('span', 'df-send-blip');
+      blip.style.background = spec.color;
+      button.append(blip);
+      const meta = el('div', 'df-tower-meta');
+      meta.append(el('strong', null, send.count > 1 ? `${spec.name} x${send.count}` : spec.name));
+      meta.append(el('span', 'df-cost', `${send.cost}g`));
+      button.append(meta);
+      button.title = `Send ${send.count} ${spec.name}${send.count > 1 ? 's' : ''} at your opponent for ${send.cost} gold. If they kill it, the bounty is theirs.`;
+      button.addEventListener('click', () => this.onSend(send));
+      this.buttons.set(send.enemy, button);
+      this.root.append(button);
+    }
+  }
+
+  refresh(state) {
+    for (const send of SENDS) {
+      const button = this.buttons.get(send.enemy);
+      const broke = state.gold < send.cost;
+      button.classList.toggle('is-broke', broke);
+      button.disabled = broke || state.over;
+    }
+  }
+
+  destroy() {
+    this.root.remove();
+  }
+}
+
+  return { BuildBar, SendBar };
+})();
+
+// ---- src/games/defensele/versus.js -------------------------------
+__modules["src/games/defensele/versus.js"] = (function () {
+  const { clamp } = __modules["src/core/utils.js"];
+  const { seededRandom } = __modules["src/core/utils.js"];
+  const { GRID, SENDS, START_LIVES, WAVE_COUNT, getTower } = __modules["src/games/defensele/content.js"];
+  const { build, canBuild, costOf, createRun, sell, sendEnemy, towerAt, update } = __modules["src/games/defensele/rules.js"];
+  const { BuildBar, SendBar } = __modules["src/games/defensele/ui.js"];
+  const { cellOf, drawBanner, drawEnemy, drawGround, drawHud, drawPlacement, drawRoad, drawRoadFire, drawShots, drawTower, drawVersusHud } = __modules["src/games/defensele/render.js"];
+
+/**
+ * Defensele against a friend.
+ *
+ * You each defend your own road against the same waves - both sides seed their
+ * randomness from the match, so nobody has to send a wave script over - and you
+ * each spend gold to drop extra enemies onto the *other* road. The gold you
+ * spend sending is gold not spent on towers, and anything they kill pays them
+ * its bounty, so a send that bounces off has funded your opponent.
+ *
+ * Nothing about the simulation is shared. Each side runs its own board and the
+ * only thing on the wire is "I sent you two Creepers".
+ */
+
+const MAX_STEP = 1 / 20;
+
+class DefenseleVersus {
+  constructor(context) {
+    this.context = context;
+    this.duel = context.duel;
+    this.random = seededRandom(this.duel?.seed || 1);
+    this.state = createRun({ random: this.random });
+    this.holding = null;
+    this.selected = null;
+    this.hover = { col: -1, row: -1 };
+    this.finished = false;
+    this.opponent = this.duel?.opponent?.name || 'your friend';
+    this.theirLives = START_LIVES;
+    this.sent = 0;
+    this.taken = 0;
+    this.banner = { text: `Versus ${this.opponent}`, subtext: 'Same waves, two roads. Send them something.', life: 3 };
+    this.incoming = [];   // things they sent, drawn as a warning strip
+
+    this.bar = new BuildBar(context.ui, {
+      onPick: (id) => {
+        this.holding = id ? getTower(id) : null;
+        this.selected = null;
+      },
+      onSell: (tower) => {
+        sell(this.state, tower);
+        this.selected = null;
+        this.bar.refresh(this.state, null);
+      },
+    });
+    this.sendBar = new SendBar(context.ui, { onSend: (send) => this._send(send) });
+    this.bar.refresh(this.state);
+    this.sendBar.refresh(this.state);
+
+    // Their attacks, and how their road is going.
+    this.offMatchEvent = context.onOpponentEvent?.((event) => this._receive(event)) || (() => {});
+  }
+
+  /** Spends the gold, tells them, and notes it for the ticker. */
+  _send(send) {
+    if (this.state.over || this.finished) return;
+    if (this.state.gold < send.cost) return;
+    this.state.gold -= send.cost;
+    this.state.stats.spent += send.cost;
+    this.sent += send.count;
+    this.banner = { text: '', subtext: '', life: 0 };
+    this.context.sendToOpponent?.({ kind: 'send', enemy: send.enemy, count: send.count });
+    this.bar.refresh(this.state, this.selected);
+    this.sendBar.refresh(this.state);
+  }
+
+  /** Something arrived from their side. */
+  _receive(event) {
+    if (!event || this.state.over) return;
+    if (event.kind === 'send') {
+      const send = SENDS.find((entry) => entry.enemy === event.enemy);
+      if (!send) return;
+      const count = Math.min(Number(event.count) || 1, send.count);
+      for (let i = 0; i < count; i += 1) {
+        // Spread them out a little rather than stacking on one pixel.
+        this.state.queue.push({ enemy: send.enemy, at: this.state.time + i * 0.45 });
+      }
+      this.taken += count;
+      this.incoming.push({ enemy: send.enemy, count, life: 3.5 });
+    } else if (event.kind === 'lives') {
+      this.theirLives = Number(event.lives);
+    }
+  }
+
+  update(dt, input) {
+    const step = Math.min(dt, MAX_STEP);
+    if (this.banner.life > 0) this.banner.life -= dt;
+    for (const note of this.incoming) note.life -= dt;
+    this.incoming = this.incoming.filter((note) => note.life > 0);
+
+    const goldBefore = this.state.gold;
+    const livesBefore = this.state.lives;
+    if (!this.state.over) update(this.state, step);
+
+    this._handleInput(input);
+
+    if (this.state.gold !== goldBefore || this.state.over) {
+      this.bar.refresh(this.state, this.selected);
+      this.sendBar.refresh(this.state);
+    }
+    // Let them watch your lives go down; it is half the fun.
+    if (this.state.lives !== livesBefore) {
+      this.context.sendToOpponent?.({ kind: 'lives', lives: Math.max(0, this.state.lives) });
+    }
+    if (this.state.over) this._finish();
+  }
+
+  _handleInput(input) {
+    const { col, row } = cellOf(input.x, input.y);
+    this.hover = { col, row };
+    if (!input.justPressed || this.state.over) return;
+    if (row < 0 || row >= GRID.rows || col < 0 || col >= GRID.cols) return;
+
+    const existing = towerAt(this.state, col, row);
+    if (existing) {
+      this.holding = null;
+      this.bar.clearPick();
+      this.selected = existing;
+      this.bar.refresh(this.state, this.selected);
+      return;
+    }
+    if (this.holding) {
+      if (canBuild(this.state, this.holding, col, row)) {
+        build(this.state, this.holding.id, col, row);
+        if (this.state.gold < costOf(this.state, this.holding)) {
+          this.holding = null;
+          this.bar.clearPick();
+        }
+        this.bar.refresh(this.state, null);
+        this.sendBar.refresh(this.state);
+      }
+      return;
+    }
+    this.selected = null;
+    this.bar.refresh(this.state, null);
+  }
+
+  render(ctx) {
+    const { width, height } = this.context;
+    drawGround(ctx, width, height, this.state.time);
+    drawRoad(ctx);
+    const burning = this.state.flameUntil - this.state.time;
+    if (burning > 0) drawRoadFire(ctx, this.state.time, Math.min(1, burning / 0.6));
+
+    for (const tower of this.state.towers) {
+      drawTower(ctx, tower, {
+        selected: this.selected && this.selected.uid === tower.uid,
+        showRange: this.selected && this.selected.uid === tower.uid,
+      }, this.state.time);
+    }
+    for (const enemy of this.state.enemies) drawEnemy(ctx, enemy, this.state.time);
+    drawShots(ctx, this.state);
+
+    if (this.holding && this.hover.row >= 0 && this.hover.row < GRID.rows && this.hover.col >= 0 && this.hover.col < GRID.cols) {
+      drawPlacement(ctx, this.holding, this.hover.col, this.hover.row,
+        canBuild(this.state, this.holding, this.hover.col, this.hover.row));
+    }
+
+    drawHud(ctx, this.state, width);
+    drawVersusHud(ctx, width, {
+      opponent: this.opponent,
+      theirLives: this.theirLives,
+      yourLives: Math.max(0, this.state.lives),
+      incoming: this.incoming,
+    });
+    drawBanner(ctx, width, this.banner.text, this.banner.subtext, clamp(this.banner.life, 0, 1));
+  }
+
+  _finish() {
+    if (this.finished) return;
+    this.finished = true;
+    const state = this.state;
+    const wavesHeld = state.won ? WAVE_COUNT : Math.max(0, state.waveIndex - 1);
+    const lives = Math.max(0, state.lives);
+
+    this.banner = {
+      text: state.won ? 'Your road held' : 'Your base is overrun',
+      subtext: `Now we see how ${this.opponent} did`,
+      life: 4,
+    };
+
+    this.context.finish({
+      score: state.won
+        ? Math.round(1500 + lives * 60 + state.gold * 0.2)
+        : Math.round(wavesHeld * 90 + lives * 20),
+      lives,
+      survived: state.won,
+      title: state.won ? 'Every wave turned back' : 'Overrun',
+      detailTitle: `${wavesHeld} of ${WAVE_COUNT} waves held`,
+      collected: [
+        { name: 'Lives left', color: '#8ef0a8', count: lives, label: `${lives} / ${START_LIVES}` },
+        { name: 'Killed', color: '#ffd166', count: state.stats.kills, label: `${state.stats.kills}` },
+        { name: `Sent at ${this.opponent}`, color: '#ff9f6b', count: this.sent, label: `${this.sent}` },
+        { name: 'They sent you', color: '#ff9d94', count: this.taken, label: `${this.taken}` },
+      ],
+    });
+  }
+
+  destroy() {
+    this.offMatchEvent();
+    this.bar?.destroy();
+    this.sendBar?.destroy();
+  }
+}
+
+const createDefenseleVersus = (context) => new DefenseleVersus(context);
+
+  return { createDefenseleVersus };
 })();
 
 // ---- src/games/defensele/game.js ---------------------------------
@@ -9330,6 +9741,7 @@ __modules["src/games/defensele/game.js"] = (function () {
   const { GRID, START_LIVES, WAVE_COUNT, getTower } = __modules["src/games/defensele/content.js"];
   const { build, canBuild, costOf, createRun, isRoad, sell, towerAt, update } = __modules["src/games/defensele/rules.js"];
   const { BuildBar } = __modules["src/games/defensele/ui.js"];
+  const { createDefenseleVersus } = __modules["src/games/defensele/versus.js"];
   const { cellOf, drawBanner, drawEnemy, drawGround, drawHud, drawPlacement, drawRoad, drawRoadFire, drawShots, drawTower } = __modules["src/games/defensele/render.js"];
 
 const GAME_ID = 'defensele';
@@ -9476,8 +9888,9 @@ class DefenseleGame {
   }
 }
 
+/** A duel in the context means the friend-versus-friend board instead. */
 function createDefensele(context) {
-  return new DefenseleGame(context);
+  return context.duel ? createDefenseleVersus(context) : new DefenseleGame(context);
 }
 
   return { GAME_ID, createDefensele, DefenseleGame, isRoad };

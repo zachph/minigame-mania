@@ -5,6 +5,7 @@ import {
   ENEMY_LIST,
   GRID,
   SELL_RETURN,
+  SENDS,
   START_GOLD,
   START_LIVES,
   TOWERS,
@@ -24,9 +25,11 @@ import {
   releaseWave,
   roadDistanceOf,
   sell,
+  sendEnemy,
   towerAt,
   update,
 } from '../src/games/defensele/rules.js';
+import { seededRandom } from '../src/core/utils.js';
 
 /** Runs the simulation for `seconds` at a fixed step. */
 function run(state, seconds, step = 1 / 30) {
@@ -401,6 +404,48 @@ test('Skeleflame is the heaviest thing on the road', () => {
   assert.equal(count(WAVES[15], 'skeleflame'), 2);
   assert.equal(WAVES[16].length, 1);
   assert.equal(count(WAVES[16], 'skeleflame'), 4);
+});
+
+test('a duel send drops enemies on the road and pays the defender', () => {
+  const state = quiet();
+  state.gold = 2000;
+  const spot = spotNearRoad(getTower('lancer').range);
+  build(state, 'lancer', spot.col, spot.row);
+  const goldAfterBuilding = state.gold;
+
+  const sent = sendEnemy(state, 'creeper');
+  assert.equal(state.enemies.length, 1);
+  assert.equal(sent.spec.id, 'creeper');
+  assert.equal(sent.dist, 0, 'it walks in from the start like anything else');
+
+  run(state, 6);
+  assert.ok(state.stats.kills >= 1, 'the defender shot it');
+  assert.ok(state.gold > goldAfterBuilding, 'and kept the bounty - sending funds the other side');
+
+  assert.throws(() => sendEnemy(state, 'not-a-real-enemy'));
+});
+
+test('every attack in a duel is a real enemy with a price', () => {
+  assert.ok(SENDS.length >= 6);
+  for (const send of SENDS) {
+    assert.ok(ENEMIES[send.enemy], `${send.enemy} is a real enemy`);
+    assert.ok(send.cost > 0 && send.count > 0);
+  }
+  // Cheap packs for pressure, single heavies for the kill.
+  const cheapest = SENDS.reduce((low, s) => (s.cost < low.cost ? s : low));
+  const dearest = SENDS.reduce((high, s) => (s.cost > high.cost ? s : high));
+  assert.ok(cheapest.count > 1, 'the cheap send is a pack');
+  assert.equal(dearest.count, 1, 'the dear one is a single monster');
+  assert.ok(ENEMIES[dearest.enemy].hp > ENEMIES[cheapest.enemy].hp * 10);
+});
+
+test('the same seed gives both sides of a duel the same waves', () => {
+  const play = (seed) => {
+    const state = createRun({ random: seededRandom(seed) });
+    run(state, 60);
+    return `${state.waveIndex}:${state.stats.leaked}:${state.enemies.length}`;
+  };
+  assert.equal(play(12345), play(12345), 'same seed, same run');
 });
 
 test('a Bastion stops the queue until it is rubble', () => {

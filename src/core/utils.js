@@ -6,6 +6,22 @@ export const lerp = (a, b, t) => a + (b - a) * t;
 
 export const randomRange = (min, max) => min + Math.random() * (max - min);
 
+/**
+ * A small, fast seeded generator (mulberry32). Two machines given the same
+ * seed produce the same sequence, which is how both sides of a duel get the
+ * same waves without sending a single one over the wire.
+ */
+export function seededRandom(seed) {
+  let a = (seed >>> 0) || 1;
+  return function next() {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 export const randomInt = (min, max) => Math.floor(randomRange(min, max + 1));
 
 export const distance = (ax, ay, bx, by) => Math.hypot(bx - ax, by - ay);

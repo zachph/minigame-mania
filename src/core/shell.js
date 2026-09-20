@@ -237,12 +237,22 @@ export class Shell {
     this._hideOverlays();
     this.input.reset();
 
+    const duel = this.duel && this.duel.gameId === this.gameDef.id ? this.duel : null;
     this.game = this.gameDef.create({
       width: VIEWPORT.width,
       height: VIEWPORT.height,
       highScore: getHighScore(this.gameDef.id),
       ui: this.el.ui,
       finish: (result) => this.finish(result),
+      // Only present in a duel: who you are playing, the shared seed, and the
+      // two calls a game needs to throw something at them and hear theirs.
+      duel: duel && { matchId: duel.matchId, seed: duel.seed, opponent: duel.opponent },
+      sendToOpponent: duel ? (event) => account.sendMatchEvent(duel.matchId, event).catch(() => {}) : null,
+      onOpponentEvent: duel
+        ? (handler) => account.on('match-event', (data) => {
+          if (data.matchId === duel.matchId) handler(data.event);
+        })
+        : null,
     });
 
     this.state = 'playing';
