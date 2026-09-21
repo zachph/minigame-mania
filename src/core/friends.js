@@ -62,6 +62,15 @@ export class FriendsPanel {
     this.root.hidden = false;
     if (account.signedIn()) account.refresh().catch(() => {});
     this._paint();
+    // Say up front whether there is a server behind this copy, rather than
+    // letting someone type a name and then get an error.
+    if (!account.signedIn()) {
+      account.reachable().then((ok) => {
+        if (this.serverUp === ok) return;
+        this.serverUp = ok;
+        this._paint();
+      });
+    }
   }
 
   hide() {
@@ -126,6 +135,11 @@ export class FriendsPanel {
   }
 
   _paintSignup(state) {
+    if (this.serverUp === false) {
+      this.body.append(this._noServerNote(state));
+      this.body.append(this._serverRow(state));
+      return;
+    }
     this.body.append(el('p', 'friends-lead', 'Pick a name and other players can find you, add you as a friend and challenge you to any of the games.'));
 
     const form = el('form', 'friends-form');
@@ -146,6 +160,24 @@ export class FriendsPanel {
 
     this.body.append(this._serverRow(state));
     this.body.append(el('p', 'friends-fineprint', 'Your name is kept on the friends server along with who your friends are. There is no password: this browser holds a key the server gave it, so keep playing on this device, and clearing site data means picking a new name.'));
+  }
+
+  /** What to say when this copy of the game has nothing behind it. */
+  _noServerNote(state) {
+    const box = el('div', 'friends-empty');
+    box.append(el('h3', 'friends-heading', 'No friends server behind this copy'));
+    box.append(el('p', 'friends-lead',
+      'Friends and challenges need a small server to hold the names. This page came from '
+      + `${state.server || 'a file on your computer'}, which only serves the game itself.`));
+    box.append(el('p', 'friends-lead', 'Start one and open the game from it:'));
+    const code = el('pre', 'friends-code', 'npm run server\n\nthen open  http://localhost:8787');
+    box.append(code);
+    box.append(el('p', 'friends-lead',
+      'Everything is at that one address - the game, your name and your friends - so nothing here needs setting. '
+      + 'Someone else on the same wifi can join by using your computer\u2019s address instead of localhost.'));
+    box.append(el('p', 'friends-fineprint',
+      'To play someone who is not on your network the server has to live somewhere online, with https. server/README.md walks through it.'));
+    return box;
   }
 
   _serverRow(state) {

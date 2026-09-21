@@ -1,0 +1,31 @@
+# fly launch --no-deploy   then   fly volumes create game_data --size 1
+# then                            fly deploy
+app = "minigame-mania"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  DATA_FILE = "/data/players.json"
+
+# Names and friends live on this volume, so a restart does not wipe them.
+[[mounts]]
+  source = "game_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.http_options.response]
+    pristine = true      # leave the event stream alone; buffering it breaks push
+
+[[http_service.checks]]
+  path = "/health"
+  interval = "30s"
+  timeout = "5s"

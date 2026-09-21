@@ -1,0 +1,16 @@
+# Render blueprint: New > Blueprint, point it at this repo.
+services:
+  - type: web
+    name: minigame-mania
+    runtime: node
+    plan: free
+    buildCommand: "true"          # nothing to build - no dependencies
+    startCommand: node server/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: DATA_FILE
+        value: /var/data/players.json
+    disk:
+      name: game-data
+      mountPath: /var/data
+      sizeGB: 1

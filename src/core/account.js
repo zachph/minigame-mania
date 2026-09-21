@@ -9,12 +9,22 @@
  */
 import { read, write } from './storage.js';
 
-const DEFAULT_SERVER = 'http://localhost:8787';
+/**
+ * Where the friends server is. If this page came from a server, that same
+ * address is the answer - open the game from a running copy and there is
+ * nothing to configure. Opened from a static host or a file, there is no
+ * server behind it and one has to be named.
+ */
+function defaultServer() {
+  if (typeof location === 'undefined') return '';
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') return '';
+  return location.origin;
+}
 
 let listeners = new Set();
 let stream = null;
 let state = {
-  server: read('server') || DEFAULT_SERVER,
+  server: read('server') || defaultServer(),
   player: read('player') || null,      // { id, name }
   token: read('token') || null,
   roster: { friends: [], incoming: [], outgoing: [], challenges: { incoming: [], outgoing: [] } },
@@ -24,6 +34,22 @@ let state = {
 
 export const getState = () => state;
 export const signedIn = () => Boolean(state.token && state.player);
+
+/** Whether this page was served by something that could also be the server. */
+export const servedFromOrigin = () => Boolean(state.server) && state.server === defaultServer();
+
+/** Asks the server if it is there. Used to explain things before anyone types. */
+export async function reachable(url = state.server) {
+  if (!url) return false;
+  try {
+    const res = await fetch(`${url}/health`, { method: 'GET' });
+    if (!res.ok) return false;
+    const body = await res.json();
+    return Boolean(body?.ok);
+  } catch {
+    return false;
+  }
+}
 
 function update(patch) {
   state = { ...state, ...patch };

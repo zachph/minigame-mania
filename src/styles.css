@@ -1198,3 +1198,18 @@ kbd {
   border: 1px solid rgba(0, 0, 0, 0.55);
   flex: none;
 }
+
+.friends-empty { display: flex; flex-direction: column; gap: 0.5em; }
+
+.friends-code {
+  margin: 0;
+  padding: 0.6em 0.8em;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  color: #9be8ff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82em;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}

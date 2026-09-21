@@ -4,6 +4,7 @@ import { once } from 'node:events';
 import { request as httpRequest } from 'node:http';
 import { createApp } from '../server/server.js';
 import { Store, normaliseName } from '../server/store.js';
+import { isPublic, resolveInRoot } from '../server/static.js';
 
 /* --------------------------------------------------------------- helpers */
 
@@ -42,6 +43,18 @@ async function boot() {
   });
 
   const signup = async (name) => (await call('POST', '/api/signup', { body: { name } })).body;
+
+  /** Like `call`, but for things that are not JSON - the game's own files. */
+  const raw = (method, path) => new Promise((resolve, reject) => {
+    const req = httpRequest({ host: '127.0.0.1', port, path, method, agent: false }, (res) => {
+      let text = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => { text += chunk; });
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, text }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
 
   /** Opens a player's event stream and lets a test wait for a named event. */
   const listen = (token) => {
@@ -99,6 +112,7 @@ async function boot() {
 
   return {
     call,
+    raw,
     signup,
     listen,
     /** Every stream has to be let go before the server can shut down. */
@@ -138,6 +152,66 @@ test('two people cannot hold the same name', () => {
   assert.ok(store.createPlayer('Zach').player);
   assert.equal(store.createPlayer('zach').error, 'name-taken', 'case does not make it a different name');
   assert.equal(store.createPlayer('ZACH  ').error, 'name-taken');
+});
+
+/* ------------------------------------------------- serving the game too */
+
+test('a path can never climb out of the site folder', () => {
+  const root = '/srv/game';
+  assert.equal(resolveInRoot(root, '/index.html'), '/srv/game/index.html');
+  assert.equal(resolveInRoot(root, '/src/core/shell.js'), '/srv/game/src/core/shell.js');
+  assert.equal(resolveInRoot(root, '/'), '/srv/game');
+
+  for (const attempt of [
+    '/../../etc/passwd',
+    '/..%2f..%2fetc%2fpasswd',
+    '/src/../../../etc/passwd',
+    '/%2e%2e/%2e%2e/etc/shadow',
+    '/\u0000secret',
+  ]) {
+    const resolved = resolveInRoot(root, attempt);
+    assert.ok(resolved === null || resolved.startsWith('/srv/game'), `"${attempt}" stayed inside (got ${resolved})`);
+  }
+
+  // Staying inside the folder is not enough on its own.
+  assert.equal(isPublic(root, '/srv/game/src/main.js'), true);
+  assert.equal(isPublic(root, '/srv/game/index.html'), true);
+  assert.equal(isPublic(root, '/srv/game/dist/minigame-mania.html'), true);
+  assert.equal(isPublic(root, '/srv/game/server/data/players.json'), false, 'never the token file');
+  assert.equal(isPublic(root, '/srv/game/package.json'), false);
+  assert.equal(isPublic(root, '/srv/game/srcevil/x.js'), false, 'a prefix is not a folder');
+});
+
+test('the server hands out the game as well as the API', async (t) => {
+  const api = await boot();
+  t.after(api.close);
+
+  const page = await api.raw('GET', '/');
+  assert.equal(page.status, 200);
+  assert.match(page.headers['content-type'], /text\/html/);
+  assert.match(page.text, /Minigame/, 'that is the game page');
+
+  const script = await api.raw('GET', '/src/main.js');
+  assert.equal(script.status, 200);
+  assert.match(script.headers['content-type'], /javascript/);
+
+  // Still an API underneath.
+  assert.equal((await api.call('GET', '/health')).status, 200);
+
+  // Only what the page is made of. Everything else in the repo stays private -
+  // above all the server's own data file, which holds the token hashes.
+  for (const attempt of [
+    '/server/data/players.json',
+    '/server/store.js',
+    '/package.json',
+    '/%2e%2e/package.json',
+    '/../../etc/passwd',
+    '/README.md',
+    '/test/server.test.js',
+  ]) {
+    const sneaky = await api.raw('GET', attempt);
+    assert.notEqual(sneaky.status, 200, `${attempt} is not served`);
+  }
 });
 
 /* ------------------------------------------------------------ the server */
