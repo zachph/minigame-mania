@@ -1,5 +1,8 @@
 import { createServer } from 'node:http';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { Store, normaliseName } from './store.js';
+import { serveStatic } from './static.js';
 
 /**
  * The Minigame Mania friends server.
@@ -59,7 +62,10 @@ class RateLimiter {
 
 /* ----------------------------------------------------------------- server */
 
-export function createApp({ file = null, clock = Date.now, limiter = new RateLimiter({ clock }) } = {}) {
+/** The repo root, which is where the game's own files live. */
+const SITE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+export function createApp({ file = null, clock = Date.now, limiter = new RateLimiter({ clock }), site = SITE_ROOT } = {}) {
   const store = new Store({ file, clock });
   /** playerId -> Set of open SSE responses. Someone is online if they have one. */
   const streams = new Map();
@@ -157,12 +163,16 @@ export function createApp({ file = null, clock = Date.now, limiter = new RateLim
       return;
     }
 
-    if (path === '/' || path === '/health') {
+    if (path === '/health') {
       send(res, 200, { ok: true, players: Object.keys(store.data.players).length, online: [...streams.keys()].filter(isOnline).length });
       return;
     }
 
-    if (!path.startsWith('/api/')) return fail(res, 404, 'not-found');
+    // Anything that is not the API is the game itself.
+    if (!path.startsWith('/api/')) {
+      if (site && await serveStatic(site, req, res)) return;
+      return fail(res, 404, 'not-found');
+    }
     if (req.method !== 'GET' && !limiter.take(address)) return fail(res, 429, 'slow-down');
 
     /* ---- claiming a name is the only call that needs no token ---- */

@@ -495,15 +495,20 @@ your opponent. Whoever has more lives at the end takes it.
 
 That needs somewhere for the names to live, so there is a small server in
 [`server/`](server/): Node builtins only, one JSON file for state, no framework
-and no database. Run it with `npm run server`, then put its address in the
-**Friends server** box in the friends panel.
+and no database.
 
 ```sh
-npm run server     # :8787, state in server/data/players.json
+npm run server     # then open http://localhost:8787
 ```
 
-The GitHub Pages site cannot host it - Pages serves files, not processes - so
-until the server is deployed somewhere with HTTPS, friend battles work between
-browsers that can both reach the same running copy.
-[`server/README.md`](server/README.md) covers deploying it and what the
-no-password accounts do and do not protect.
+**The server serves the game too**, so that one address is everything - the
+games, your name, your friends and your matches. Nothing to configure: the page
+asks the server it came from. Someone on the same wifi joins by using your
+computer's address instead of `localhost`.
+
+The GitHub Pages copy has no server behind it, so the games all work there but
+the friends panel says so and tells you what to run. To play someone who is not
+on your network, put the server online - `Dockerfile`, `fly.toml` and
+`render.yaml` are in the repo and [`server/README.md`](server/README.md) has the
+three commands for each, plus what the no-password accounts do and do not
+protect.

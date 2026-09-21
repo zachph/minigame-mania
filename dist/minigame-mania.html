@@ -1205,6 +1205,21 @@ kbd {
   border: 1px solid rgba(0, 0, 0, 0.55);
   flex: none;
 }
+
+.friends-empty { display: flex; flex-direction: column; gap: 0.5em; }
+
+.friends-code {
+  margin: 0;
+  padding: 0.6em 0.8em;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  color: #9be8ff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82em;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
 </style>
 </head>
 <body>
@@ -1367,12 +1382,22 @@ __modules["src/core/account.js"] = (function () {
  */
 
 
-const DEFAULT_SERVER = 'http://localhost:8787';
+/**
+ * Where the friends server is. If this page came from a server, that same
+ * address is the answer - open the game from a running copy and there is
+ * nothing to configure. Opened from a static host or a file, there is no
+ * server behind it and one has to be named.
+ */
+function defaultServer() {
+  if (typeof location === 'undefined') return '';
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') return '';
+  return location.origin;
+}
 
 let listeners = new Set();
 let stream = null;
 let state = {
-  server: read('server') || DEFAULT_SERVER,
+  server: read('server') || defaultServer(),
   player: read('player') || null,      // { id, name }
   token: read('token') || null,
   roster: { friends: [], incoming: [], outgoing: [], challenges: { incoming: [], outgoing: [] } },
@@ -1382,6 +1407,22 @@ let state = {
 
 const getState = () => state;
 const signedIn = () => Boolean(state.token && state.player);
+
+/** Whether this page was served by something that could also be the server. */
+const servedFromOrigin = () => Boolean(state.server) && state.server === defaultServer();
+
+/** Asks the server if it is there. Used to explain things before anyone types. */
+async function reachable(url = state.server) {
+  if (!url) return false;
+  try {
+    const res = await fetch(`${url}/health`, { method: 'GET' });
+    if (!res.ok) return false;
+    const body = await res.json();
+    return Boolean(body?.ok);
+  } catch {
+    return false;
+  }
+}
 
 function update(patch) {
   state = { ...state, ...patch };
@@ -1536,7 +1577,7 @@ function restore() {
   }
 }
 
-  return { getState, signedIn, subscribe, setServer, claimName, signOut, refresh, searchPlayers, askToBeFriends, answerFriend, removeFriend, challenge, answerChallenge, cancelChallenge, sendMatchEvent, finishMatch, quitMatch, on, connect, disconnect, restore };
+  return { getState, signedIn, servedFromOrigin, reachable, subscribe, setServer, claimName, signOut, refresh, searchPlayers, askToBeFriends, answerFriend, removeFriend, challenge, answerChallenge, cancelChallenge, sendMatchEvent, finishMatch, quitMatch, on, connect, disconnect, restore };
 })();
 
 // ---- src/core/registry.js ----------------------------------------
@@ -1634,6 +1675,15 @@ class FriendsPanel {
     this.root.hidden = false;
     if (account.signedIn()) account.refresh().catch(() => {});
     this._paint();
+    // Say up front whether there is a server behind this copy, rather than
+    // letting someone type a name and then get an error.
+    if (!account.signedIn()) {
+      account.reachable().then((ok) => {
+        if (this.serverUp === ok) return;
+        this.serverUp = ok;
+        this._paint();
+      });
+    }
   }
 
   hide() {
@@ -1698,6 +1748,11 @@ class FriendsPanel {
   }
 
   _paintSignup(state) {
+    if (this.serverUp === false) {
+      this.body.append(this._noServerNote(state));
+      this.body.append(this._serverRow(state));
+      return;
+    }
     this.body.append(el('p', 'friends-lead', 'Pick a name and other players can find you, add you as a friend and challenge you to any of the games.'));
 
     const form = el('form', 'friends-form');
@@ -1718,6 +1773,24 @@ class FriendsPanel {
 
     this.body.append(this._serverRow(state));
     this.body.append(el('p', 'friends-fineprint', 'Your name is kept on the friends server along with who your friends are. There is no password: this browser holds a key the server gave it, so keep playing on this device, and clearing site data means picking a new name.'));
+  }
+
+  /** What to say when this copy of the game has nothing behind it. */
+  _noServerNote(state) {
+    const box = el('div', 'friends-empty');
+    box.append(el('h3', 'friends-heading', 'No friends server behind this copy'));
+    box.append(el('p', 'friends-lead',
+      'Friends and challenges need a small server to hold the names. This page came from '
+      + `${state.server || 'a file on your computer'}, which only serves the game itself.`));
+    box.append(el('p', 'friends-lead', 'Start one and open the game from it:'));
+    const code = el('pre', 'friends-code', 'npm run server\n\nthen open  http://localhost:8787');
+    box.append(code);
+    box.append(el('p', 'friends-lead',
+      'Everything is at that one address - the game, your name and your friends - so nothing here needs setting. '
+      + 'Someone else on the same wifi can join by using your computer\u2019s address instead of localhost.'));
+    box.append(el('p', 'friends-fineprint',
+      'To play someone who is not on your network the server has to live somewhere online, with https. server/README.md walks through it.'));
+    return box;
   }
 
   _serverRow(state) {

@@ -5,34 +5,52 @@ play a match. Node builtins only - no framework, no database, nothing to
 install.
 
 ```sh
-node server/server.js          # listens on :8787
-PORT=9000 node server/server.js
-DATA_FILE=/somewhere/players.json node server/server.js
+npm run server                 # listens on :8787
+PORT=9000 npm run server
+DATA_FILE=/somewhere/players.json npm run server
 ```
 
-State lives in one JSON file (`server/data/players.json` by default). Back it up
-by copying it; read it in any editor if something looks wrong.
+**It serves the game as well as the API.** Open `http://localhost:8787` and
+that is the whole thing - the games, your name, your friends, your matches -
+from one address. There is nothing to configure, because the page asks the
+server it came from.
 
-## Pointing the game at it
+State lives in one JSON file (`server/data/players.json` by default). Back it
+up by copying it; read it in any editor if something looks wrong. The file is
+never served to browsers - only `index.html`, `src/` and `dist/` are public.
 
-Open the game, click the name pill in the top right, and put the server's
-address in the **Friends server** box. It is remembered per browser. While you
-are running both on one machine that is `http://localhost:8787`.
+## Playing someone else
 
-## Putting it on the internet
+**Same wifi.** Start the server and give them your computer's address instead
+of `localhost` - something like `http://192.168.1.14:8787`. Nothing else to do.
 
-Anywhere that runs a Node process works - Fly.io, Render, Railway, a Raspberry
-Pi at home with a tunnel. The server needs:
+**Anywhere else.** The server has to live somewhere online. Every option below
+gives it HTTPS, which it needs: a page served over `https://` is not allowed to
+talk to a server over plain `http://`, so an http-only server cannot be reached
+from a normal web address at all.
 
-- **A port from `PORT`.** It already reads it.
-- **A disk that survives restarts** for `DATA_FILE`, or the names go away when
-  the host recycles the machine. On hosts with an ephemeral filesystem, mount a
-  volume and point `DATA_FILE` at it.
-- **HTTPS.** Browsers will not let a page served over `https://` talk to a
-  server over `http://`, so a plain-http server cannot be reached from the
-  GitHub Pages site. Every host above terminates TLS for you.
+### Fly.io
 
-Then put that `https://...` address in the Friends server box.
+```sh
+fly launch --no-deploy            # reads fly.toml, pick a name
+fly volumes create game_data -s 1 # the names live here
+fly deploy
+```
+
+### Render
+
+New → Blueprint → point it at this repo. `render.yaml` sets the start command,
+the health check and the disk.
+
+### Anything that runs Docker
+
+```sh
+docker build -t minigame-mania .
+docker run -p 8080:8080 -v game_data:/data minigame-mania
+```
+
+Whichever you pick, the address it gives you *is* the game. Send that link to
+whoever you want to play.
 
 ## How the accounts work
 
