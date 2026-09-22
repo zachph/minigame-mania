@@ -76,6 +76,45 @@ So Fire beats Grass and Wind, is resisted by Water and Rock, and is neutral with
 Dark. Super effective is x1.5, resisted is x0.66, and using a move of your own
 type adds x1.25.
 
+### Type abilities
+
+One ability per type rather than one per character — thirty would be thirty
+things to learn, six is a thing you can hold in your head. Every fighter of a
+type has its type's ability, on top of its four moves.
+
+| Type | Ability | What it does |
+| --- | --- | --- |
+| **Fire** | Kindle | 30% chance to set the target burning when it lands a hit |
+| **Grass** | Rootfeed | 30% chance to heal for half the damage it just dealt |
+| **Wind** | Slipstream | On every second turn, a 10% chance to slip out of the way of anything |
+| Water | — | not chosen yet |
+| Dark | — | not chosen yet |
+| Rock | — | not chosen yet |
+
+A type with no ability simply has none; the battle skips it, so filling one in
+later is one entry in `TYPE_ABILITIES` and nothing else.
+
+**What they are worth.** 7,500 battles per configuration, every type against
+every other type, teams of three of a kind:
+
+| Type | Win rate before | With abilities | Change |
+| --- | --- | --- | --- |
+| Fire | 57.0% | **59.8%** | +2.8 |
+| Grass | 58.2% | **59.3%** | +1.1 |
+| Wind | 43.8% | **45.6%** | +1.8 |
+| Rock | 57.3% | 55.6% | -1.7 |
+| Dark | 45.6% | 45.1% | -0.5 |
+| Water | 38.0% | 34.7% | -3.3 |
+
+So an ability is worth one to three points, which is the right size: it matters
+without deciding the match.
+
+**The bigger gap is older than the abilities.** Before any of this, Grass and
+Rock were already winning 58% of the time and Water 38%. That twenty-point
+spread comes from the roster's stats, not from anything here, and the three
+empty slots are the obvious place to fix it - whatever Water gets should
+probably be the strongest of the six.
+
 | Type  | Beats        | Weak to      | Neutral with |
 | ----- | ------------ | ------------ | ------------ |
 | Fire  | Grass, Wind  | Water, Rock  | Dark         |

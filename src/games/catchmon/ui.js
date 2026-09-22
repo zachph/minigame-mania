@@ -1,5 +1,5 @@
 import { ROSTER, TEAM_SIZE } from './roster.js';
-import { TYPES, effectiveness } from './types.js';
+import { TYPES, abilityOf, effectiveness } from './types.js';
 import { drawPortrait } from './art.js';
 
 /**
@@ -179,11 +179,21 @@ export class TeamSelect {
       );
       body.append(stats);
 
+      const ability = abilityOf(character.type);
+      if (ability) {
+        const row = el('div', 'cm-ability');
+        row.append(el('strong', null, ability.name));
+        row.append(el('span', null, ability.blurb));
+        body.append(row);
+      }
+
       const hint = this._matchupHint(character);
       body.append(el('span', `cm-hint cm-hint--${hint.tone}`, hint.text));
       card.append(body);
 
-      card.title = `${character.blurb}\nMoves: ${character.moves.length}`;
+      card.title = ability
+        ? `${character.blurb}\n${ability.name}: ${ability.blurb}`
+        : `${character.blurb}\nMoves: ${character.moves.length}`;
       card.addEventListener('click', () => this._toggle(character));
       this.grid.append(card);
     }

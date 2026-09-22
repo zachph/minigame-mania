@@ -1,4 +1,4 @@
-import { effectiveness, effectivenessLabel } from './types.js';
+import { abilityOf, effectiveness, effectivenessLabel } from './types.js';
 import { getMove } from './moves.js';
 
 /**
@@ -243,6 +243,17 @@ export class Battle {
       return;
     }
 
+    // Slipstream: a Wind fighter can duck anything on its turns, however
+    // accurate the move was.
+    if (move.power > 0 && this._dodges(defender)) {
+      events.push({
+        kind: 'miss',
+        side: foeSide,
+        text: `${defender.character.name} slipped out of the way!`,
+      });
+      return;
+    }
+
     if (move.power > 0) {
       if (defender.shielded) {
         events.push({ kind: 'blocked', side: foeSide, text: `${defender.character.name} blocked it!` });
@@ -264,12 +275,43 @@ export class Battle {
       if (move.effect?.drain && total > 0) {
         this._heal(attacker, Math.round(total * move.effect.drain), events, `${attacker.character.name} drained health!`);
       }
+      if (total > 0) this._typeAbilityOnHit(attacker, defender, total, events);
       if (move.effect?.recoil && total > 0) {
         this._damage(attacker, Math.round(total * move.effect.recoil), events, { recoil: true });
       }
     }
 
     this._applyEffect(move, attacker, defender, events);
+  }
+
+  /**
+   * Whether this fighter's type lets it dodge right now.
+   *
+   * Wind's Slipstream comes round every second turn rather than every turn, so
+   * it is something to play around instead of a flat accuracy tax.
+   */
+  _dodges(defender) {
+    const ability = abilityOf(defender.character.type);
+    if (!ability || ability.kind !== 'dodge' || defender.fainted) return false;
+    if (ability.everyTurns && this.turn % ability.everyTurns !== 0) return false;
+    return this.rng() * 100 < ability.chance;
+  }
+
+  /** Fire's Kindle and Grass's Rootfeed, both rolled after a hit lands. */
+  _typeAbilityOnHit(attacker, defender, dealt, events) {
+    const ability = abilityOf(attacker.character.type);
+    if (!ability) return;
+    if (this.rng() * 100 >= ability.chance) return;
+
+    if (ability.kind === 'burn' && !defender.fainted && !defender.status) {
+      events.push({ kind: 'ability', side: attacker.side, ability: ability.name, text: `${attacker.character.name}'s ${ability.name}!` });
+      this._applyStatus(defender, 'burn', events);
+      return;
+    }
+    if (ability.kind === 'lifesteal' && attacker.hp < attacker.maxHp) {
+      events.push({ kind: 'ability', side: attacker.side, ability: ability.name, text: `${attacker.character.name}'s ${ability.name}!` });
+      this._heal(attacker, Math.round(dealt * ability.share), events, `${attacker.character.name} fed on the wound!`);
+    }
   }
 
   _applyEffect(move, attacker, defender, events) {
