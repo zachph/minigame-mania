@@ -1220,6 +1220,24 @@ kbd {
   line-height: 1.5;
   white-space: pre-wrap;
 }
+
+/* A type's ability, on the pick-a-team card. */
+.cm-ability {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 0.35em;
+  padding: 0.35em 0.5em;
+  border-left: 3px solid var(--type, var(--accent));
+  border-radius: 0 6px 6px 0;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.78em;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.cm-ability strong { color: var(--type, var(--accent)); }
+.cm-ability span { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -2606,6 +2624,44 @@ const TYPES = [
   { id: 'rock', name: 'Rock', color: '#d0a163', accent: '#7a5220', glyph: 'rock' },
 ];
 
+/**
+ * What every fighter of a type can do, on top of its four moves.
+ *
+ * One ability per type rather than one per character: thirty fighters would be
+ * thirty things to learn, six is a thing you can hold in your head, and the
+ * type you pick already means something because of the cycle above.
+ *
+ * `null` means that type has no ability yet. The battle simply skips it, so a
+ * type can be filled in whenever without touching anything else.
+ */
+const TYPE_ABILITIES = {
+  fire: {
+    name: 'Kindle',
+    kind: 'burn',
+    chance: 30,
+    blurb: '30% chance to set the target burning when it lands a hit.',
+  },
+  grass: {
+    name: 'Rootfeed',
+    kind: 'lifesteal',
+    chance: 30,
+    share: 0.5,
+    blurb: '30% chance to heal for half the damage it just dealt.',
+  },
+  wind: {
+    name: 'Slipstream',
+    kind: 'dodge',
+    chance: 10,
+    everyTurns: 2,
+    blurb: 'On every second turn, a 10% chance to slip out of the way of anything.',
+  },
+  water: null,
+  dark: null,
+  rock: null,
+};
+
+const abilityOf = (typeId) => TYPE_ABILITIES[typeId] || null;
+
 const TYPE_IDS = TYPES.map((type) => type.id);
 const TYPE_BY_ID = new Map(TYPES.map((type) => [type.id, type]));
 
@@ -2641,7 +2697,7 @@ function effectivenessLabel(multiplier) {
   return '';
 }
 
-  return { TYPES, TYPE_IDS, TYPE_BY_ID, SUPER_EFFECTIVE, RESISTED, effectiveness, strongAgainst, weakTo, effectivenessLabel };
+  return { TYPES, TYPE_ABILITIES, abilityOf, TYPE_IDS, TYPE_BY_ID, SUPER_EFFECTIVE, RESISTED, effectiveness, strongAgainst, weakTo, effectivenessLabel };
 })();
 
 // ---- src/games/catchmon/moves.js ---------------------------------
@@ -2825,7 +2881,7 @@ function typeMove(typeId, archetype) {
 
 // ---- src/games/catchmon/battle.js --------------------------------
 __modules["src/games/catchmon/battle.js"] = (function () {
-  const { effectiveness, effectivenessLabel } = __modules["src/games/catchmon/types.js"];
+  const { abilityOf, effectiveness, effectivenessLabel } = __modules["src/games/catchmon/types.js"];
   const { getMove } = __modules["src/games/catchmon/moves.js"];
 
 /**
@@ -3070,6 +3126,17 @@ class Battle {
       return;
     }
 
+    // Slipstream: a Wind fighter can duck anything on its turns, however
+    // accurate the move was.
+    if (move.power > 0 && this._dodges(defender)) {
+      events.push({
+        kind: 'miss',
+        side: foeSide,
+        text: `${defender.character.name} slipped out of the way!`,
+      });
+      return;
+    }
+
     if (move.power > 0) {
       if (defender.shielded) {
         events.push({ kind: 'blocked', side: foeSide, text: `${defender.character.name} blocked it!` });
@@ -3091,12 +3158,43 @@ class Battle {
       if (move.effect?.drain && total > 0) {
         this._heal(attacker, Math.round(total * move.effect.drain), events, `${attacker.character.name} drained health!`);
       }
+      if (total > 0) this._typeAbilityOnHit(attacker, defender, total, events);
       if (move.effect?.recoil && total > 0) {
         this._damage(attacker, Math.round(total * move.effect.recoil), events, { recoil: true });
       }
     }
 
     this._applyEffect(move, attacker, defender, events);
+  }
+
+  /**
+   * Whether this fighter's type lets it dodge right now.
+   *
+   * Wind's Slipstream comes round every second turn rather than every turn, so
+   * it is something to play around instead of a flat accuracy tax.
+   */
+  _dodges(defender) {
+    const ability = abilityOf(defender.character.type);
+    if (!ability || ability.kind !== 'dodge' || defender.fainted) return false;
+    if (ability.everyTurns && this.turn % ability.everyTurns !== 0) return false;
+    return this.rng() * 100 < ability.chance;
+  }
+
+  /** Fire's Kindle and Grass's Rootfeed, both rolled after a hit lands. */
+  _typeAbilityOnHit(attacker, defender, dealt, events) {
+    const ability = abilityOf(attacker.character.type);
+    if (!ability) return;
+    if (this.rng() * 100 >= ability.chance) return;
+
+    if (ability.kind === 'burn' && !defender.fainted && !defender.status) {
+      events.push({ kind: 'ability', side: attacker.side, ability: ability.name, text: `${attacker.character.name}'s ${ability.name}!` });
+      this._applyStatus(defender, 'burn', events);
+      return;
+    }
+    if (ability.kind === 'lifesteal' && attacker.hp < attacker.maxHp) {
+      events.push({ kind: 'ability', side: attacker.side, ability: ability.name, text: `${attacker.character.name}'s ${ability.name}!` });
+      this._heal(attacker, Math.round(dealt * ability.share), events, `${attacker.character.name} fed on the wound!`);
+    }
   }
 
   _applyEffect(move, attacker, defender, events) {
@@ -4019,7 +4117,7 @@ function drawPortrait(ctx, character, size) {
 // ---- src/games/catchmon/ui.js ------------------------------------
 __modules["src/games/catchmon/ui.js"] = (function () {
   const { ROSTER, TEAM_SIZE } = __modules["src/games/catchmon/roster.js"];
-  const { TYPES, effectiveness } = __modules["src/games/catchmon/types.js"];
+  const { TYPES, abilityOf, effectiveness } = __modules["src/games/catchmon/types.js"];
   const { drawPortrait } = __modules["src/games/catchmon/art.js"];
 
 /**
@@ -4199,11 +4297,21 @@ class TeamSelect {
       );
       body.append(stats);
 
+      const ability = abilityOf(character.type);
+      if (ability) {
+        const row = el('div', 'cm-ability');
+        row.append(el('strong', null, ability.name));
+        row.append(el('span', null, ability.blurb));
+        body.append(row);
+      }
+
       const hint = this._matchupHint(character);
       body.append(el('span', `cm-hint cm-hint--${hint.tone}`, hint.text));
       card.append(body);
 
-      card.title = `${character.blurb}\nMoves: ${character.moves.length}`;
+      card.title = ability
+        ? `${character.blurb}\n${ability.name}: ${ability.blurb}`
+        : `${character.blurb}\nMoves: ${character.moves.length}`;
       card.addEventListener('click', () => this._toggle(character));
       this.grid.append(card);
     }
@@ -5014,6 +5122,7 @@ registerGame({
     'Six types in a cycle: each one is <strong>strong against the next two</strong> and <strong>resisted by the previous two</strong>.',
     'Pick <strong>three of the thirty</strong> fighters. The rival team is shown first, so counter it.',
     'Each turn, choose a <strong>move</strong> or <strong>switch</strong>. Higher speed acts first; priority moves jump the queue.',
+    'Some types carry an <strong>ability</strong> that fires on its own: <strong>Fire</strong> burns what it hits, <strong>Grass</strong> feeds on the wounds it makes, and <strong>Wind</strong> slips out of the way on every second turn.',
     'Heavy moves need to <strong>recharge</strong>, and heals are <strong>limited</strong> - do not plan on stalling.',
     'Win by knocking out all three rivals. Faster, healthier wins score more.',
   ],

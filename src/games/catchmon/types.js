@@ -20,6 +20,44 @@ export const TYPES = [
   { id: 'rock', name: 'Rock', color: '#d0a163', accent: '#7a5220', glyph: 'rock' },
 ];
 
+/**
+ * What every fighter of a type can do, on top of its four moves.
+ *
+ * One ability per type rather than one per character: thirty fighters would be
+ * thirty things to learn, six is a thing you can hold in your head, and the
+ * type you pick already means something because of the cycle above.
+ *
+ * `null` means that type has no ability yet. The battle simply skips it, so a
+ * type can be filled in whenever without touching anything else.
+ */
+export const TYPE_ABILITIES = {
+  fire: {
+    name: 'Kindle',
+    kind: 'burn',
+    chance: 30,
+    blurb: '30% chance to set the target burning when it lands a hit.',
+  },
+  grass: {
+    name: 'Rootfeed',
+    kind: 'lifesteal',
+    chance: 30,
+    share: 0.5,
+    blurb: '30% chance to heal for half the damage it just dealt.',
+  },
+  wind: {
+    name: 'Slipstream',
+    kind: 'dodge',
+    chance: 10,
+    everyTurns: 2,
+    blurb: 'On every second turn, a 10% chance to slip out of the way of anything.',
+  },
+  water: null,
+  dark: null,
+  rock: null,
+};
+
+export const abilityOf = (typeId) => TYPE_ABILITIES[typeId] || null;
+
 export const TYPE_IDS = TYPES.map((type) => type.id);
 export const TYPE_BY_ID = new Map(TYPES.map((type) => [type.id, type]));
 

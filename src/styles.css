@@ -1213,3 +1213,21 @@ kbd {
   line-height: 1.5;
   white-space: pre-wrap;
 }
+
+/* A type's ability, on the pick-a-team card. */
+.cm-ability {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 0.35em;
+  padding: 0.35em 0.5em;
+  border-left: 3px solid var(--type, var(--accent));
+  border-radius: 0 6px 6px 0;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.78em;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.cm-ability strong { color: var(--type, var(--accent)); }
+.cm-ability span { color: var(--muted); }

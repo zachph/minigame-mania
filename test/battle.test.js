@@ -12,6 +12,7 @@ import {
 import { getCharacter } from '../src/games/catchmon/roster.js';
 import { getMove } from '../src/games/catchmon/moves.js';
 import { chooseAction, chooseReplacement } from '../src/games/catchmon/ai.js';
+import { TYPE_ABILITIES, TYPE_IDS } from '../src/games/catchmon/types.js';
 
 const team = (...ids) => ids.map(getCharacter);
 
@@ -32,13 +33,19 @@ function makeTanky(battle, hp = 900) {
   }
 }
 
-/** Plays a battle to its end with both sides on the AI. */
-function autoBattle(battle, rng = makeRng(3)) {
+/**
+ * Plays a battle to its end with both sides on the AI, handing `onEvents` every
+ * turn's events. Sending in a replacement when someone faints is not optional:
+ * skip it and the fallen fighter stays out, never acts again, and the battle
+ * runs quietly to the turn limit.
+ */
+function autoBattle(battle, rng = makeRng(3), onEvents = null) {
   let guard = 0;
   while (!battle.over && guard < 500) {
     battle.setAction('player', chooseAction(battle, 'player', rng));
     battle.setAction('enemy', chooseAction(battle, 'enemy', rng));
-    battle.resolveTurn();
+    const events = battle.resolveTurn();
+    if (onEvents) onEvents(events);
     for (const side of ['player', 'enemy']) {
       if (!battle.over && battle.pendingSwitch[side]) {
         battle.applyForcedSwitch(side, chooseReplacement(battle, side));
@@ -262,4 +269,137 @@ test('previewDamage tracks real damage without rolling dice', () => {
   const weak = previewDamage(attacker, defender, getMove('ram'));
   assert.ok(strong > weak);
   assert.equal(previewDamage(attacker, defender, getMove('mend')), 0);
+});
+
+/* --------------------------------------------------------- type abilities */
+
+/** The fighter a side has out, with room to take and heal damage. */
+function roomy(battle, side, hp = 900) {
+  const fighter = battle.activeOf(side);
+  fighter.maxHp = hp;
+  fighter.hp = hp;
+  return fighter;
+}
+
+test('every type ability is either a filled-in shape or explicitly empty', () => {
+  for (const id of TYPE_IDS) {
+    assert.ok(id in TYPE_ABILITIES, `${id} has an entry, even if it is null`);
+    const ability = TYPE_ABILITIES[id];
+    if (ability === null) continue;
+    assert.ok(ability.name && ability.blurb, `${id}'s ability says what it is`);
+    assert.ok(ability.chance > 0 && ability.chance <= 100, `${id}'s chance is a percentage`);
+    assert.ok(['burn', 'lifesteal', 'dodge'].includes(ability.kind));
+  }
+  assert.equal(TYPE_ABILITIES.fire.chance, 30);
+  assert.equal(TYPE_ABILITIES.grass.chance, 30);
+  assert.equal(TYPE_ABILITIES.grass.share, 0.5);
+  assert.equal(TYPE_ABILITIES.wind.chance, 10);
+  assert.equal(TYPE_ABILITIES.wind.everyTurns, 2);
+});
+
+test("Fire's Kindle burns on a roll inside 30%, and not outside it", () => {
+  const battle = newBattle(['pyrothane'], ['craghide']);
+  const fire = roomy(battle, 'player');
+  const rock = roomy(battle, 'enemy');
+  assert.equal(fire.character.type, 'fire');
+
+  battle.rng = () => 0.99;                  // 99 is outside 30
+  battle._typeAbilityOnHit(fire, rock, 100, []);
+  assert.equal(rock.status, null, 'nothing happens on a high roll');
+
+  battle.rng = () => 0.05;                  // 5 is inside 30
+  const events = [];
+  battle._typeAbilityOnHit(fire, rock, 100, events);
+  assert.equal(rock.status?.id, 'burn', 'a low roll sets it burning');
+  assert.ok(events.some((e) => e.kind === 'ability' && e.ability === 'Kindle'), 'and it is announced');
+
+  // It does not overwrite something the target is already suffering.
+  const already = newBattle(['pyrothane'], ['craghide']);
+  const fire2 = roomy(already, 'player');
+  const rock2 = roomy(already, 'enemy');
+  already._applyStatus(rock2, 'root', []);
+  already.rng = () => 0.05;
+  already._typeAbilityOnHit(fire2, rock2, 100, []);
+  assert.equal(rock2.status?.id, 'root', 'the status it already had is left alone');
+});
+
+test("Grass's Rootfeed gives back half of what it dealt", () => {
+  const battle = newBattle(['thornmaw'], ['craghide']);
+  const grass = roomy(battle, 'player');
+  const rock = roomy(battle, 'enemy');
+  assert.equal(grass.character.type, 'grass');
+  grass.hp = 400;
+
+  battle.rng = () => 0.99;
+  battle._typeAbilityOnHit(grass, rock, 120, []);
+  assert.equal(grass.hp, 400, 'a high roll heals nothing');
+
+  battle.rng = () => 0.05;
+  battle._typeAbilityOnHit(grass, rock, 120, []);
+  assert.equal(grass.hp, 460, 'half of 120, back onto its health');
+
+  // It cannot take a fighter above full.
+  grass.hp = grass.maxHp - 10;
+  battle._typeAbilityOnHit(grass, rock, 400, []);
+  assert.equal(grass.hp, grass.maxHp);
+});
+
+test("Wind's Slipstream only comes round every second turn", () => {
+  const battle = newBattle(['craghide'], ['galehart']);
+  roomy(battle, 'player');
+  const wind = roomy(battle, 'enemy');
+  assert.equal(wind.character.type, 'wind');
+
+  battle.rng = () => 0.02;                  // 2 is well inside 10
+  battle.turn = 1;
+  assert.equal(battle._dodges(wind), false, 'turn 1 is not its turn');
+  battle.turn = 3;
+  assert.equal(battle._dodges(wind), false, 'nor turn 3');
+  battle.turn = 2;
+  assert.equal(battle._dodges(wind), true, 'turn 2 is');
+  battle.turn = 4;
+  assert.equal(battle._dodges(wind), true, 'and turn 4');
+
+  battle.rng = () => 0.5;                   // 50 is outside 10
+  assert.equal(battle._dodges(wind), false, 'even on its turn it usually does not');
+
+  // Only Wind does this.
+  const other = newBattle(['galehart'], ['craghide']);
+  const rock = roomy(other, 'enemy');
+  other.rng = () => 0.02;
+  other.turn = 2;
+  assert.equal(other._dodges(rock), false, 'a Rock fighter never slips anything');
+});
+
+test('the abilities actually fire in a real battle', () => {
+  let kindles = 0;
+  let rootfeeds = 0;
+  let slips = 0;
+  for (let seed = 1; seed <= 40; seed += 1) {
+    const battle = newBattle(['pyrothane', 'thornmaw', 'galehart'], ['craghide', 'tidalon', 'nyxmaw'], seed);
+    autoBattle(battle, makeRng(seed * 31), (events) => {
+      for (const event of events) {
+        if (event.ability === 'Kindle') kindles += 1;
+        if (event.ability === 'Rootfeed') rootfeeds += 1;
+        if (/slipped out of the way/.test(event.text || '')) slips += 1;
+      }
+    });
+  }
+  assert.ok(kindles > 0, `Kindle fired (${kindles} times over 40 battles)`);
+  assert.ok(rootfeeds > 0, `Rootfeed fired (${rootfeeds})`);
+  assert.ok(slips > 0, `Slipstream dodged something (${slips})`);
+});
+
+test('a type with no ability yet simply has none', () => {
+  for (const id of ['water', 'dark', 'rock']) {
+    assert.equal(TYPE_ABILITIES[id], null, `${id} is still waiting on one`);
+  }
+  // Two of them fight exactly as they always did.
+  const battle = newBattle(['craghide', 'tidalon', 'nyxmaw'], ['boulderox', 'frostfin', 'umbrathis']);
+  let abilityEvents = 0;
+  autoBattle(battle, makeRng(11), (events) => {
+    for (const event of events) if (event.kind === 'ability') abilityEvents += 1;
+  });
+  assert.equal(battle.over, true, 'the battle still finishes');
+  assert.equal(abilityEvents, 0, 'and nothing ever triggered');
 });
