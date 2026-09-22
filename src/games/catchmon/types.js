@@ -51,9 +51,27 @@ export const TYPE_ABILITIES = {
     everyTurns: 2,
     blurb: 'On every second turn, a 10% chance to slip out of the way of anything.',
   },
-  water: null,
-  dark: null,
-  rock: null,
+  dark: {
+    name: 'Ambush',
+    kind: 'surge',
+    chance: 30,
+    multiplier: 1.5,
+    blurb: '30% chance to strike for half again as much damage.',
+  },
+  water: {
+    name: 'Undertow',
+    kind: 'ramp',
+    perLost: 0.2,      // for every fifth of its health gone...
+    gain: 0.2,         // ...it hits this much harder
+    blurb: 'Hits 0.2x harder for every 20% of its health it has lost.',
+  },
+  rock: {
+    name: 'Backlash',
+    kind: 'thorns',
+    chance: 30,
+    share: 0.2,
+    blurb: '30% chance that whatever hits it takes 20% of that damage straight back.',
+  },
 };
 
 export const abilityOf = (typeId) => TYPE_ABILITIES[typeId] || null;

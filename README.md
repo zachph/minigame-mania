@@ -86,34 +86,41 @@ type has its type's ability, on top of its four moves.
 | --- | --- | --- |
 | **Fire** | Kindle | 30% chance to set the target burning when it lands a hit |
 | **Grass** | Rootfeed | 30% chance to heal for half the damage it just dealt |
+| **Dark** | Ambush | 30% chance to strike for half again as much damage |
+| **Water** | Undertow | Hits 0.2x harder for every 20% of its health it has lost, up to 1.8x |
+| **Rock** | Backlash | 30% chance that whatever hits it takes 20% of that damage straight back |
 | **Wind** | Slipstream | On every second turn, a 10% chance to slip out of the way of anything |
-| Water | — | not chosen yet |
-| Dark | — | not chosen yet |
-| Rock | — | not chosen yet |
 
-A type with no ability simply has none; the battle skips it, so filling one in
-later is one entry in `TYPE_ABILITIES` and nothing else.
+Ambush and Undertow land **before** the damage does, so they scale the hit
+itself; Kindle, Rootfeed and Backlash are rolled **after** one lands. Ambush is
+rolled once per attack rather than per strike, so a two-hit volley is one roll
+and not two. Undertow rolls nothing at all - it just reads how much health is
+already gone.
 
 **What they are worth.** 7,500 battles per configuration, every type against
-every other type, teams of three of a kind:
+every other, teams of three of a kind:
 
-| Type | Win rate before | With abilities | Change |
+| Type | No abilities | All six in | Change |
 | --- | --- | --- | --- |
-| Fire | 57.0% | **59.8%** | +2.8 |
-| Grass | 58.2% | **59.3%** | +1.1 |
-| Wind | 43.8% | **45.6%** | +1.8 |
-| Rock | 57.3% | 55.6% | -1.7 |
-| Dark | 45.6% | 45.1% | -0.5 |
-| Water | 38.0% | 34.7% | -3.3 |
+| Rock | 57.3% | **56.2%** | -1.1 |
+| Grass | 58.2% | **54.9%** | -3.3 |
+| Dark | 45.6% | **50.6%** | **+5.0** |
+| Fire | 57.0% | **50.5%** | -6.5 |
+| Wind | 43.8% | **44.0%** | +0.2 |
+| Water | 38.0% | **43.7%** | **+5.7** |
 
-So an ability is worth one to three points, which is the right size: it matters
-without deciding the match.
+**The abilities fixed a balance problem that predated them.** Before any of
+this, the roster's stats alone put Grass at 58% and Water at 38% - a twenty-point
+spread. With all six abilities the spread is **12.5 points**, and it is Water and
+Dark, the two weakest types, that gained the most.
 
-**The bigger gap is older than the abilities.** Before any of this, Grass and
-Rock were already winning 58% of the time and Water 38%. That twenty-point
-spread comes from the roster's stats, not from anything here, and the three
-empty slots are the obvious place to fix it - whatever Water gets should
-probably be the strongest of the six.
+Fire's drop is not Kindle getting worse; it is everyone else catching up. A burn
+was worth a lot when three types had nothing to answer it with.
+
+The one still lagging is **Wind**. Slipstream is the weakest of the six by a
+distance - a 10% dodge every other turn works out at about 5% of one turn's
+damage, which is worth +0.2 points of win rate. If Wind should compete, that is
+the number to raise.
 
 | Type  | Beats        | Weak to      | Neutral with |
 | ----- | ------------ | ------------ | ------------ |

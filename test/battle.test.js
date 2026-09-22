@@ -281,20 +281,29 @@ function roomy(battle, side, hp = 900) {
   return fighter;
 }
 
-test('every type ability is either a filled-in shape or explicitly empty', () => {
+test('all six types have an ability, and each says what it is', () => {
+  const kinds = ['burn', 'lifesteal', 'dodge', 'surge', 'ramp', 'thorns'];
   for (const id of TYPE_IDS) {
-    assert.ok(id in TYPE_ABILITIES, `${id} has an entry, even if it is null`);
     const ability = TYPE_ABILITIES[id];
-    if (ability === null) continue;
+    assert.ok(ability, `${id} has one`);
     assert.ok(ability.name && ability.blurb, `${id}'s ability says what it is`);
-    assert.ok(ability.chance > 0 && ability.chance <= 100, `${id}'s chance is a percentage`);
-    assert.ok(['burn', 'lifesteal', 'dodge'].includes(ability.kind));
+    assert.ok(kinds.includes(ability.kind), `${id}'s kind is one the battle knows`);
+    if (ability.chance != null) assert.ok(ability.chance > 0 && ability.chance <= 100);
   }
+  // No two types share a trick.
+  assert.equal(new Set(TYPE_IDS.map((id) => TYPE_ABILITIES[id].kind)).size, 6);
+
   assert.equal(TYPE_ABILITIES.fire.chance, 30);
   assert.equal(TYPE_ABILITIES.grass.chance, 30);
   assert.equal(TYPE_ABILITIES.grass.share, 0.5);
   assert.equal(TYPE_ABILITIES.wind.chance, 10);
   assert.equal(TYPE_ABILITIES.wind.everyTurns, 2);
+  assert.equal(TYPE_ABILITIES.dark.chance, 30);
+  assert.equal(TYPE_ABILITIES.dark.multiplier, 1.5);
+  assert.equal(TYPE_ABILITIES.water.perLost, 0.2);
+  assert.equal(TYPE_ABILITIES.water.gain, 0.2);
+  assert.equal(TYPE_ABILITIES.rock.chance, 30);
+  assert.equal(TYPE_ABILITIES.rock.share, 0.2);
 });
 
 test("Fire's Kindle burns on a roll inside 30%, and not outside it", () => {
@@ -371,35 +380,91 @@ test("Wind's Slipstream only comes round every second turn", () => {
   assert.equal(other._dodges(rock), false, 'a Rock fighter never slips anything');
 });
 
-test('the abilities actually fire in a real battle', () => {
-  let kindles = 0;
-  let rootfeeds = 0;
-  let slips = 0;
-  for (let seed = 1; seed <= 40; seed += 1) {
-    const battle = newBattle(['pyrothane', 'thornmaw', 'galehart'], ['craghide', 'tidalon', 'nyxmaw'], seed);
-    autoBattle(battle, makeRng(seed * 31), (events) => {
-      for (const event of events) {
-        if (event.ability === 'Kindle') kindles += 1;
-        if (event.ability === 'Rootfeed') rootfeeds += 1;
-        if (/slipped out of the way/.test(event.text || '')) slips += 1;
-      }
-    });
+test('all six abilities actually fire in real battles', () => {
+  const seen = { Kindle: 0, Rootfeed: 0, Ambush: 0, Undertow: 0, Backlash: 0, slips: 0 };
+
+  // Each side led by the type being watched, because an ability on the bench
+  // never gets the chance to do anything. Slipstream especially: it needs to be
+  // attacked, on an even turn, and then win a one-in-ten roll.
+  const matchups = [
+    [['pyrothane', 'cindralisk', 'magmoth'], ['craghide', 'quarrion', 'boulderox']],
+    [['thornmaw', 'bloomquill', 'mosslok'], ['nyxmaw', 'hexaraven', 'umbrathis']],
+    [['galehart', 'zephyris', 'cirrolith'], ['craghide', 'quarrion', 'boulderox']],
+    [['tidalon', 'maelstrix', 'frostfin'], ['nyxmaw', 'hexaraven', 'umbrathis']],
+  ];
+
+  for (const [left, right] of matchups) {
+    for (let seed = 1; seed <= 25; seed += 1) {
+      const battle = newBattle(left, right, seed);
+      autoBattle(battle, makeRng(seed * 31), (events) => {
+        for (const event of events) {
+          if (event.ability && event.ability in seen) seen[event.ability] += 1;
+          if (/slipped out of the way/.test(event.text || '')) seen.slips += 1;
+        }
+      });
+    }
   }
-  assert.ok(kindles > 0, `Kindle fired (${kindles} times over 40 battles)`);
-  assert.ok(rootfeeds > 0, `Rootfeed fired (${rootfeeds})`);
-  assert.ok(slips > 0, `Slipstream dodged something (${slips})`);
+
+  for (const [name, count] of Object.entries(seen)) {
+    assert.ok(count > 0, `${name} never happened across 100 battles`);
+  }
 });
 
-test('a type with no ability yet simply has none', () => {
-  for (const id of ['water', 'dark', 'rock']) {
-    assert.equal(TYPE_ABILITIES[id], null, `${id} is still waiting on one`);
-  }
-  // Two of them fight exactly as they always did.
-  const battle = newBattle(['craghide', 'tidalon', 'nyxmaw'], ['boulderox', 'frostfin', 'umbrathis']);
-  let abilityEvents = 0;
-  autoBattle(battle, makeRng(11), (events) => {
-    for (const event of events) if (event.kind === 'ability') abilityEvents += 1;
-  });
-  assert.equal(battle.over, true, 'the battle still finishes');
-  assert.equal(abilityEvents, 0, 'and nothing ever triggered');
+test("Dark's Ambush is half again as much damage, 30% of the time", () => {
+  const battle = newBattle(['nyxmaw'], ['craghide']);
+  const dark = roomy(battle, 'player');
+  assert.equal(dark.character.type, 'dark');
+
+  battle.rng = () => 0.99;
+  assert.equal(battle._attackMultiplier(dark, []), 1, 'a high roll is an ordinary hit');
+
+  battle.rng = () => 0.05;
+  const events = [];
+  assert.equal(battle._attackMultiplier(dark, events), 1.5, 'a low roll hits for 1.5x');
+  assert.ok(events.some((e) => e.ability === 'Ambush'));
+});
+
+test("Water's Undertow climbs a step for every fifth of its health gone", () => {
+  const battle = newBattle(['tidalon'], ['craghide']);
+  const water = roomy(battle, 'player', 1000);
+  assert.equal(water.character.type, 'water');
+  battle.rng = () => 0.99;     // Undertow rolls nothing; this proves it
+
+  // Adding 0.2 repeatedly does not land on exact decimals, so compare loosely.
+  const at = (hp) => { water.hp = hp; return battle._attackMultiplier(water, []); };
+  const isAbout = (hp, expected, why) => assert.ok(Math.abs(at(hp) - expected) < 1e-9, `${why} (got ${at(hp)})`);
+
+  isAbout(1000, 1, 'untouched, it hits normally');
+  isAbout(850, 1, '15% down is not yet a step');
+  isAbout(800, 1.2, '20% down is the first step');
+  isAbout(790, 1.2, 'and it holds there until the next fifth');
+  isAbout(600, 1.4, '40% down');
+  isAbout(400, 1.6, '60% down');
+  isAbout(200, 1.8, '80% down');
+  isAbout(1, 1.8, 'and 1.8x is as far as it goes');
+});
+
+test("Rock's Backlash sends a fifth of the damage back at whoever hit it", () => {
+  const battle = newBattle(['nyxmaw'], ['craghide']);
+  const attacker = roomy(battle, 'player');
+  const rock = roomy(battle, 'enemy');
+  assert.equal(rock.character.type, 'rock');
+
+  battle.rng = () => 0.99;
+  battle._backlash(attacker, rock, 200, []);
+  assert.equal(attacker.hp, attacker.maxHp, 'a high roll sends nothing back');
+
+  battle.rng = () => 0.05;
+  const events = [];
+  battle._backlash(attacker, rock, 200, events);
+  assert.equal(attacker.maxHp - attacker.hp, 40, 'a fifth of 200 goes back');
+  assert.ok(events.some((e) => e.ability === 'Backlash'));
+
+  // It is the defender's ability, not the attacker's.
+  const other = newBattle(['craghide'], ['nyxmaw']);
+  const rockAttacker = roomy(other, 'player');
+  const darkDefender = roomy(other, 'enemy');
+  other.rng = () => 0.05;
+  other._backlash(rockAttacker, darkDefender, 200, []);
+  assert.equal(rockAttacker.hp, rockAttacker.maxHp, 'Rock attacking does not hurt itself');
 });

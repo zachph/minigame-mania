@@ -260,6 +260,8 @@ export class Battle {
         return;
       }
       const hitCount = move.hits ? this._randomInt(move.hits[0], move.hits[1]) : 1;
+      // Rolled once for the whole attack, so a volley is not three rolls at it.
+      const abilityMult = this._attackMultiplier(attacker, events);
       let total = 0;
       let typeMult = 1;
       for (let hit = 0; hit < hitCount && !defender.fainted; hit += 1) {
@@ -267,7 +269,8 @@ export class Battle {
         const variance = 0.9 + this.rng() * 0.15;
         const result = computeDamage(attacker, defender, move, { variance, crit });
         typeMult = result.typeMult;
-        total += this._damage(defender, result.damage, events, { crit: result.crit, source: side });
+        const dealt = abilityMult === 1 ? result.damage : Math.max(1, Math.round(result.damage * abilityMult));
+        total += this._damage(defender, dealt, events, { crit: result.crit, source: side });
       }
       if (hitCount > 1) events.push({ kind: 'text', text: `Hit ${hitCount} times!` });
       const label = effectivenessLabel(typeMult);
@@ -275,7 +278,10 @@ export class Battle {
       if (move.effect?.drain && total > 0) {
         this._heal(attacker, Math.round(total * move.effect.drain), events, `${attacker.character.name} drained health!`);
       }
-      if (total > 0) this._typeAbilityOnHit(attacker, defender, total, events);
+      if (total > 0) {
+        this._typeAbilityOnHit(attacker, defender, total, events);
+        this._backlash(attacker, defender, total, events);
+      }
       if (move.effect?.recoil && total > 0) {
         this._damage(attacker, Math.round(total * move.effect.recoil), events, { recoil: true });
       }
@@ -295,6 +301,64 @@ export class Battle {
     if (!ability || ability.kind !== 'dodge' || defender.fainted) return false;
     if (ability.everyTurns && this.turn % ability.everyTurns !== 0) return false;
     return this.rng() * 100 < ability.chance;
+  }
+
+  /**
+   * How much harder this fighter's type makes it hit right now.
+   *
+   * Dark's Ambush is a roll; Water's Undertow is not, it just reads how much
+   * health is already gone. Both land before the damage does, which is why they
+   * sit here rather than with the after-the-hit abilities below.
+   */
+  _attackMultiplier(attacker, events) {
+    const ability = abilityOf(attacker.character.type);
+    if (!ability) return 1;
+
+    if (ability.kind === 'surge') {
+      if (this.rng() * 100 >= ability.chance) return 1;
+      events.push({
+        kind: 'ability',
+        side: attacker.side,
+        ability: ability.name,
+        text: `${attacker.character.name} struck from the dark!`,
+      });
+      return ability.multiplier;
+    }
+
+    if (ability.kind === 'ramp') {
+      const lost = 1 - attacker.hp / attacker.maxHp;
+      // 1 - 800/1000 is 0.19999999999999996, which would floor to no step at all.
+      const steps = Math.floor(lost / ability.perLost + 1e-9);
+      if (steps <= 0) return 1;
+      const multiplier = 1 + steps * ability.gain;
+      events.push({
+        kind: 'ability',
+        side: attacker.side,
+        ability: ability.name,
+        text: `${attacker.character.name} is running deep - ${multiplier.toFixed(1)}x!`,
+      });
+      return multiplier;
+    }
+
+    return 1;
+  }
+
+  /**
+   * Rock's Backlash. This one belongs to whoever was hit: a share of the damage
+   * goes straight back into the attacker, the way a recoil move works.
+   */
+  _backlash(attacker, defender, dealt, events) {
+    const ability = abilityOf(defender.character.type);
+    if (!ability || ability.kind !== 'thorns' || attacker.fainted) return;
+    if (this.rng() * 100 >= ability.chance) return;
+    const back = Math.max(1, Math.round(dealt * ability.share));
+    events.push({
+      kind: 'ability',
+      side: defender.side,
+      ability: ability.name,
+      text: `${defender.character.name}'s ${ability.name}!`,
+    });
+    this._damage(attacker, back, events, { recoil: true });
   }
 
   /** Fire's Kindle and Grass's Rootfeed, both rolled after a hit lands. */
