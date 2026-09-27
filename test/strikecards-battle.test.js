@@ -1,0 +1,160 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  OPENING_HAND,
+  attack,
+  createMatch,
+  endTurn,
+  instance,
+  playCard,
+  recallFromGraveyard,
+} from '../src/games/strikecards/battle.js';
+import { seededRandom } from '../src/core/utils.js';
+
+const card = (name, { cost = 3, speed = 5, power = 4, hp = 6 } = {}) =>
+  ({ id: name.toLowerCase(), name, rarity: 'common', cost, speed, power, hp });
+
+/** A match where both sides hold the same plain deck. */
+const match = (overrides = {}) => createMatch({
+  decks: {
+    a: Array.from({ length: 20 }, (_, i) => card(`A${i}`)),
+    b: Array.from({ length: 20 }, (_, i) => card(`B${i}`)),
+  },
+  random: seededRandom(11),
+  ...overrides,
+});
+
+/** Puts a card straight onto a side's board, past the cost and the turn limit. */
+function place(state, which, spec) {
+  const made = instance(spec);
+  state.sides[which].board.push(made);
+  return made;
+}
+
+test('a match opens with five in hand and five points', () => {
+  const state = match();
+  assert.equal(state.sides.a.hand.length, OPENING_HAND + 1, 'five dealt, then one drawn for turn one');
+  assert.equal(state.sides.b.hand.length, OPENING_HAND);
+  assert.equal(state.sides.a.points, 5);
+  assert.equal(state.sides.b.points, 5);
+  assert.equal(state.active, 'a');
+  assert.equal(state.over, false);
+});
+
+test('putting a card down costs its points, and only one goes down a turn', () => {
+  const state = match();
+  state.sides.a.hand = [instance(card('Pebble', { cost: 2 })), instance(card('Boulder', { cost: 4 }))];
+
+  const first = playCard(state, 0);
+  assert.equal(first.card.name, 'Pebble');
+  assert.equal(state.sides.a.points, 3, 'five less two');
+  assert.equal(state.sides.a.board.length, 1);
+
+  const second = playCard(state, 0);
+  assert.match(second.error, /One card a turn/);
+  assert.equal(state.sides.a.board.length, 1);
+});
+
+test('the faster card lands first, and a card killed first never hits back', () => {
+  const state = match();
+  const quick = place(state, 'a', card('Dart', { speed: 9, power: 7, hp: 5, cost: 3 }));
+  const slow = place(state, 'b', card('Lump', { speed: 2, power: 6, hp: 6, cost: 4 }));
+
+  attack(state, quick.uid, slow.uid);
+
+  assert.equal(state.sides.b.board.length, 0, 'the Lump is gone');
+  assert.equal(quick.hp, 5, 'and it never got its 6 damage in');
+  assert.equal(state.sides.a.points, 5 + 4, 'the kill paid its 4-point cost');
+  assert.ok(state.log.some((entry) => /never got its blow in/.test(entry.text)));
+});
+
+test('swinging at something faster than you is a real risk', () => {
+  const state = match();
+  const slow = place(state, 'a', card('Lump', { speed: 2, power: 9, hp: 4, cost: 4 }));
+  const quick = place(state, 'b', card('Dart', { speed: 9, power: 5, hp: 8, cost: 3 }));
+
+  attack(state, slow.uid, quick.uid);
+
+  assert.equal(state.sides.a.board.length, 0, 'the attacker died on the counter-swing');
+  assert.equal(quick.hp, 8, 'having landed nothing');
+  assert.equal(state.sides.b.points, 5 + 4, 'and the defender was paid for the kill');
+});
+
+test('when neither dies they simply trade', () => {
+  const state = match();
+  const mine = place(state, 'a', card('Ox', { speed: 6, power: 3, hp: 10 }));
+  const theirs = place(state, 'b', card('Yak', { speed: 4, power: 5, hp: 10 }));
+
+  attack(state, mine.uid, theirs.uid);
+
+  assert.equal(theirs.hp, 7, 'hit first for 3');
+  assert.equal(mine.hp, 5, 'and hit back for 5');
+  assert.equal(state.sides.a.board.length, 1);
+  assert.equal(state.sides.b.board.length, 1);
+});
+
+test('each card swings once a turn, and both of them get to', () => {
+  const state = match();
+  const one = place(state, 'a', card('One', { speed: 7, power: 2, hp: 9 }));
+  const two = place(state, 'a', card('Two', { speed: 7, power: 2, hp: 9 }));
+  const wall = place(state, 'b', card('Wall', { speed: 1, power: 1, hp: 20 }));
+
+  assert.ok(!attack(state, one.uid, wall.uid).error);
+  assert.ok(!attack(state, two.uid, wall.uid).error, 'the second card swings too');
+  assert.match(attack(state, one.uid, wall.uid).error, /already swung/);
+  assert.equal(wall.hp, 16, 'two hits of 2 apiece');
+});
+
+test('a card cannot be hit once it is in the graveyard', () => {
+  const state = match();
+  const mine = place(state, 'a', card('Axe', { speed: 9, power: 20, hp: 9 }));
+  const doomed = place(state, 'b', card('Doomed', { speed: 1, power: 1, hp: 3 }));
+
+  attack(state, mine.uid, doomed.uid);
+  assert.equal(state.sides.b.graveyard.length, 1);
+
+  mine.attackedThisTurn = false;
+  assert.match(attack(state, mine.uid, doomed.uid).error, /Nothing there to hit/);
+});
+
+test('a card pulled from the graveyard comes back to hand for nothing', () => {
+  const state = match();
+  state.sides.a.graveyard.push(instance(card('Titan', { cost: 9, hp: 14 })));
+
+  const back = recallFromGraveyard(state, 'a', 0);
+  assert.equal(back.card.cost, 0, 'free, which is the whole point');
+  assert.equal(back.card.hp, 14, 'and at full health again');
+  assert.equal(state.sides.a.graveyard.length, 0);
+  assert.equal(state.sides.a.hand.at(-1).name, 'Titan');
+
+  assert.match(recallFromGraveyard(state, 'a', 0).error, /Nothing there/);
+});
+
+test('income arrives from turn two and widens on schedule', () => {
+  const state = match();
+  const points = [state.sides.a.points];
+  for (let i = 0; i < 10; i += 1) {
+    endTurn(state);   // to b
+    endTurn(state);   // back to a
+    points.push(state.sides.a.points);
+  }
+  assert.deepEqual(points.slice(0, 5), [5, 6, 7, 8, 10], 'turn 1 is the five you start with');
+  assert.deepEqual(points.slice(5, 9), [12, 14, 16, 19], 'then 2 a turn, then 3 from turn nine');
+});
+
+test('you lose when there is nothing left to knock out', () => {
+  const state = match();
+  state.sides.b.hand = [];
+  state.sides.b.deck = [];
+  state.sides.b.board = [];
+
+  const mine = place(state, 'a', card('Last', { speed: 5, power: 9, hp: 9 }));
+  const theirs = place(state, 'b', card('Final', { speed: 1, power: 1, hp: 4, cost: 2 }));
+
+  assert.equal(state.over, false, 'they still have one standing');
+  attack(state, mine.uid, theirs.uid);
+
+  assert.equal(state.over, true);
+  assert.equal(state.winner, 'a');
+  assert.match(state.reason, /every card knocked out/);
+});
