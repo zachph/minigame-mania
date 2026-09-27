@@ -10,8 +10,14 @@ import {
   canAfford,
   canPlaySupport,
   firstToAct,
+  PLAYS_PER_TURN,
+  canPlayCard,
+  canUseSupport,
   incomeOnTurn,
+  isBeaten,
+  loser,
   pointsByTurn,
+  recall,
   instantsIn,
   turnOrder,
 } from '../src/games/strikecards/rules.js';
@@ -122,4 +128,52 @@ test('you cannot put down what you cannot pay for', () => {
   // On turn one a 6-cost card is out of reach; killing a 3-cost puts it in.
   assert.equal(canAfford(card, pointsByTurn(1)), false);
   assert.equal(canAfford(card, pointsByTurn(1) + bountyFor({ cost: 3 })), true);
+});
+
+
+/* ------------------------------------------- a turn, and the end of things */
+
+test('one strike card and one support a turn, whatever you can afford', () => {
+  assert.deepEqual(PLAYS_PER_TURN, { card: 1, support: 1 });
+
+  const fresh = { points: 20, cardsPlayedThisTurn: 0, supportsPlayedThisTurn: 0 };
+  const spent = { points: 20, cardsPlayedThisTurn: 1, supportsPlayedThisTurn: 1 };
+  const cheap = { id: 'pebble', cost: 2 };
+
+  assert.equal(canPlayCard(fresh, cheap), true);
+  assert.equal(canPlayCard(spent, cheap), false, 'one a turn, even with points to burn');
+  assert.equal(canPlayCard({ ...fresh, points: 1 }, cheap), false, 'and never one you cannot pay for');
+
+  const instant = { id: 'guard', timing: 'instant' };
+  assert.equal(canUseSupport(fresh, instant, { isYourTurn: false }), true);
+  assert.equal(canUseSupport(spent, instant, { isYourTurn: false }), false, 'the one support is already gone');
+});
+
+test('a card pulled out of the graveyard comes back free', () => {
+  const heavy = { id: 'titan', name: 'Titan', cost: 9, speed: 2, power: 12, hp: 14 };
+  const back = recall(heavy);
+
+  assert.equal(back.cost, 0, 'the whole point of the card that does this');
+  assert.equal(back.recalled, true);
+  assert.equal(back.power, 12, 'everything else about it is unchanged');
+  assert.equal(back.hp, 14);
+  assert.equal(heavy.cost, 9, 'and the original is not altered');
+  assert.equal(recall(null), null);
+});
+
+test('you are beaten when there is nothing left to knock out', () => {
+  const empty = { board: [], hand: [], deck: [] };
+  const holding = { board: [], hand: [{ id: 'x' }], deck: [] };
+  const drawing = { board: [], hand: [], deck: [{ id: 'y' }] };
+  const fighting = { board: [{ id: 'z' }], hand: [], deck: [] };
+
+  assert.equal(isBeaten(empty), true);
+  assert.equal(isBeaten(holding), false, 'a card in hand is a card you can still field');
+  assert.equal(isBeaten(drawing), false);
+  assert.equal(isBeaten(fighting), false);
+
+  assert.equal(loser({ a: empty, b: fighting }), 'a');
+  assert.equal(loser({ a: fighting, b: empty }), 'b');
+  assert.equal(loser({ a: fighting, b: holding }), null, 'nobody yet');
+  assert.equal(loser({ a: empty, b: empty }), 'both');
 });

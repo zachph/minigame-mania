@@ -58,6 +58,48 @@ export const canAfford = (card, points) => Boolean(card) && points >= card.cost;
 /** What a kill pays: exactly what the thing you killed cost to play. */
 export const bountyFor = (card) => (card ? card.cost : 0);
 
+/* --------------------------------------------------------- what a turn is */
+
+/** One of each, however many points are going spare. */
+export const PLAYS_PER_TURN = { card: 1, support: 1 };
+
+/** Whether this side may still put a strike card down this turn. */
+export const canPlayCard = (side, card) =>
+  side.cardsPlayedThisTurn < PLAYS_PER_TURN.card && canAfford(card, side.points);
+
+/** Whether this side may still play a support this turn, on or off its turn. */
+export const canUseSupport = (side, support, { isYourTurn }) =>
+  side.supportsPlayedThisTurn < PLAYS_PER_TURN.support && canPlaySupport(support, { isYourTurn });
+
+/* ---------------------------------------------------------- the graveyard */
+
+/**
+ * A card pulled back out of the graveyard comes back free. That is the whole
+ * trick of the one support that does it: the card you most want back is the
+ * expensive one you just lost, and it returns costing nothing.
+ */
+export function recall(card) {
+  if (!card) return null;
+  return { ...card, cost: 0, recalled: true };
+}
+
+/**
+ * You lose when there is nothing left to knock out - nothing on the board,
+ * nothing in hand, nothing left to draw.
+ */
+export const isBeaten = (side) =>
+  side.board.length === 0 && side.hand.length === 0 && side.deck.length === 0;
+
+/** 'a', 'b', or null while both still have something. */
+export function loser(sides) {
+  const aBeaten = isBeaten(sides.a);
+  const bBeaten = isBeaten(sides.b);
+  if (aBeaten && bBeaten) return 'both';
+  if (aBeaten) return 'a';
+  if (bBeaten) return 'b';
+  return null;
+}
+
 /** A support is either played on your own turn, or the moment you need it. */
 export const SUPPORT_TIMING = {
   turn: { id: 'turn', name: 'On your turn', blurb: 'Played on your own turn, like anything else.' },

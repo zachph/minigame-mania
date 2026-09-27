@@ -33,6 +33,39 @@ export const DECK_MAX = 30;
  */
 export const MAX_COPIES = 2;
 
+/**
+ * Supports are kept apart from the strike deck and built to their own rule:
+ * five different ones, three copies each. Fifteen cards at most, out of the
+ * fifteen that exist - so a loadout is a third of what is out there, and
+ * choosing which five is most of what makes two decks play differently.
+ */
+export const SUPPORT_MAX_DIFFERENT = 5;
+export const SUPPORT_MAX_COPIES = 3;
+export const SUPPORT_DECK_MAX = SUPPORT_MAX_DIFFERENT * SUPPORT_MAX_COPIES;
+
+/** What is wrong with a support loadout, or null if nothing is. */
+export function supportDeckProblem(supportIds, nameOf = (id) => id) {
+  if (!Array.isArray(supportIds)) return 'That is not a support deck.';
+  const counts = countCopies(supportIds);
+  if (counts.size > SUPPORT_MAX_DIFFERENT) {
+    return `You may take ${SUPPORT_MAX_DIFFERENT} different supports - this one takes ${counts.size}.`;
+  }
+  for (const [id, count] of counts) {
+    if (count > SUPPORT_MAX_COPIES) {
+      return `At most ${SUPPORT_MAX_COPIES} copies of a support - this one has ${count} of ${nameOf(id)}.`;
+    }
+  }
+  return null;
+}
+
+/** Whether one more of this support would still be legal. */
+export function canAddSupport(supportIds, supportId, ownedCount = Infinity) {
+  const counts = countCopies(supportIds);
+  const inDeck = counts.get(supportId) || 0;
+  if (inDeck === 0 && counts.size >= SUPPORT_MAX_DIFFERENT) return false;
+  return inDeck < SUPPORT_MAX_COPIES && inDeck < ownedCount;
+}
+
 /* ------------------------------------------------------------- the shop */
 
 /**

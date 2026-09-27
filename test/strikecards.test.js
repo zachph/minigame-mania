@@ -1,27 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  CARDS_PER_PACK,
+  COINS_PER_SALE,
   DECK_MAX,
   DECK_MIN,
   MAX_COPIES,
+  PACK_COST,
   PACK_SIZE,
   RARITIES,
   RARITY_IDS,
-  CARDS_PER_PACK,
-  COINS_PER_SALE,
-  PACK_COST,
+  SUPPORT_DECK_MAX,
+  SUPPORT_MAX_COPIES,
+  SUPPORT_MAX_DIFFERENT,
   canAddCopy,
+  canAddSupport,
   canBuyPack,
   countCopies,
   deckProblem,
   distinctCardsNeeded,
   isLegalDeck,
   openPack,
+  rarityRank,
+  rollRarity,
   sellValue,
   sellableCopies,
   spareCopies,
-  rarityRank,
-  rollRarity,
+  supportDeckProblem,
 } from '../src/games/strikecards/collection.js';
 import { seededRandom } from '../src/core/utils.js';
 
@@ -160,4 +165,41 @@ test('the + button knows when to stop', () => {
   assert.equal(full.length, 30);
   assert.equal(deckProblem(full), null, 'fifteen pairs is a full legal deck');
   assert.equal(canAddCopy(full, 'anything'), false, 'and nothing else fits');
+});
+
+
+/* ---------------------------------------------------------- the supports */
+
+test('a support loadout is five different cards, three copies each', () => {
+  assert.equal(SUPPORT_MAX_DIFFERENT, 5);
+  assert.equal(SUPPORT_MAX_COPIES, 3);
+  assert.equal(SUPPORT_DECK_MAX, 15);
+
+  const full = [];
+  for (const id of ['guard', 'rally', 'counter', 'mend', 'recall']) full.push(id, id, id);
+  assert.equal(full.length, 15);
+  assert.equal(supportDeckProblem(full), null, 'fifteen cards, five kinds - the biggest legal loadout');
+
+  // A sixth kind is one too many. (The first twelve cards are only four kinds,
+  // so a fifth would still be fine there - it takes all five before it bites.)
+  assert.equal(supportDeckProblem([...full.slice(0, 12), 'fifth']), null);
+  assert.match(supportDeckProblem([...full, 'sixth']), /5 different supports/);
+  assert.match(supportDeckProblem(["guard", "guard", "guard", "guard"]), /At most 3 copies/);
+  assert.match(supportDeckProblem(['a', 'a', 'a', 'a'], (id) => id.toUpperCase()), /A/);
+
+  // Nothing says a loadout has to be full.
+  assert.equal(supportDeckProblem(['guard']), null);
+  assert.equal(supportDeckProblem([]), null);
+});
+
+test('the support + button knows about both limits', () => {
+  const four = ['guard', 'rally', 'counter', 'mend'];
+  assert.equal(canAddSupport(four, 'recall'), true, 'a fifth kind fits');
+  assert.equal(canAddSupport([...four, 'recall'], 'sixth'), false, 'a sixth does not');
+  assert.equal(canAddSupport([...four, 'recall'], 'guard'), true, 'but more of one you already take does');
+
+  const maxed = ['guard', 'guard', 'guard'];
+  assert.equal(canAddSupport(maxed, 'guard'), false, 'three is the ceiling');
+  assert.equal(canAddSupport(maxed, 'guard', 5), false, 'even owning five of them');
+  assert.equal(canAddSupport(['guard'], 'guard', 1), false, 'and you cannot take one you do not own');
 });
