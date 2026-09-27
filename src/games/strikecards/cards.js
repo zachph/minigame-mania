@@ -13,9 +13,41 @@ export const KINDS = {
   gear: { id: 'gear', name: 'Gear' },
 };
 
+/**
+ * Two colours per card, because every one of them is drawn from code and a
+ * roster where everything is the same grey wedge is not a roster.
+ */
+const TINTS = {
+  nipper: ['#c9d46a', '#5e6a1f'],
+  flicker: ['#ffe9a8', '#8a6a10'],
+  warden: ['#9fb4c8', '#3b4a5c'],
+  hiver: ['#ffc247', '#7a4a06'],
+  armoren: ['#b98a5e', '#4d3117'],
+  razor: ['#e4eaf2', '#5a6675'],
+  bulwark: ['#a8a29a', '#494440'],
+  gorewing: ['#e2707a', '#5e1c26'],
+  zaplin: ['#9be8ff', '#1a5b80'],
+  bolter: ['#7fd4ff', '#144a70'],
+  stormbeat: ['#c8a4ff', '#3a2070'],
+  sparkfly: ['#8ef0a8', '#1d6b3c'],
+  duskmoth: ['#b99ae0', '#432a66'],
+  stonewall: ['#9c9488', '#403b33'],
+  windkin: ['#cfe6ff', '#4a6a8c'],
+  ravener: ['#ff8b6b', '#6b1f10'],
+  warpike: ['#d0b483', '#5c4520'],
+  tank: ['#8fa07e', '#313b28'],
+  'iron-boots': ['#8fa3b8', '#333f4d'],
+  sword: ['#dfe6ef', '#4a5563'],
+  greatshield: ['#c2a663', '#5c4a1c'],
+  spurs: ['#e0c98f', '#6b5320'],
+};
+
+const tintOf = (id) => TINTS[id] || ['#b7c0cf', '#3c4452'];
+
 /** `[ id, name, rarity, cost, speed, power, hp ]` for a striker. */
 const striker = (id, name, rarity, cost, speed, power, hp, blurb = '') =>
-  ({ id, name, kind: 'strike', rarity, cost, speed, power, hp, blurb });
+  ({ id, name, kind: 'strike', rarity, cost, speed, power, hp, blurb,
+    tint: tintOf(id)[0], shade: tintOf(id)[1] });
 
 /**
  * A striker that grows on the board. `into` is the form it becomes and `after`
@@ -26,11 +58,13 @@ const striker = (id, name, rarity, cost, speed, power, hp, blurb = '') =>
  */
 const evolving = (base, into, after) => ({ ...base, evolvesTo: into, evolvesAfter: after });
 const form = (id, name, cost, speed, power, hp, blurb = '') =>
-  ({ id, name, kind: 'strike', rarity: 'uncommon', form: true, cost, speed, power, hp, blurb });
+  ({ id, name, kind: 'strike', rarity: 'uncommon', form: true, cost, speed, power, hp, blurb,
+    tint: tintOf(id)[0], shade: tintOf(id)[1] });
 
 /** `[ id, name, rarity, cost, boost ]` for gear - what it adds, to whatever wears it. */
 const gear = (id, name, rarity, cost, boost, blurb = '') =>
-  ({ id, name, kind: 'gear', rarity, cost, boost, blurb });
+  ({ id, name, kind: 'gear', rarity, cost, boost, blurb,
+    tint: tintOf(id)[0], shade: tintOf(id)[1] });
 
 export const CARDS = [
   /* ------------------------------------------------------------- commons */

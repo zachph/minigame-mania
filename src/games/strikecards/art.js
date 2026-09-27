@@ -1,5 +1,6 @@
 import { TAU, clamp, roundedRect } from '../../core/utils.js';
 import { RARITY_BY_ID } from './collection.js';
+import { drawPortrait } from './portraits.js';
 
 /** Everything Strike Cards draws. No game state is changed in here. */
 
@@ -21,32 +22,6 @@ function pip(ctx, x, y, value, color, label) {
   ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
   ctx.font = '700 7px "Trebuchet MS", system-ui, sans-serif';
   ctx.fillText(label, x + 14, y - 5);
-}
-
-/** A striker's silhouette, so a Tank does not look like a Sparkfly. */
-function sigil(ctx, card, x, y) {
-  const tone = face(card.rarity);
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.strokeStyle = 'rgba(6, 10, 16, 0.85)';
-  ctx.lineWidth = 2;
-  ctx.lineJoin = 'round';
-  ctx.fillStyle = tone.color;
-
-  const fast = card.speed >= 8;
-  const tough = card.hp >= 9;
-  ctx.beginPath();
-  if (fast) {                       // a dart
-    ctx.moveTo(0, -16); ctx.lineTo(11, 12); ctx.lineTo(0, 5); ctx.lineTo(-11, 12);
-  } else if (tough) {               // a block
-    ctx.moveTo(-13, -12); ctx.lineTo(13, -12); ctx.lineTo(13, 13); ctx.lineTo(-13, 13);
-  } else {                          // a wedge
-    ctx.moveTo(0, -14); ctx.lineTo(13, 6); ctx.lineTo(-13, 6);
-  }
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
 }
 
 /**
@@ -75,10 +50,17 @@ export function drawCard(ctx, card, x, y, state = {}) {
   roundedRect(ctx, x + 1, y + 1, w - 2, 22, 9);
   ctx.fill();
   ctx.fillStyle = tone.color;
-  ctx.font = '700 12px "Trebuchet MS", system-ui, sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(card.name.slice(0, 12), x + 8, y + 12);
+  // Shrink rather than spill: "Greatshield" has to fit beside its cost.
+  const room = w - 38;
+  let size = 12;
+  ctx.font = `700 ${size}px "Trebuchet MS", system-ui, sans-serif`;
+  while (ctx.measureText(card.name).width > room && size > 8) {
+    size -= 1;
+    ctx.font = `700 ${size}px "Trebuchet MS", system-ui, sans-serif`;
+  }
+  ctx.fillText(card.name, x + 8, y + 12);
 
   // Cost, top right.
   ctx.fillStyle = '#ffd166';
@@ -90,17 +72,25 @@ export function drawCard(ctx, card, x, y, state = {}) {
   ctx.textAlign = 'center';
   ctx.fillText(String(card.cost), x + w - 14, y + 12);
 
+  // A pool of the card's own colour behind the portrait, so a pale drawing
+  // still reads against the dark card.
+  ctx.save();
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = card.tint || tone.color;
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + 62, 40, 34, 0, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+
   if (card.kind === 'gear') {
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-    ctx.font = '600 11px "Trebuchet MS", system-ui, sans-serif';
+    drawPortrait(ctx, card, x + w / 2, y + 56, 52);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
     ctx.textAlign = 'center';
     const lines = Object.entries(card.boost || {}).map(([stat, n]) => `+${n} ${stat}`);
-    lines.forEach((line, i) => ctx.fillText(line, x + w / 2, y + 70 + i * 15));
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.font = '700 9px "Trebuchet MS", system-ui, sans-serif';
-    ctx.fillText('GEAR', x + w / 2, y + 40);
+    lines.forEach((line, i) => ctx.fillText(line, x + w / 2, y + 104 + i * 14));
   } else {
-    sigil(ctx, card, x + w / 2, y + 56);
+    drawPortrait(ctx, card, x + w / 2, y + 60, 62);
     const hp = state.hp ?? card.hp;
     const maxHp = state.maxHp ?? card.hp;
     pip(ctx, x + 6, y + h - 26, `${hp}`, hp < maxHp ? '#ff8b6b' : '#8ef0a8', 'HP');
@@ -115,10 +105,13 @@ export function drawCard(ctx, card, x, y, state = {}) {
     ctx.fillText(state.evolvesIn === 0 ? 'GROWING' : `grows in ${state.evolvesIn}`, x + w / 2, y + 88);
   }
   if (state.spent) {
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    // Sits above the stat pips, on its own strip, so it never lands on 'PWR'.
+    ctx.fillStyle = 'rgba(10, 14, 22, 0.75)';
+    ctx.fillRect(x + w / 2 - 24, y + 90, 48, 13);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
     ctx.font = '700 9px "Trebuchet MS", system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('SWUNG', x + w / 2, y + 104);
+    ctx.fillText('SWUNG', x + w / 2, y + 99);
   }
   ctx.restore();
 }
