@@ -15,6 +15,8 @@ import {
 import { applySupport } from '../src/games/strikecards/battle.js';
 import { SUPPORTS, getSupport, instantSupports } from '../src/games/strikecards/supports.js';
 import { seededRandom } from '../src/core/utils.js';
+import { drawBackdrop, drawCard, drawLog, drawSideBar, drawSlot } from '../src/games/strikecards/art.js';
+import { createFakeContext } from './helpers.js';
 
 const card = (name, { cost = 3, speed = 5, power = 4, hp = 6 } = {}) =>
   ({ id: name.toLowerCase(), name, rarity: 'common', cost, speed, power, hp });
@@ -333,4 +335,26 @@ test('a match that nobody will finish gets called', () => {
   assert.equal(state.over, true);
   assert.equal(state.winner, 'a', 'most kills takes it');
   assert.match(state.reason, /nobody would commit/);
+});
+
+/* -------------------------------------------------------------- drawing */
+
+test('a board draws without handing the canvas nonsense', () => {
+  const ctx = createFakeContext();
+  const state = match();
+  const mine = place(state, 'a', card('Zaplin', { hp: 8, power: 8, speed: 8 }));
+  mine.evolvesTo = 'bolter';
+  mine.evolvesAfter = 1;
+  mine.hp = 5;
+  place(state, 'b', card('Tank', { hp: 12, power: 7, speed: 2 }));
+
+  drawBackdrop(ctx, 960, 540, 1.5);
+  drawSideBar(ctx, state.sides.a, 18, 10, 420, { name: 'You', active: true, align: 'right' });
+  drawCard(ctx, mine, 367, 252, { hp: mine.hp, maxHp: mine.maxHp, picked: true, evolvesIn: 1 });
+  drawCard(ctx, state.sides.b.board[0], 367, 44, { hp: 12, maxHp: 12, targetable: true });
+  drawCard(ctx, { id: 'sword', name: 'Sword', kind: 'gear', rarity: 'common', cost: 5, boost: { power: 2 } }, 489, 44, {});
+  drawSlot(ctx, 489, 252, 'your side');
+  drawLog(ctx, state.log, 18, 190, 316, 68);
+
+  assert.ok(ctx.calls > 40, 'it actually drew something');
 });

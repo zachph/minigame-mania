@@ -1231,3 +1231,54 @@ kbd {
 
 .cm-ability strong { color: var(--type, var(--accent)); }
 .cm-ability span { color: var(--muted); }
+
+/* ---------- Strike Cards ---------- */
+
+.sc-bar {
+  margin-top: auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6em;
+  padding: 0.4em 0.5em;
+  background: rgba(8, 13, 22, 0.92);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.sc-hand {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: flex-end;
+  gap: 0.3em;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.sc-card {
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+  transition: transform 0.1s ease;
+}
+
+.sc-card:hover:not(.is-blocked) { transform: translateY(-6px); }
+.sc-card.is-blocked { opacity: 0.4; cursor: not-allowed; }
+.sc-card.is-picked { transform: translateY(-10px); outline: 2px solid var(--accent); outline-offset: 2px; }
+.sc-face { display: block; border-radius: 10px; }
+
+.sc-actions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35em;
+  max-width: 13em;
+}
+
+.sc-hint { margin: 0; color: var(--muted); font-size: 0.76em; text-align: right; line-height: 1.3; }
+.sc-end { padding: 0.35em 0.9em; font-size: 0.9em; }
+.sc-empty { color: var(--muted); font-size: 0.85em; padding: 1em 0.5em; }

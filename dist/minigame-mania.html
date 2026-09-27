@@ -1238,6 +1238,57 @@ kbd {
 
 .cm-ability strong { color: var(--type, var(--accent)); }
 .cm-ability span { color: var(--muted); }
+
+/* ---------- Strike Cards ---------- */
+
+.sc-bar {
+  margin-top: auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6em;
+  padding: 0.4em 0.5em;
+  background: rgba(8, 13, 22, 0.92);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.sc-hand {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: flex-end;
+  gap: 0.3em;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.sc-card {
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+  transition: transform 0.1s ease;
+}
+
+.sc-card:hover:not(.is-blocked) { transform: translateY(-6px); }
+.sc-card.is-blocked { opacity: 0.4; cursor: not-allowed; }
+.sc-card.is-picked { transform: translateY(-10px); outline: 2px solid var(--accent); outline-offset: 2px; }
+.sc-face { display: block; border-radius: 10px; }
+
+.sc-actions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35em;
+  max-width: 13em;
+}
+
+.sc-hint { margin: 0; color: var(--muted); font-size: 0.76em; text-align: right; line-height: 1.3; }
+.sc-end { padding: 0.35em 0.9em; font-size: 0.9em; }
+.sc-empty { color: var(--muted); font-size: 0.85em; padding: 1em 0.5em; }
 </style>
 </head>
 <body>
@@ -10178,6 +10229,1625 @@ registerGame({
     'Seventeen waves, and the last two are nothing but Skeleflames. Turn them all back and the road is yours.',
   ],
   create: createDefensele,
+});
+
+  return {  };
+})();
+
+// ---- src/games/strikecards/cards.js ------------------------------
+__modules["src/games/strikecards/cards.js"] = (function () {
+/**
+ * The Strike Cards themselves.
+ *
+ * Two kinds go in the 30-card deck: strikers, which take the field and fight,
+ * and gear, which has no body of its own and makes a striker better.
+ *
+ * Every number here is data. The battle reads it and does not care what any of
+ * it is called, so re-costing a card is a one line edit.
+ */
+
+const KINDS = {
+  strike: { id: 'strike', name: 'Striker' },
+  gear: { id: 'gear', name: 'Gear' },
+};
+
+/** `[ id, name, rarity, cost, speed, power, hp ]` for a striker. */
+const striker = (id, name, rarity, cost, speed, power, hp, blurb = '') =>
+  ({ id, name, kind: 'strike', rarity, cost, speed, power, hp, blurb });
+
+/**
+ * A striker that grows on the board. `into` is the form it becomes and `after`
+ * is how many of its owner's turns it has to survive first.
+ *
+ * The later forms are not cards you can own or pull - they are what the first
+ * one turns into - so they carry `form: true` and never appear in a pack.
+ */
+const evolving = (base, into, after) => ({ ...base, evolvesTo: into, evolvesAfter: after });
+const form = (id, name, cost, speed, power, hp, blurb = '') =>
+  ({ id, name, kind: 'strike', rarity: 'uncommon', form: true, cost, speed, power, hp, blurb });
+
+/** `[ id, name, rarity, cost, boost ]` for gear - what it adds, to whatever wears it. */
+const gear = (id, name, rarity, cost, boost, blurb = '') =>
+  ({ id, name, kind: 'gear', rarity, cost, boost, blurb });
+
+const CARDS = [
+  /* ------------------------------------------------------------- commons */
+  striker('nipper', 'Nipper', 'common', 2, 6, 3, 3, 'Something to put down on turn one and not mind losing.'),
+  striker('flicker', 'Flicker', 'common', 3, 9, 4, 2, 'The fastest thing at this rarity. Kills small, dies to anything that lives through it.'),
+  striker('warden', 'Warden', 'common', 3, 2, 2, 6, 'Cheap, slow and annoying to get rid of.'),
+  striker('hiver', 'Hiver', 'common', 4, 8, 6, 4, 'Quick and sharp, and it barely has to take a hit.'),
+  striker('armoren', 'Armoren', 'common', 4, 3, 3, 7, 'Slow, blunt, and hard to shift.'),
+  striker('razor', 'Razor', 'common', 5, 5, 8, 2, 'Hits harder than anything this cheap, and folds to a breath.'),
+  striker('bulwark', 'Bulwark', 'common', 6, 2, 4, 12, 'Too big to kill in one swing, and it hits back every time.'),
+  striker('gorewing', 'Gorewing', 'common', 6, 7, 9, 5, 'Fast and vicious. Only something faster puts it down.'),
+  gear('iron-boots', 'Iron Boots', 'common', 3, { speed: 1 }, 'One more point of speed, which is sometimes the whole fight.'),
+  gear('sword', 'Sword', 'common', 5, { power: 2 }, 'Two more damage on every swing it makes.'),
+
+  /* ----------------------------------------------------------- uncommons */
+  evolving(
+    striker('zaplin', 'Zaplin', 'uncommon', 8, 8, 8, 8, 'Strong at everything, and it does not stay merely strong.'),
+    'bolter', 1,
+  ),
+  striker('sparkfly', 'Sparkfly', 'uncommon', 4, 9, 5, 3, 'Fast enough to pick its fights and cheap enough to lose.'),
+  striker('duskmoth', 'Duskmoth', 'uncommon', 5, 6, 6, 4, 'No weakness worth naming and no trick either.'),
+  striker('stonewall', 'Stonewall', 'uncommon', 5, 1, 2, 10, 'It will not kill anything. It will not move either.'),
+  striker('windkin', 'Windkin', 'uncommon', 6, 8, 8, 2, 'Kills almost anything it goes first against, and dies to a stiff breeze.'),
+  striker('ravener', 'Ravener', 'uncommon', 7, 6, 12, 6, 'Twelve damage: enough to take the biggest thing off the board in one swing.'),
+  striker('warpike', 'Warpike', 'uncommon', 7, 4, 7, 9, 'Big, heavy, and it does not fold to the first thing it meets.'),
+  striker('tank', 'Tank', 'uncommon', 8, 2, 7, 12, 'Slowest thing in the game and the hardest to shift.'),
+  gear('greatshield', 'Greatshield', 'uncommon', 4, { hp: 4 }, 'Four more health, for good.'),
+  gear('spurs', 'Spurs', 'uncommon', 4, { speed: 2 }, 'Two more speed. Often the difference between swinging first and not.'),
+
+  /* --- what Zaplin grows into. Not pulled from packs; only grown into. --- */
+  evolving(form('bolter', 'Bolter', 8, 10, 8, 10, 'What a Zaplin becomes after a turn.'), 'stormbeat', 3),
+  form('stormbeat', 'Stormbeat', 8, 12, 12, 12, 'What a Bolter becomes after three more. Nothing else comes close.'),
+];
+
+const CARD_BY_ID = new Map(CARDS.map((card) => [card.id, card]));
+const getCard = (id) => {
+  const card = CARD_BY_ID.get(id);
+  if (!card) throw new Error(`Unknown card: ${id}`);
+  return card;
+};
+
+const strikersOf = (rarity) => CARDS.filter((c) => c.kind === 'strike' && c.rarity === rarity && !c.form);
+
+/** What a pack may contain: everything except the grown-into forms. */
+const collectible = () => CARDS.filter((card) => !card.form);
+const cardsOfRarity = (rarity) => collectible().filter((card) => card.rarity === rarity);
+
+/** A striker wearing its gear: the stats the battle should actually use. */
+function equipped(striker, gearList = []) {
+  const out = { ...striker, gear: gearList.map((g) => g.id) };
+  for (const piece of gearList) {
+    for (const [stat, amount] of Object.entries(piece.boost || {})) {
+      out[stat] = (out[stat] || 0) + amount;
+      if (stat === 'hp') out.maxHp = (out.maxHp || striker.hp) + amount;
+    }
+  }
+  return out;
+}
+
+  return { KINDS, CARDS, CARD_BY_ID, getCard, strikersOf, collectible, cardsOfRarity, equipped };
+})();
+
+// ---- src/games/strikecards/collection.js -------------------------
+__modules["src/games/strikecards/collection.js"] = (function () {
+/**
+ * Strike Cards: the collection rules.
+ *
+ * What a card *does* is not decided yet, so nothing here knows. This is the
+ * layer around the cards - how rare each one is, what comes out of a pack, and
+ * what counts as a legal deck - and all of it is settled, so it is worth
+ * pinning down and testing before the battle exists to use it.
+ */
+
+/** The five tiers, rarest last. `chance` is a percentage and they total 100. */
+const RARITIES = [
+  { id: 'common', name: 'Common', chance: 40, color: '#b7c0cf', dark: '#3c4452' },
+  { id: 'uncommon', name: 'Uncommon', chance: 30, color: '#6fd48a', dark: '#256b3b' },
+  { id: 'rare', name: 'Rare', chance: 15, color: '#59aef0', dark: '#1a5a8c' },
+  { id: 'epic', name: 'Epic', chance: 12, color: '#b98cff', dark: '#4d2a86' },
+  { id: 'legendary', name: 'Legendary', chance: 3, color: '#ffd166', dark: '#8a6410' },
+];
+
+const RARITY_BY_ID = new Map(RARITIES.map((rarity) => [rarity.id, rarity]));
+const RARITY_IDS = RARITIES.map((rarity) => rarity.id);
+
+/** How rare one tier is against another, for sorting a collection. */
+const rarityRank = (id) => RARITY_IDS.indexOf(id);
+
+const PACK_SIZE = 5;
+const DECK_MIN = 20;
+const DECK_MAX = 30;
+
+/**
+ * How many copies of one card a deck may hold. Two is what makes a collection
+ * worth having: a 20-card deck needs at least ten different cards behind it,
+ * and a full thirty needs fifteen, so nobody builds a deck out of one good card.
+ */
+const MAX_COPIES = 2;
+
+/**
+ * Supports are kept apart from the strike deck and built to their own rule:
+ * five different ones, three copies each. Fifteen cards at most, out of the
+ * fifteen that exist - so a loadout is a third of what is out there, and
+ * choosing which five is most of what makes two decks play differently.
+ */
+const SUPPORT_MAX_DIFFERENT = 5;
+const SUPPORT_MAX_COPIES = 3;
+const SUPPORT_DECK_MAX = SUPPORT_MAX_DIFFERENT * SUPPORT_MAX_COPIES;
+
+/** What is wrong with a support loadout, or null if nothing is. */
+function supportDeckProblem(supportIds, nameOf = (id) => id) {
+  if (!Array.isArray(supportIds)) return 'That is not a support deck.';
+  const counts = countCopies(supportIds);
+  if (counts.size > SUPPORT_MAX_DIFFERENT) {
+    return `You may take ${SUPPORT_MAX_DIFFERENT} different supports - this one takes ${counts.size}.`;
+  }
+  for (const [id, count] of counts) {
+    if (count > SUPPORT_MAX_COPIES) {
+      return `At most ${SUPPORT_MAX_COPIES} copies of a support - this one has ${count} of ${nameOf(id)}.`;
+    }
+  }
+  return null;
+}
+
+/** Whether one more of this support would still be legal. */
+function canAddSupport(supportIds, supportId, ownedCount = Infinity) {
+  const counts = countCopies(supportIds);
+  const inDeck = counts.get(supportId) || 0;
+  if (inDeck === 0 && counts.size >= SUPPORT_MAX_DIFFERENT) return false;
+  return inDeck < SUPPORT_MAX_COPIES && inDeck < ownedCount;
+}
+
+/* ------------------------------------------------------------- the shop */
+
+/**
+ * Coins only come from selling cards, and they only go on packs. Five cards
+ * sold buys one pack, which holds five cards - so the shop is a way of turning
+ * cards you cannot use into a fresh roll of the dice, not a second economy.
+ */
+const COINS_PER_SALE = 20;
+const PACK_COST = 100;
+const CARDS_PER_PACK = PACK_COST / COINS_PER_SALE;
+
+const sellValue = (copies = 1) => copies * COINS_PER_SALE;
+const canBuyPack = (coins) => coins >= PACK_COST;
+
+/**
+ * How many of a card may be sold. Never the last one: a collection you have
+ * torn a hole in is not a mistake worth letting someone make by accident, and
+ * the copies actually worth selling are the third onwards anyway.
+ */
+const sellableCopies = (ownedCount) => Math.max(0, ownedCount - 1);
+
+/** The copies of a card that no deck could ever hold - the truly dead ones. */
+const spareCopies = (ownedCount) => Math.max(0, ownedCount - MAX_COPIES);
+
+/**
+ * One roll on the table. Walking the tiers and subtracting keeps the boundaries
+ * exact: a roll of 0.40 is the first uncommon, not the last common.
+ */
+function rollRarity(random = Math.random) {
+  let roll = random() * 100;
+  for (const rarity of RARITIES) {
+    if (roll < rarity.chance) return rarity;
+    roll -= rarity.chance;
+  }
+  // Only reachable if a random source hands back exactly 1.
+  return RARITIES[0];
+}
+
+/** Five independent rolls. Nothing in a pack is guaranteed. */
+function openPack(random = Math.random, size = PACK_SIZE) {
+  return Array.from({ length: size }, () => rollRarity(random));
+}
+
+/** How many of each card a list holds, as `{ [cardId]: count }`. */
+function countCopies(cardIds) {
+  const counts = new Map();
+  for (const id of cardIds) counts.set(id, (counts.get(id) || 0) + 1);
+  return counts;
+}
+
+/**
+ * What is wrong with this deck, or null if nothing is. Returns the reason
+ * rather than a bare false so the deck builder can say why the button is off.
+ *
+ * `nameOf` turns a card id into something worth showing a player; without it
+ * the message falls back to the id.
+ */
+function deckProblem(cardIds, nameOf = (id) => id) {
+  if (!Array.isArray(cardIds)) return 'That is not a deck.';
+  if (cardIds.length < DECK_MIN) return `A deck needs at least ${DECK_MIN} cards - this one has ${cardIds.length}.`;
+  if (cardIds.length > DECK_MAX) return `A deck holds at most ${DECK_MAX} cards - this one has ${cardIds.length}.`;
+
+  for (const [id, count] of countCopies(cardIds)) {
+    if (count > MAX_COPIES) {
+      return `A deck holds at most ${MAX_COPIES} copies of a card - this one has ${count} of ${nameOf(id)}.`;
+    }
+  }
+  return null;
+}
+
+/** Whether one more of this card would still be legal - what the + button asks. */
+function canAddCopy(cardIds, cardId, ownedCount = Infinity) {
+  if (cardIds.length >= DECK_MAX) return false;
+  const inDeck = countCopies(cardIds).get(cardId) || 0;
+  return inDeck < MAX_COPIES && inDeck < ownedCount;
+}
+
+/** The fewest different cards a deck of this size could be built from. */
+const distinctCardsNeeded = (size) => Math.ceil(size / MAX_COPIES);
+
+const isLegalDeck = (cardIds) => deckProblem(cardIds) === null;
+
+  return { RARITIES, RARITY_BY_ID, RARITY_IDS, rarityRank, PACK_SIZE, DECK_MIN, DECK_MAX, MAX_COPIES, SUPPORT_MAX_DIFFERENT, SUPPORT_MAX_COPIES, SUPPORT_DECK_MAX, supportDeckProblem, canAddSupport, COINS_PER_SALE, PACK_COST, CARDS_PER_PACK, sellValue, canBuyPack, sellableCopies, spareCopies, rollRarity, openPack, countCopies, deckProblem, canAddCopy, distinctCardsNeeded, isLegalDeck };
+})();
+
+// ---- src/games/strikecards/rules.js ------------------------------
+__modules["src/games/strikecards/rules.js"] = (function () {
+/**
+ * Strike Cards: what a card is, and who goes first.
+ *
+ * A strike card is speed, power and hp. Speed decides everything about
+ * sequencing - who swings first, and whose support lands first when both
+ * players reach for one at the same moment - so the comparison lives here on
+ * its own, where it can be tested without a battle around it.
+ */
+
+/** How many support cards exist, and how many of those can be played off-turn. */
+const SUPPORT_COUNT = 15;
+const INSTANT_SUPPORT_COUNT = 5;
+
+/** The shape every strike card fills in. */
+const CARD_FIELDS = ['id', 'name', 'rarity', 'cost', 'speed', 'power', 'hp'];
+
+/* ------------------------------------------------------------- the points */
+
+/**
+ * Points are what you pay to put a card down, and there are two taps: a
+ * quickening trickle each turn, and whatever a card you kill was worth.
+ *
+ * The second one is the interesting half. Killing something expensive hands you
+ * its cost, so trading up does not just remove their card, it pays for your
+ * next one - which means a board that is losing can climb back rather than
+ * simply falling further behind.
+ */
+const STARTING_POINTS = 5;
+
+/** Per-turn income, widening as the game goes on. */
+const INCOME_BANDS = [
+  { from: 1, to: 4, points: 1 },
+  { from: 5, to: 8, points: 2 },
+  { from: 9, to: Infinity, points: 3 },
+];
+
+/** What the turn's trickle is worth. */
+function incomeOnTurn(turn) {
+  const band = INCOME_BANDS.find((entry) => turn >= entry.from && turn <= entry.to);
+  return band ? band.points : 0;
+}
+
+/**
+ * Points in hand at the start of `turn`, having killed nothing.
+ *
+ * Turn one is the 5 you start with and no more: income arrives from turn two
+ * onwards, so "you start with 5" is true of the board you actually see first.
+ */
+function pointsByTurn(turn) {
+  let points = STARTING_POINTS;
+  for (let t = 2; t <= turn; t += 1) points += incomeOnTurn(t);
+  return points;
+}
+
+/** Whether a card is affordable right now. */
+const canAfford = (card, points) => Boolean(card) && points >= card.cost;
+
+/** What a kill pays: exactly what the thing you killed cost to play. */
+const bountyFor = (card) => (card ? card.cost : 0);
+
+/* --------------------------------------------------------- what a turn is */
+
+/** One of each, however many points are going spare. */
+const PLAYS_PER_TURN = { card: 1, support: 1 };
+
+/**
+ * Two cards a side, and only one goes down per turn - so a full board takes
+ * two turns to build and one bad trade to lose half of.
+ */
+const BOARD_LIMIT = 2;
+
+/** Whether this side may still put a strike card down this turn. */
+const canPlayCard = (side, card) =>
+  side.cardsPlayedThisTurn < PLAYS_PER_TURN.card
+  && side.board.length < BOARD_LIMIT
+  && canAfford(card, side.points);
+
+/** Why a card cannot go down, for the button that is greyed out. */
+function playProblem(side, card) {
+  if (!card) return 'Nothing selected.';
+  if (side.cardsPlayedThisTurn >= PLAYS_PER_TURN.card) return 'One card a turn.';
+  if (side.board.length >= BOARD_LIMIT) return `Only ${BOARD_LIMIT} cards out at a time.`;
+  if (!canAfford(card, side.points)) return `${card.name} costs ${card.cost} - you have ${side.points}.`;
+  return null;
+}
+
+/** You pick what to hit, so long as it is actually there. */
+const canAttack = (target, defenderBoard) =>
+  Boolean(target) && defenderBoard.some((card) => card.uid === target.uid);
+
+/** Whether this side may still play a support this turn, on or off its turn. */
+const canUseSupport = (side, support, { isYourTurn }) =>
+  side.supportsPlayedThisTurn < PLAYS_PER_TURN.support && canPlaySupport(support, { isYourTurn });
+
+/* ---------------------------------------------------------- the graveyard */
+
+/**
+ * A card pulled back out of the graveyard comes back free. That is the whole
+ * trick of the one support that does it: the card you most want back is the
+ * expensive one you just lost, and it returns costing nothing.
+ */
+function recall(card) {
+  if (!card) return null;
+  return { ...card, cost: 0, recalled: true };
+}
+
+/**
+ * You lose when there is nothing left to knock out - nothing on the board,
+ * nothing in hand, nothing left to draw.
+ */
+const isBeaten = (side) =>
+  side.board.length === 0
+  && !side.hand.some((card) => card.kind !== 'gear')
+  && !side.deck.some((card) => card.kind !== 'gear');
+
+/** 'a', 'b', or null while both still have something. */
+function loser(sides) {
+  const aBeaten = isBeaten(sides.a);
+  const bBeaten = isBeaten(sides.b);
+  if (aBeaten && bBeaten) return 'both';
+  if (aBeaten) return 'a';
+  if (bBeaten) return 'b';
+  return null;
+}
+
+/** A support is either played on your own turn, or the moment you need it. */
+const SUPPORT_TIMING = {
+  turn: { id: 'turn', name: 'On your turn', blurb: 'Played on your own turn, like anything else.' },
+  instant: { id: 'instant', name: 'Any time', blurb: 'Can be played even when it is not your turn.' },
+};
+
+/**
+ * Which of two cards acts first. Faster wins; level on speed, the coin decides,
+ * because a tie that always broke the same way would make one seat better than
+ * the other before a card was played.
+ *
+ * Returns 'a', or 'b'.
+ */
+function firstToAct(a, b, random = Math.random) {
+  if (!a) return 'b';
+  if (!b) return 'a';
+  if (a.speed !== b.speed) return a.speed > b.speed ? 'a' : 'b';
+  return random() < 0.5 ? 'a' : 'b';
+}
+
+/**
+ * The order two sides resolve in this turn: the faster card swings first, and
+ * the same order decides whose support lands first when both play one.
+ */
+function turnOrder(cards, random = Math.random) {
+  const first = firstToAct(cards.a, cards.b, random);
+  return first === 'a' ? ['a', 'b'] : ['b', 'a'];
+}
+
+/** Whether a support may be played right now. */
+function canPlaySupport(support, { isYourTurn }) {
+  if (!support) return false;
+  if (isYourTurn) return true;
+  return support.timing === 'instant';
+}
+
+/** The instants in a list - the five that break the turn order. */
+const instantsIn = (supports) => supports.filter((support) => support.timing === 'instant');
+
+  return { SUPPORT_COUNT, INSTANT_SUPPORT_COUNT, CARD_FIELDS, STARTING_POINTS, INCOME_BANDS, incomeOnTurn, pointsByTurn, canAfford, bountyFor, PLAYS_PER_TURN, BOARD_LIMIT, canPlayCard, playProblem, canAttack, canUseSupport, recall, isBeaten, loser, SUPPORT_TIMING, firstToAct, turnOrder, canPlaySupport, instantsIn };
+})();
+
+// ---- src/games/strikecards/battle.js -----------------------------
+__modules["src/games/strikecards/battle.js"] = (function () {
+  const { seededRandom } = __modules["src/core/utils.js"];
+  const { getCard } = __modules["src/games/strikecards/cards.js"];
+  const { BOARD_LIMIT, PLAYS_PER_TURN, STARTING_POINTS, bountyFor, canPlaySupport, firstToAct, incomeOnTurn, playProblem, recall } = __modules["src/games/strikecards/rules.js"];
+
+/**
+ * A Strike Cards match.
+ *
+ * Sides take turns. On yours you draw, may put one card down and play one
+ * support, and then every card you have out swings at a target you choose.
+ *
+ * The swing is the heart of it: the two cards hurt each other, and the faster
+ * one lands first. Kill it before it moves and it never hits you back - which
+ * means attacking something quicker than you is a real risk, and speed is worth
+ * as much as power.
+ *
+ * Nothing here draws anything. The whole match is a value you can step through
+ * a turn at a time, which is what makes it testable and what lets an AI look
+ * ahead by simply doing the same thing.
+ */
+
+const OPENING_HAND = 5;
+const DRAW_PER_TURN = 1;
+
+/**
+ * A backstop, not a rule anybody should meet.
+ *
+ * Two careful players can refuse to attack forever: a full board, no swing
+ * either of them likes, and nothing in the rules that makes them move. A normal
+ * match is over inside 35 turns a side, so this only ever catches a match that
+ * had stopped being one.
+ */
+const TURN_LIMIT = 60;
+
+let uid = 0;
+const nextUid = () => (uid += 1);
+
+/** A card in a match is the printed card plus what has happened to it. */
+function instance(card) {
+  return {
+    ...card,
+    uid: `c${nextUid()}`,
+    maxHp: card.hp,
+    hp: card.hp,
+    attackedThisTurn: false,
+    turnsOnBoard: 0,
+  };
+}
+
+const shuffled = (cards, random) => {
+  const out = [...cards];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+};
+
+function makeSide(deck, supports, random) {
+  const shuffledDeck = shuffled(deck.map(instance), random);
+  return {
+    points: STARTING_POINTS,
+    board: [],
+    hand: shuffledDeck.slice(0, OPENING_HAND),
+    deck: shuffledDeck.slice(OPENING_HAND),
+    supports: shuffled([...supports], random),
+    graveyard: [],
+    turn: 0,
+    cardsPlayedThisTurn: 0,
+    supportsPlayedThisTurn: 0,
+    kills: 0,
+  };
+}
+
+function createMatch({ decks, supports = { a: [], b: [] }, random = seededRandom(1), first = 'a' } = {}) {
+  const state = {
+    random,
+    sides: {
+      a: makeSide(decks.a, supports.a, random),
+      b: makeSide(decks.b, supports.b, random),
+    },
+    active: first,
+    over: false,
+    winner: null,
+    reason: null,
+    log: [],
+  };
+  beginTurn(state);
+  return state;
+}
+
+const other = (side) => (side === 'a' ? 'b' : 'a');
+const activeSide = (state) => state.sides[state.active];
+
+const say = (state, text, extra = {}) => state.log.push({ turn: activeSide(state).turn, side: state.active, text, ...extra });
+
+/* ------------------------------------------------------------ the turn */
+
+/** Income, a card off the top, and a fresh allowance of plays. */
+function beginTurn(state) {
+  const side = state.sides[state.active];
+  side.turn += 1;
+  side.cardsPlayedThisTurn = 0;
+  side.supportsPlayedThisTurn = 0;
+  for (const card of side.board) card.attackedThisTurn = false;
+
+  // Anything that lasted "until the turn ends" ends here, on both boards - a
+  // Sidestep played on their turn should not still be helping on yours.
+  for (const key of ['a', 'b']) {
+    for (const card of state.sides[key].board) {
+      for (const [stat, amount] of Object.entries(card.temp || {})) card[stat] -= amount;
+      card.temp = {};
+    }
+  }
+
+  // Turn one is the five you start with; the trickle begins on turn two.
+  if (side.turn > 1) {
+    const income = incomeOnTurn(side.turn);
+    side.points += income;
+    say(state, `+${income} points`, { kind: 'income', points: side.points });
+  }
+
+  for (const card of side.board) {
+    card.turnsOnBoard += 1;
+    evolveIfReady(state, card);
+  }
+
+  for (let i = 0; i < DRAW_PER_TURN; i += 1) draw(state, state.active);
+}
+
+/**
+ * A card that has survived long enough becomes the next thing.
+ *
+ * Damage carries over rather than being washed off: a Zaplin down to 2 of its 5
+ * becomes a Bolter on 4 of 7, not a fresh one. Otherwise evolving would be a
+ * free heal and you would hold the card back rather than fight with it.
+ *
+ * Anything gear added rides along too - the boots you put on the Zaplin are
+ * still on the Bolter.
+ */
+function evolveIfReady(state, card) {
+  if (!card.evolvesTo || card.turnsOnBoard < card.evolvesAfter) return false;
+
+  const next = getCard(card.evolvesTo);
+  const damage = card.maxHp - card.hp;
+  const bonus = {
+    hp: card.maxHp - getCard(card.id).hp,
+    power: card.power - getCard(card.id).power,
+    speed: card.speed - getCard(card.id).speed,
+  };
+
+  const was = card.name;
+  card.id = next.id;
+  card.name = next.name;
+  card.blurb = next.blurb;
+  card.maxHp = next.hp + bonus.hp;
+  card.hp = Math.max(1, card.maxHp - damage);
+  card.power = next.power + bonus.power;
+  card.speed = next.speed + bonus.speed;
+  card.evolvesTo = next.evolvesTo || null;
+  card.evolvesAfter = next.evolvesAfter || 0;
+  card.turnsOnBoard = 0;
+
+  say(state, `${was} grows into ${card.name} (${card.hp}/${card.maxHp}hp, ${card.power} power, ${card.speed} speed)`,
+    { kind: 'evolve', uid: card.uid });
+  return true;
+}
+
+function draw(state, which) {
+  const side = state.sides[which];
+  if (side.deck.length === 0) return null;
+  const card = side.deck.shift();
+  side.hand.push(card);
+  return card;
+}
+
+function endTurn(state) {
+  if (state.over) return state;
+  state.active = other(state.active);
+  beginTurn(state);
+  checkOver(state);
+  return state;
+}
+
+/** Most kills takes it, then most cards still standing; level on both is a draw. */
+function callIt(state) {
+  const score = (side) => [side.kills, side.board.length + side.hand.length + side.deck.length];
+  const [aKills, aLeft] = score(state.sides.a);
+  const [bKills, bLeft] = score(state.sides.b);
+  state.over = true;
+  state.reason = 'nobody would commit';
+  if (aKills !== bKills) state.winner = aKills > bKills ? 'a' : 'b';
+  else if (aLeft !== bLeft) state.winner = aLeft > bLeft ? 'a' : 'b';
+  else state.winner = null;
+  return state;
+}
+
+/* ---------------------------------------------------------- the actions */
+
+/** Puts a card from hand onto the board, if the turn and the points allow. */
+function playCard(state, handIndex) {
+  const side = activeSide(state);
+  const card = side.hand[handIndex];
+  const problem = playProblem(side, card);
+  if (problem) return { error: problem };
+
+  side.hand.splice(handIndex, 1);
+  side.board.push(card);
+  side.points -= card.cost;
+  side.cardsPlayedThisTurn += 1;
+  say(state, `${card.name} takes the field (${card.cost} points)`, { kind: 'play', uid: card.uid });
+  return { card };
+}
+
+/**
+ * Plays a piece of gear onto one of your own cards.
+ *
+ * Gear is spent, not worn: it costs its points, the boost goes into the card
+ * for good, and the gear itself goes to the graveyard. The card is not holding
+ * anything afterwards, which is why a second piece can go on the same card
+ * later and stack on top of the first.
+ */
+function playGear(state, handIndex, targetUid) {
+  const side = activeSide(state);
+  const piece = side.hand[handIndex];
+  if (!piece || piece.kind !== 'gear') return { error: 'That is not gear.' };
+  if (side.points < piece.cost) return { error: `${piece.name} costs ${piece.cost} - you have ${side.points}.` };
+
+  const target = side.board.find((card) => card.uid === targetUid);
+  if (!target) return { error: 'Put it on one of your own cards.' };
+
+  side.hand.splice(handIndex, 1);
+  side.points -= piece.cost;
+  side.graveyard.push(piece);
+
+  const gained = [];
+  for (const [stat, amount] of Object.entries(piece.boost || {})) {
+    target[stat] = (target[stat] || 0) + amount;
+    if (stat === 'hp') target.maxHp += amount;
+    gained.push(`${amount > 0 ? '+' : ''}${amount} ${stat}`);
+  }
+  target.boosts = (target.boosts || 0) + 1;
+
+  say(state, `${piece.name} on ${target.name} (${gained.join(', ')})`, { kind: 'gear', uid: target.uid });
+  return { gear: piece, target };
+}
+
+/** Plays a support. `which` may be the side that is not active, for an instant. */
+function playSupport(state, which, supportIndex, apply) {
+  const side = state.sides[which];
+  const support = side.supports[supportIndex];
+  const isYourTurn = state.active === which;
+
+  if (!support) return { error: 'No such support.' };
+  if (side.supportsPlayedThisTurn >= PLAYS_PER_TURN.support) return { error: 'One support a turn.' };
+  if (!canPlaySupport(support, { isYourTurn })) return { error: `${support.name} can only be played on your turn.` };
+
+  side.supports.splice(supportIndex, 1);
+  side.supportsPlayedThisTurn += 1;
+  say(state, `${support.name}`, { kind: 'support', side: which });
+  if (apply) apply(state, which, support);
+  return { support };
+}
+
+/** The support that pulls a card back out of the graveyard, free. */
+function recallFromGraveyard(state, which, graveIndex) {
+  const side = state.sides[which];
+  const card = side.graveyard[graveIndex];
+  if (!card) return { error: 'Nothing there to bring back.' };
+  side.graveyard.splice(graveIndex, 1);
+  const back = instance(recall(card));
+  side.hand.push(back);
+  say(state, `${back.name} claws its way back, and it comes free`, { kind: 'recall', uid: back.uid });
+  return { card: back };
+}
+
+/* ----------------------------------------------------------- the swing */
+
+/**
+ * One card swings at another. Both hurt each other; the faster goes first, and
+ * a card killed before it moves never gets its blow in.
+ */
+function attack(state, attackerUid, targetUid) {
+  const side = activeSide(state);
+  const foe = state.sides[other(state.active)];
+  const attacker = side.board.find((card) => card.uid === attackerUid);
+  const target = foe.board.find((card) => card.uid === targetUid);
+
+  if (!attacker) return { error: 'That card is not on your board.' };
+  if (attacker.attackedThisTurn) return { error: `${attacker.name} has already swung this turn.` };
+  if (!target) return { error: 'Nothing there to hit.' };
+
+  attacker.attackedThisTurn = true;
+  const first = firstToAct(attacker, target, state.random) === 'a' ? attacker : target;
+  const second = first === attacker ? target : attacker;
+  say(state, `${attacker.name} goes for ${target.name} - ${first.name} is faster`, { kind: 'attack' });
+
+  const hit = (from, to) => {
+    to.hp -= from.power;
+    say(state, `${from.name} hits ${to.name} for ${from.power}`, { kind: 'damage', uid: to.uid, hp: Math.max(0, to.hp) });
+  };
+
+  hit(first, second);
+  if (second.hp > 0) hit(second, first);
+  else say(state, `${second.name} never got its blow in`, { kind: 'text' });
+
+  for (const card of [attacker, target]) reap(state, card);
+
+  checkOver(state);
+  return { attacker, target };
+}
+
+/**
+ * Moves a card that has run out of health off the board and pays whoever put it
+ * there. Everything that can kill goes through here, so a support bolt pays a
+ * bounty exactly as a swing does.
+ */
+function reap(state, card) {
+  if (!card || card.hp > 0) return false;
+  const ownerKey = state.sides.a.board.some((entry) => entry.uid === card.uid) ? 'a' : 'b';
+  if (!state.sides[ownerKey].board.some((entry) => entry.uid === card.uid)) return false;
+
+  const owner = state.sides[ownerKey];
+  const killer = state.sides[other(ownerKey)];
+  owner.board = owner.board.filter((entry) => entry.uid !== card.uid);
+  owner.graveyard.push(card);
+  killer.points += bountyFor(card);
+  killer.kills += 1;
+  say(state, `${card.name} falls - ${bountyFor(card)} points for it`, { kind: 'faint', uid: card.uid });
+  return true;
+}
+
+/* ---------------------------------------------------- what a support does */
+
+const findCard = (state, uid) =>
+  state.sides.a.board.find((c) => c.uid === uid) || state.sides.b.board.find((c) => c.uid === uid) || null;
+
+const ownerOf = (state, card) => (state.sides.a.board.some((c) => c.uid === card.uid) ? 'a' : 'b');
+
+/**
+ * Runs a support's effect. `target` is a card uid, or an index into the
+ * graveyard for the one that brings something back.
+ */
+function applySupport(state, which, support, target) {
+  const effect = support.effect;
+  if (!effect) return { error: `${support.name} does nothing.` };
+
+  if (effect.kind === 'recall') return recallFromGraveyard(state, which, target ?? 0);
+
+  const card = findCard(state, target);
+  if (!card) return { error: 'Nothing there to aim it at.' };
+  const side = ownerOf(state, card);
+  if (effect.target === 'friendly' && side !== which) return { error: `${support.name} is for your own cards.` };
+  if (effect.target === 'enemy' && side === which) return { error: `${support.name} is for theirs.` };
+
+  if (effect.kind === 'heal') {
+    const healed = Math.min(effect.amount, card.maxHp - card.hp);
+    card.hp += healed;
+    say(state, `${card.name} patched up for ${healed}`, { kind: 'heal', uid: card.uid, hp: card.hp });
+    return { healed };
+  }
+
+  if (effect.kind === 'damage') {
+    card.hp -= effect.amount;
+    say(state, `${card.name} takes ${effect.amount}`, { kind: 'damage', uid: card.uid, hp: Math.max(0, card.hp) });
+    reap(state, card);
+    checkOver(state);
+    return { damage: effect.amount };
+  }
+
+  if (effect.kind === 'buff') {
+    card[effect.stat] += effect.amount;
+    if (effect.stat === 'hp') card.maxHp += effect.amount;
+    if (effect.lasts === 'turn') {
+      card.temp = card.temp || {};
+      card.temp[effect.stat] = (card.temp[effect.stat] || 0) + effect.amount;
+    }
+    say(state, `${card.name} takes +${effect.amount} ${effect.stat}${effect.lasts === 'turn' ? ' for the turn' : ''}`, { kind: 'buff', uid: card.uid });
+    return { buffed: effect.stat };
+  }
+
+  return { error: `${support.name} does nothing the battle knows about.` };
+}
+
+/* -------------------------------------------------------------- the end */
+
+/**
+ * Beaten means you have nothing left that can fight: nothing on the board, and
+ * no striker in hand or deck to put there.
+ *
+ * Gear does not count. A hand of Swords with an empty board and an empty deck
+ * is not a defence - it is a player who can never act again, and before this
+ * checked for strikers rather than cards, such a match ran forever with neither
+ * side able to end it.
+ */
+const canFight = (card) => card.kind !== 'gear';
+
+const canStillFight = (side) =>
+  side.board.length > 0 || side.hand.some(canFight) || side.deck.some(canFight);
+
+const isBeaten = (side) => !canStillFight(side);
+
+function checkOver(state) {
+  if (state.over) return state;
+  const aBeaten = isBeaten(state.sides.a);
+  const bBeaten = isBeaten(state.sides.b);
+  if (!aBeaten && !bBeaten) {
+    if (state.sides.a.turn > TURN_LIMIT || state.sides.b.turn > TURN_LIMIT) return callIt(state);
+    return state;
+  }
+
+  state.over = true;
+  state.winner = aBeaten && bBeaten ? null : aBeaten ? 'b' : 'a';
+  state.reason = state.winner ? 'every card knocked out' : 'both sides wiped out';
+  return state;
+}
+
+  return { OPENING_HAND, DRAW_PER_TURN, TURN_LIMIT, instance, createMatch, other, activeSide, beginTurn, evolveIfReady, draw, endTurn, playCard, playGear, playSupport, recallFromGraveyard, attack, reap, applySupport, isBeaten, checkOver };
+})();
+
+// ---- src/games/strikecards/ai.js ---------------------------------
+__modules["src/games/strikecards/ai.js"] = (function () {
+  const { playProblem } = __modules["src/games/strikecards/rules.js"];
+  const { other } = __modules["src/games/strikecards/battle.js"];
+
+/**
+ * The opponent.
+ *
+ * It does not search ahead. It values a board the way a decent player would
+ * describe one out loud - kill what you can kill, do not swing into something
+ * that kills you back, and spend your points rather than sitting on them - and
+ * that turns out to be enough to make it read as thinking.
+ */
+
+/** What an exchange would cost both sides, without changing anything. */
+function previewSwing(attacker, target) {
+  let mine = attacker.hp;
+  let theirs = target.hp;
+  if (attacker.speed > target.speed) {
+    theirs -= attacker.power;
+    if (theirs > 0) mine -= target.power;
+  } else if (target.speed > attacker.speed) {
+    mine -= target.power;
+    if (mine > 0) theirs -= attacker.power;
+  } else {
+    // A tie is a coin flip, so assume the worse half of it.
+    mine -= target.power;
+    if (mine > 0) theirs -= attacker.power;
+  }
+  return { iDie: mine <= 0, theyDie: theirs <= 0, myHpAfter: mine, theirHpAfter: theirs };
+}
+
+/**
+ * How good a swing is, in points. Killing something is worth what it cost;
+ * dying costs what yours cost; chip damage is worth a little.
+ */
+function scoreSwing(attacker, target) {
+  const { iDie, theyDie, theirHpAfter } = previewSwing(attacker, target);
+  let score = 0;
+  if (theyDie) score += target.cost * 10 + 5;
+  else score += Math.min(attacker.power, target.hp) * 0.5;
+  if (iDie) score -= attacker.cost * 10;
+  if (theyDie && !iDie) score += 8;                   // a clean kill is the best thing going
+  if (!theyDie && theirHpAfter <= 1) score += 2;      // leaving it on its last legs is worth something
+  return score;
+}
+
+/**
+ * The best target for one attacker, or null if every swing is a bad idea.
+ *
+ * `mustAct` drops the standard: two players who will only take good trades will
+ * sit across a full board from each other until the sun goes out, so once a
+ * side has nothing left to draw it takes the least bad swing going rather than
+ * waiting for one it likes.
+ */
+function chooseTarget(attacker, enemyBoard, { mustAct = false } = {}) {
+  let best = null;
+  let bestScore = mustAct ? -Infinity : 0;
+  for (const target of enemyBoard) {
+    const score = scoreSwing(attacker, target);
+    if (score > bestScore) {
+      bestScore = score;
+      best = target;
+    }
+  }
+  return best;
+}
+
+/** Nothing left to draw and nothing to field: waiting cannot improve this. */
+const shouldForceIt = (side) =>
+  side.deck.length === 0 && !side.hand.some((card) => card.kind === 'strike');
+
+/** Which card to put down: the most expensive thing affordable, since points expire unused. */
+function chooseCard(side) {
+  let best = -1;
+  let bestCost = -1;
+  side.hand.forEach((card, index) => {
+    if (card.kind !== 'strike') return;
+    if (playProblem(side, card) !== null) return;
+    if (card.cost > bestCost) {
+      bestCost = card.cost;
+      best = index;
+    }
+  });
+  return best;
+}
+
+/** Gear goes on whatever is already out and worth improving. */
+function chooseGear(side) {
+  const piece = side.hand.findIndex((card) => card.kind === 'gear' && card.cost <= side.points);
+  if (piece < 0 || side.board.length === 0) return null;
+  // Put it on the healthiest thing out, which is the one most likely to still
+  // be standing next turn to use it.
+  const target = [...side.board].sort((a, b) => b.hp - a.hp)[0];
+  return { handIndex: piece, targetUid: target.uid };
+}
+
+/**
+ * A whole turn, as a list of actions for the caller to apply. Returning the
+ * plan rather than mutating means the same function can be used to show what
+ * the opponent is about to do.
+ */
+function planTurn(state, which) {
+  const side = state.sides[which];
+  const foe = state.sides[other(which)];
+  const actions = [];
+
+  const cardIndex = chooseCard(side);
+  if (cardIndex >= 0) actions.push({ kind: 'play', handIndex: cardIndex });
+
+  const mustAct = shouldForceIt(side);
+  for (const attacker of side.board) {
+    if (attacker.attackedThisTurn) continue;
+    const target = chooseTarget(attacker, foe.board, { mustAct });
+    if (target) actions.push({ kind: 'attack', attackerUid: attacker.uid, targetUid: target.uid });
+  }
+
+  return actions;
+}
+
+  return { previewSwing, scoreSwing, chooseTarget, shouldForceIt, chooseCard, chooseGear, planTurn };
+})();
+
+// ---- src/games/strikecards/art.js --------------------------------
+__modules["src/games/strikecards/art.js"] = (function () {
+  const { TAU, clamp, roundedRect } = __modules["src/core/utils.js"];
+  const { RARITY_BY_ID } = __modules["src/games/strikecards/collection.js"];
+
+/** Everything Strike Cards draws. No game state is changed in here. */
+
+const CARD_W = 104;
+const CARD_H = 140;
+
+const face = (rarity) => RARITY_BY_ID.get(rarity) || RARITY_BY_ID.get('common');
+
+/** The little gem that says what a stat is. */
+function pip(ctx, x, y, value, color, label) {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  roundedRect(ctx, x, y, 28, 18, 5);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.font = '700 12px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(value), x + 14, y + 10);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.font = '700 7px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(label, x + 14, y - 5);
+}
+
+/** A striker's silhouette, so a Tank does not look like a Sparkfly. */
+function sigil(ctx, card, x, y) {
+  const tone = face(card.rarity);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.strokeStyle = 'rgba(6, 10, 16, 0.85)';
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = tone.color;
+
+  const fast = card.speed >= 8;
+  const tough = card.hp >= 9;
+  ctx.beginPath();
+  if (fast) {                       // a dart
+    ctx.moveTo(0, -16); ctx.lineTo(11, 12); ctx.lineTo(0, 5); ctx.lineTo(-11, 12);
+  } else if (tough) {               // a block
+    ctx.moveTo(-13, -12); ctx.lineTo(13, -12); ctx.lineTo(13, 13); ctx.lineTo(-13, 13);
+  } else {                          // a wedge
+    ctx.moveTo(0, -14); ctx.lineTo(13, 6); ctx.lineTo(-13, 6);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * One card. `state` carries what the board knows: current hp, whether it has
+ * swung, whether it is picked, and whether it is a legal thing to click.
+ */
+function drawCard(ctx, card, x, y, state = {}) {
+  const tone = face(card.rarity);
+  const w = CARD_W;
+  const h = CARD_H;
+
+  ctx.save();
+  if (state.spent) ctx.globalAlpha = 0.55;
+
+  ctx.fillStyle = 'rgba(8, 13, 22, 0.95)';
+  roundedRect(ctx, x, y, w, h, 10);
+  ctx.fill();
+
+  ctx.strokeStyle = state.picked ? '#ffd166' : state.targetable ? '#ff8b6b' : tone.dark;
+  ctx.lineWidth = state.picked || state.targetable ? 3 : 2;
+  roundedRect(ctx, x, y, w, h, 10);
+  ctx.stroke();
+
+  // A band of the rarity's colour across the top.
+  ctx.fillStyle = tone.dark;
+  roundedRect(ctx, x + 1, y + 1, w - 2, 22, 9);
+  ctx.fill();
+  ctx.fillStyle = tone.color;
+  ctx.font = '700 12px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(card.name.slice(0, 12), x + 8, y + 12);
+
+  // Cost, top right.
+  ctx.fillStyle = '#ffd166';
+  ctx.beginPath();
+  ctx.arc(x + w - 14, y + 12, 10, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#20160a';
+  ctx.font = '700 12px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(String(card.cost), x + w - 14, y + 12);
+
+  if (card.kind === 'gear') {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.font = '600 11px "Trebuchet MS", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    const lines = Object.entries(card.boost || {}).map(([stat, n]) => `+${n} ${stat}`);
+    lines.forEach((line, i) => ctx.fillText(line, x + w / 2, y + 70 + i * 15));
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.font = '700 9px "Trebuchet MS", system-ui, sans-serif';
+    ctx.fillText('GEAR', x + w / 2, y + 40);
+  } else {
+    sigil(ctx, card, x + w / 2, y + 56);
+    const hp = state.hp ?? card.hp;
+    const maxHp = state.maxHp ?? card.hp;
+    pip(ctx, x + 6, y + h - 26, `${hp}`, hp < maxHp ? '#ff8b6b' : '#8ef0a8', 'HP');
+    pip(ctx, x + 38, y + h - 26, card.power, '#ffd166', 'PWR');
+    pip(ctx, x + 70, y + h - 26, card.speed, '#9be8ff', 'SPD');
+  }
+
+  if (state.evolvesIn != null) {
+    ctx.fillStyle = 'rgba(185, 140, 255, 0.9)';
+    ctx.font = '700 9px "Trebuchet MS", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(state.evolvesIn === 0 ? 'GROWING' : `grows in ${state.evolvesIn}`, x + w / 2, y + 88);
+  }
+  if (state.spent) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = '700 9px "Trebuchet MS", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('SWUNG', x + w / 2, y + 104);
+  }
+  ctx.restore();
+}
+
+/** An empty place a card could stand. */
+function drawSlot(ctx, x, y, label) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+  ctx.setLineDash([6, 6]);
+  ctx.lineWidth = 2;
+  roundedRect(ctx, x, y, CARD_W, CARD_H, 10);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  if (label) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.font = '600 11px "Trebuchet MS", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x + CARD_W / 2, y + CARD_H / 2);
+  }
+  ctx.restore();
+}
+
+function drawBackdrop(ctx, width, height, time) {
+  const sky = ctx.createLinearGradient(0, 0, 0, height);
+  sky.addColorStop(0, '#111a2e');
+  sky.addColorStop(0.5, '#0d1524');
+  sky.addColorStop(1, '#131d31');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.save();
+  ctx.globalAlpha = 0.25;
+  ctx.strokeStyle = '#2a3a5c';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, height / 2);
+  ctx.lineTo(width, height / 2);
+  ctx.stroke();
+  ctx.restore();
+  void time;
+}
+
+/** The strip along the top of a side: points, what is left, whose turn it is. */
+function drawSideBar(ctx, side, x, y, width, { name, active, align = 'left' }) {
+  ctx.save();
+  ctx.fillStyle = active ? 'rgba(255, 209, 102, 0.14)' : 'rgba(255, 255, 255, 0.05)';
+  roundedRect(ctx, x, y, width, 26, 8);
+  ctx.fill();
+  if (active) {
+    ctx.strokeStyle = 'rgba(255, 209, 102, 0.6)';
+    ctx.lineWidth = 1.5;
+    roundedRect(ctx, x, y, width, 26, 8);
+    ctx.stroke();
+  }
+
+  ctx.font = '700 13px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = align;
+  const textX = align === 'left' ? x + 12 : x + width - 12;
+  ctx.fillStyle = active ? '#ffd166' : 'rgba(255, 255, 255, 0.7)';
+  ctx.fillText(name, textX, y + 13);
+
+  ctx.font = '600 12px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = align === 'left' ? 'right' : 'left';
+  const statX = align === 'left' ? x + width - 12 : x + 12;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+  ctx.fillText(`${side.points} pts   hand ${side.hand.length}   deck ${side.deck.length}   lost ${side.graveyard.length}`, statX, y + 13);
+  ctx.restore();
+}
+
+function drawLog(ctx, entries, x, y, width, height) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(6, 10, 18, 0.7)';
+  roundedRect(ctx, x, y, width, height, 8);
+  ctx.fill();
+  ctx.font = '600 11px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const lines = entries.slice(-4);
+  lines.forEach((entry, i) => {
+    ctx.globalAlpha = clamp(0.45 + (i / Math.max(1, lines.length - 1)) * 0.55, 0, 1);
+    ctx.fillStyle = entry.kind === 'faint' ? '#ff9d94'
+      : entry.kind === 'evolve' ? '#b98cff'
+        : entry.kind === 'income' ? '#8ef0a8' : 'rgba(255, 255, 255, 0.85)';
+    ctx.fillText(entry.text.slice(0, 92), x + 12, y + 14 + i * 15);
+  });
+  ctx.restore();
+}
+
+function drawBanner(ctx, width, text, subtext, alpha) {
+  if (!text || alpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = clamp(alpha, 0, 1);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 38px "Trebuchet MS", system-ui, sans-serif';
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = 'rgba(6, 10, 18, 0.85)';
+  ctx.strokeText(text, width / 2, 212);
+  ctx.fillStyle = '#ffd166';
+  ctx.fillText(text, width / 2, 212);
+  if (subtext) {
+    ctx.font = '600 15px "Trebuchet MS", system-ui, sans-serif';
+    ctx.strokeText(subtext, width / 2, 240);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.fillText(subtext, width / 2, 240);
+  }
+  ctx.restore();
+}
+
+  return { CARD_W, CARD_H, drawCard, drawSlot, drawBackdrop, drawSideBar, drawLog, drawBanner };
+})();
+
+// ---- src/games/strikecards/ui.js ---------------------------------
+__modules["src/games/strikecards/ui.js"] = (function () {
+  const { drawCard, CARD_W, CARD_H } = __modules["src/games/strikecards/art.js"];
+
+/**
+ * The DOM half of Strike Cards: your hand along the bottom, and the two
+ * buttons that drive a turn. The boards are drawn on the canvas; the hand is
+ * here because a row of cards you scroll and hover is a thing the browser
+ * already does well.
+ */
+
+const el = (tag, className, text) => {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+};
+
+/** A little canvas of one card, for the hand. */
+function cardFace(card, scale = 0.72) {
+  const canvas = el('canvas', 'sc-face');
+  const ratio = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = CARD_W * scale * ratio;
+  canvas.height = CARD_H * scale * ratio;
+  canvas.style.width = `${CARD_W * scale}px`;
+  canvas.style.height = `${CARD_H * scale}px`;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(ratio * scale, ratio * scale);
+  drawCard(ctx, card, 0, 0, {});
+  return canvas;
+}
+
+class HandBar {
+  constructor(container, { onPick, onEndTurn }) {
+    this.onPick = onPick;
+    this.onEndTurn = onEndTurn;
+    this.root = el('div', 'sc-bar');
+    container.append(this.root);
+
+    this.hand = el('div', 'sc-hand');
+    this.root.append(this.hand);
+
+    this.side = el('div', 'sc-actions');
+    this.hint = el('p', 'sc-hint', '');
+    this.endButton = el('button', 'btn btn--primary sc-end', 'End turn');
+    this.endButton.type = 'button';
+    this.endButton.addEventListener('click', () => this.onEndTurn());
+    this.side.append(this.hint, this.endButton);
+    this.root.append(this.side);
+
+    this.picked = null;
+  }
+
+  /** Redraws the hand. `problemFor` says why a card cannot be played, if it cannot. */
+  refresh(cards, { problemFor, picked, hint, canEnd }) {
+    this.picked = picked;
+    this.hand.replaceChildren();
+
+    if (cards.length === 0) this.hand.append(el('span', 'sc-empty', 'Nothing in hand.'));
+
+    cards.forEach((card, index) => {
+      const button = el('button', 'sc-card');
+      button.type = 'button';
+      const problem = problemFor(card, index);
+      button.classList.toggle('is-blocked', Boolean(problem));
+      button.classList.toggle('is-picked', picked === index);
+      button.append(cardFace(card));
+      button.title = problem || `${card.name} - ${card.blurb || ''}`;
+      button.addEventListener('click', () => this.onPick(index, card, problem));
+      this.hand.append(button);
+    });
+
+    this.hint.textContent = hint || '';
+    this.endButton.disabled = !canEnd;
+  }
+
+  destroy() {
+    this.root.remove();
+  }
+}
+
+  return { HandBar };
+})();
+
+// ---- src/games/strikecards/game.js -------------------------------
+__modules["src/games/strikecards/game.js"] = (function () {
+  const { clamp, seededRandom } = __modules["src/core/utils.js"];
+  const { CARDS, getCard } = __modules["src/games/strikecards/cards.js"];
+  const { DECK_MAX } = __modules["src/games/strikecards/collection.js"];
+  const { BOARD_LIMIT, playProblem } = __modules["src/games/strikecards/rules.js"];
+  const { activeSide, attack, createMatch, endTurn, other, playCard, playGear } = __modules["src/games/strikecards/battle.js"];
+  const { chooseCard, chooseGear, chooseTarget, shouldForceIt } = __modules["src/games/strikecards/ai.js"];
+  const { HandBar } = __modules["src/games/strikecards/ui.js"];
+  const { CARD_H, CARD_W, drawBackdrop, drawBanner, drawCard, drawLog, drawSideBar, drawSlot } = __modules["src/games/strikecards/art.js"];
+
+const GAME_ID = 'strikecards';
+
+/**
+ * Strike Cards, played against the machine.
+ *
+ * The rules live in battle.js and know nothing about a screen. This is the part
+ * that puts the two boards on the canvas, hands you your cards, and lets the
+ * opponent take its turn a beat at a time so you can see what it did.
+ */
+
+/**
+ * Where everything sits.
+ *
+ * The hand bar is a DOM strip over the bottom of the canvas, which eats the
+ * last ~107 logical pixels, so nothing the game draws may go below 433 or it
+ * ends up hidden behind your own cards.
+ */
+const FLOOR = 433;
+const SLOT = {
+  enemy: [{ x: 367, y: 44 }, { x: 489, y: 44 }],
+  mine: [{ x: 367, y: 252 }, { x: 489, y: 252 }],
+};
+
+const ENEMY_STEP = 0.75;   // seconds between the opponent's actions
+
+/** A legal starter deck: two of each common, and one of each cheap uncommon. */
+function starterDeck() {
+  const deck = [];
+  for (const card of CARDS.filter((c) => c.rarity === 'common' && !c.form)) deck.push(card, card);
+  for (const id of ['sparkfly', 'duskmoth', 'spurs', 'stonewall']) deck.push(getCard(id));
+  return deck.slice(0, DECK_MAX);
+}
+
+class StrikeCardsGame {
+  constructor(context) {
+    this.context = context;
+    const seed = Math.floor(Math.random() * 1e9);
+    this.state = createMatch({
+      decks: { a: starterDeck(), b: starterDeck() },
+      random: seededRandom(seed),
+      first: 'a',
+    });
+
+    this.me = 'a';
+    this.foe = 'b';
+    this.pickedHand = null;      // index into your hand
+    this.pickedAttacker = null;  // uid of one of your board cards
+    this.enemyQueue = [];
+    this.enemyTimer = 0;
+    this.finished = false;
+    this.banner = { text: 'Strike Cards', subtext: 'Faster card swings first. Kill it before it moves and it never swings back.', life: 3.2 };
+
+    this.bar = new HandBar(context.ui, {
+      onPick: (index, card, problem) => this._pickFromHand(index, card, problem),
+      onEndTurn: () => this._endMyTurn(),
+    });
+    this._refreshBar();
+  }
+
+  /* --------------------------------------------------------------- input */
+
+  _pickFromHand(index, card, problem) {
+    if (this.state.over || this.state.active !== this.me) return;
+    if (problem) {
+      this.banner = { text: '', subtext: '', life: 0 };
+      this._say(problem);
+      return;
+    }
+    if (card.kind === 'gear') {
+      // Gear needs a target, so picking it arms the next click on your board.
+      this.pickedHand = this.pickedHand === index ? null : index;
+      this.pickedAttacker = null;
+    } else {
+      playCard(this.state, index);
+      this.pickedHand = null;
+    }
+    this._refreshBar();
+  }
+
+  _clickBoard(which, card) {
+    if (this.state.over || this.state.active !== this.me) return;
+
+    // Putting gear on one of yours.
+    if (this.pickedHand != null && which === this.me) {
+      const result = playGear(this.state, this.pickedHand, card.uid);
+      if (result.error) this._say(result.error);
+      this.pickedHand = null;
+      this._refreshBar();
+      return;
+    }
+
+    if (which === this.me) {
+      if (card.attackedThisTurn) {
+        this._say(`${card.name} has already swung this turn.`);
+        return;
+      }
+      this.pickedAttacker = this.pickedAttacker === card.uid ? null : card.uid;
+      this._refreshBar();
+      return;
+    }
+
+    if (!this.pickedAttacker) {
+      this._say('Pick one of your own cards first.');
+      return;
+    }
+    const result = attack(this.state, this.pickedAttacker, card.uid);
+    if (result.error) this._say(result.error);
+    this.pickedAttacker = null;
+    this._refreshBar();
+  }
+
+  _say(text) {
+    this.state.log.push({ text, kind: 'text' });
+  }
+
+  _endMyTurn() {
+    if (this.state.over || this.state.active !== this.me) return;
+    this.pickedHand = null;
+    this.pickedAttacker = null;
+    endTurn(this.state);
+    this._planEnemyTurn();
+    this._refreshBar();
+  }
+
+  /* ------------------------------------------------------- the opponent */
+
+  _planEnemyTurn() {
+    if (this.state.over) return;
+    const side = this.state.sides[this.foe];
+    const queue = [];
+
+    const index = chooseCard(side);
+    if (index >= 0) queue.push({ kind: 'play', index });
+    queue.push({ kind: 'gear' });
+    for (const card of side.board) queue.push({ kind: 'swing', uid: card.uid });
+    queue.push({ kind: 'done' });
+
+    this.enemyQueue = queue;
+    this.enemyTimer = ENEMY_STEP;
+  }
+
+  _stepEnemy() {
+    const step = this.enemyQueue.shift();
+    if (!step) return;
+    const side = this.state.sides[this.foe];
+    const foeBoard = this.state.sides[this.me].board;
+
+    if (step.kind === 'play') {
+      // The hand has moved since it planned, so ask again.
+      const index = chooseCard(side);
+      if (index >= 0) playCard(this.state, index);
+    } else if (step.kind === 'gear') {
+      const gear = chooseGear(side);
+      if (gear) playGear(this.state, gear.handIndex, gear.targetUid);
+    } else if (step.kind === 'swing') {
+      const attacker = side.board.find((card) => card.uid === step.uid);
+      if (attacker && !attacker.attackedThisTurn) {
+        const target = chooseTarget(attacker, foeBoard, { mustAct: shouldForceIt(side) });
+        if (target) attack(this.state, attacker.uid, target.uid);
+      }
+    } else if (step.kind === 'done') {
+      endTurn(this.state);
+    }
+    this._refreshBar();
+  }
+
+  /* --------------------------------------------------------------- loop */
+
+  update(dt, input) {
+    if (this.banner.life > 0) this.banner.life -= dt;
+
+    if (!this.state.over && this.state.active === this.foe) {
+      this.enemyTimer -= dt;
+      if (this.enemyTimer <= 0) {
+        this._stepEnemy();
+        this.enemyTimer = ENEMY_STEP;
+      }
+    }
+
+    if (input.justPressed) this._hitTest(input.x, input.y);
+    if (this.state.over) this._finish();
+  }
+
+  _hitTest(x, y) {
+    const within = (slot) => x >= slot.x && x <= slot.x + CARD_W && y >= slot.y && y <= slot.y + CARD_H;
+    this.state.sides[this.foe].board.forEach((card, i) => {
+      if (within(SLOT.enemy[i])) this._clickBoard(this.foe, card);
+    });
+    this.state.sides[this.me].board.forEach((card, i) => {
+      if (within(SLOT.mine[i])) this._clickBoard(this.me, card);
+    });
+  }
+
+  _refreshBar() {
+    const side = this.state.sides[this.me];
+    const myTurn = this.state.active === this.me && !this.state.over;
+    this.bar.refresh(side.hand, {
+      picked: this.pickedHand,
+      canEnd: myTurn,
+      problemFor: (card) => {
+        if (!myTurn) return 'Wait for your turn.';
+        if (card.kind === 'gear') {
+          if (side.points < card.cost) return `${card.name} costs ${card.cost} - you have ${side.points}.`;
+          if (side.board.length === 0) return 'Nothing out to put it on.';
+          return null;
+        }
+        return playProblem(side, card);
+      },
+      hint: this.state.over ? ''
+        : !myTurn ? 'Their turn...'
+          : this.pickedHand != null ? 'Now click one of your cards to put it on.'
+            : this.pickedAttacker ? 'Now click what you want it to hit.'
+              : 'Play a card, then click yours and theirs to swing.',
+    });
+  }
+
+  /* ------------------------------------------------------------- drawing */
+
+  render(ctx) {
+    const { width, height } = this.context;
+    drawBackdrop(ctx, width, height, this.state.time);
+    void height;
+
+    const mine = this.state.sides[this.me];
+    const theirs = this.state.sides[this.foe];
+    drawSideBar(ctx, theirs, 18, 10, 420, { name: 'Opponent', active: this.state.active === this.foe, align: 'left' });
+    drawSideBar(ctx, mine, width - 438, FLOOR - 26, 420, { name: `You - turn ${mine.turn}`, active: this.state.active === this.me, align: 'right' });
+
+    for (let i = 0; i < BOARD_LIMIT; i += 1) {
+      const slot = SLOT.enemy[i];
+      const card = theirs.board[i];
+      if (!card) drawSlot(ctx, slot.x, slot.y, 'empty');
+      else {
+        drawCard(ctx, card, slot.x, slot.y, {
+          hp: card.hp,
+          maxHp: card.maxHp,
+          targetable: Boolean(this.pickedAttacker),
+          evolvesIn: card.evolvesTo ? Math.max(0, card.evolvesAfter - card.turnsOnBoard) : null,
+        });
+      }
+    }
+    for (let i = 0; i < BOARD_LIMIT; i += 1) {
+      const slot = SLOT.mine[i];
+      const card = mine.board[i];
+      if (!card) drawSlot(ctx, slot.x, slot.y, 'your side');
+      else {
+        drawCard(ctx, card, slot.x, slot.y, {
+          hp: card.hp,
+          maxHp: card.maxHp,
+          picked: this.pickedAttacker === card.uid,
+          spent: card.attackedThisTurn,
+          evolvesIn: card.evolvesTo ? Math.max(0, card.evolvesAfter - card.turnsOnBoard) : null,
+        });
+      }
+    }
+
+    drawLog(ctx, this.state.log, 18, 190, 316, 68);
+    drawBanner(ctx, width, this.banner.text, this.banner.subtext, clamp(this.banner.life, 0, 1));
+  }
+
+  _finish() {
+    if (this.finished) return;
+    this.finished = true;
+    const mine = this.state.sides[this.me];
+    const theirs = this.state.sides[this.foe];
+    const won = this.state.winner === this.me;
+
+    this.banner = {
+      text: won ? 'Their board is clear' : this.state.winner ? 'You are out of cards' : 'A draw',
+      subtext: this.state.reason,
+      life: 4,
+    };
+
+    this.context.finish({
+      score: Math.round(mine.kills * 120 + (won ? 900 : 0) + mine.board.length * 60),
+      lives: mine.kills,
+      survived: won,
+      title: won ? 'Every card knocked out' : this.state.winner ? 'Beaten' : 'A draw',
+      detailTitle: `${mine.turn} turns - ${this.state.reason}`,
+      collected: [
+        { name: 'Cards you knocked out', color: '#ffd166', count: mine.kills, label: `${mine.kills}` },
+        { name: 'Cards they knocked out', color: '#ff9d94', count: theirs.kills, label: `${theirs.kills}` },
+        { name: 'Still standing', color: '#8ef0a8', count: mine.board.length, label: `${mine.board.length}` },
+        { name: 'Points unspent', color: '#9be8ff', count: mine.points, label: `${mine.points}` },
+      ],
+    });
+  }
+
+  destroy() {
+    this.bar?.destroy();
+  }
+}
+
+const createStrikeCards = (context) => new StrikeCardsGame(context);
+
+  return { GAME_ID, starterDeck, createStrikeCards, StrikeCardsGame };
+})();
+
+// ---- src/games/strikecards/index.js ------------------------------
+__modules["src/games/strikecards/index.js"] = (function () {
+  const { registerGame } = __modules["src/core/registry.js"];
+  const { createStrikeCards, GAME_ID } = __modules["src/games/strikecards/game.js"];
+
+registerGame({
+  id: GAME_ID,
+  name: 'Strike Cards',
+  tagline: 'A card duel where the faster card swings first - and the slower one may never swing at all.',
+  description: 'Two cards a side, points to spend, and a board you have to clear completely to win.',
+  howTo: [
+    'Cards have <strong>health, power and speed</strong>. Put one down each turn, up to <strong>two out at a time</strong>.',
+    'Playing a card costs <strong>points</strong>. You open with 5, take 1 more each turn, 2 from turn five and 3 from turn nine.',
+    '<strong>Knocking a card out pays you what it cost</strong>, so trading up funds your next play.',
+    'When two cards fight, <strong>both hurt each other and the faster one lands first</strong> - kill it before it moves and it never swings back.',
+    '<strong>Gear</strong> is spent for a permanent boost, and some cards <strong>grow into something bigger</strong> if they survive long enough.',
+    'Win by knocking out <strong>every</strong> card they have.',
+  ],
+  create: createStrikeCards,
 });
 
   return {  };

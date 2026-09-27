@@ -47,7 +47,7 @@ export const CARDS = [
 
   /* ----------------------------------------------------------- uncommons */
   evolving(
-    striker('zaplin', 'Zaplin', 'uncommon', 6, 5, 5, 5, 'Middling at everything, and it does not stay that way.'),
+    striker('zaplin', 'Zaplin', 'uncommon', 8, 8, 8, 8, 'Strong at everything, and it does not stay merely strong.'),
     'bolter', 1,
   ),
   striker('sparkfly', 'Sparkfly', 'uncommon', 4, 9, 5, 3, 'Fast enough to pick its fights and cheap enough to lose.'),
@@ -61,8 +61,8 @@ export const CARDS = [
   gear('spurs', 'Spurs', 'uncommon', 4, { speed: 2 }, 'Two more speed. Often the difference between swinging first and not.'),
 
   /* --- what Zaplin grows into. Not pulled from packs; only grown into. --- */
-  evolving(form('bolter', 'Bolter', 6, 7, 6, 7, 'What a Zaplin becomes after a turn.'), 'stormbeat', 3),
-  form('stormbeat', 'Stormbeat', 6, 8, 8, 8, 'What a Bolter becomes after three more. Nothing at this rarity is bigger.'),
+  evolving(form('bolter', 'Bolter', 8, 10, 8, 10, 'What a Zaplin becomes after a turn.'), 'stormbeat', 3),
+  form('stormbeat', 'Stormbeat', 8, 12, 12, 12, 'What a Bolter becomes after three more. Nothing else comes close.'),
 ];
 
 export const CARD_BY_ID = new Map(CARDS.map((card) => [card.id, card]));

@@ -19,19 +19,19 @@ function place(state, which, id) {
 test('Zaplin becomes a Bolter after one turn, and a Stormbeat after three more', () => {
   const state = match();
   const zaplin = place(state, 'a', 'zaplin');
-  assert.deepEqual([zaplin.hp, zaplin.power, zaplin.speed], [5, 5, 5]);
+  assert.deepEqual([zaplin.hp, zaplin.power, zaplin.speed], [8, 8, 8]);
 
   zaplin.turnsOnBoard = 1;
   assert.equal(evolveIfReady(state, zaplin), true);
   assert.equal(zaplin.name, 'Bolter');
-  assert.deepEqual([zaplin.hp, zaplin.power, zaplin.speed], [7, 6, 7]);
+  assert.deepEqual([zaplin.hp, zaplin.power, zaplin.speed], [10, 8, 10]);
 
   zaplin.turnsOnBoard = 2;
   assert.equal(evolveIfReady(state, zaplin), false, 'three turns means three');
   zaplin.turnsOnBoard = 3;
   assert.equal(evolveIfReady(state, zaplin), true);
   assert.equal(zaplin.name, 'Stormbeat');
-  assert.deepEqual([zaplin.hp, zaplin.power, zaplin.speed], [8, 8, 8]);
+  assert.deepEqual([zaplin.hp, zaplin.power, zaplin.speed], [12, 12, 12]);
 
   zaplin.turnsOnBoard = 99;
   assert.equal(evolveIfReady(state, zaplin), false, 'and that is the end of the chain');
@@ -40,12 +40,12 @@ test('Zaplin becomes a Bolter after one turn, and a Stormbeat after three more',
 test('damage carries across, so growing is not a free heal', () => {
   const state = match();
   const zaplin = place(state, 'a', 'zaplin');
-  zaplin.hp = 2;                        // two of its five gone... three, rather
+  zaplin.hp = 5;                        // three of its eight gone
 
   zaplin.turnsOnBoard = 1;
   evolveIfReady(state, zaplin);
-  assert.equal(zaplin.maxHp, 7);
-  assert.equal(zaplin.hp, 4, 'it was 3 down as a Zaplin and it is 3 down as a Bolter');
+  assert.equal(zaplin.maxHp, 10);
+  assert.equal(zaplin.hp, 7, 'it was 3 down as a Zaplin and it is 3 down as a Bolter');
 });
 
 test('gear rides along through the change', () => {
@@ -56,13 +56,13 @@ test('gear rides along through the change', () => {
 
   playGear(state, 0, zaplin.uid);       // +2 speed
   playGear(state, 0, zaplin.uid);       // +4 hp
-  assert.deepEqual([zaplin.speed, zaplin.maxHp], [7, 9]);
+  assert.deepEqual([zaplin.speed, zaplin.maxHp], [10, 12]);
 
   zaplin.turnsOnBoard = 1;
   evolveIfReady(state, zaplin);
   assert.equal(zaplin.name, 'Bolter');
-  assert.equal(zaplin.speed, 9, "the Bolter's 7 plus the Spurs it was already wearing");
-  assert.equal(zaplin.maxHp, 11, "and the Bolter's 7 plus the Greatshield");
+  assert.equal(zaplin.speed, 12, "the Bolter's 10 plus the Spurs it was already wearing");
+  assert.equal(zaplin.maxHp, 14, "and the Bolter's 10 plus the Greatshield");
 });
 
 test('it grows on its own, a turn at a time, without anyone asking', () => {
