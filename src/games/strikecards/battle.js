@@ -1,4 +1,5 @@
 import { seededRandom } from '../../core/utils.js';
+import { getCard } from './cards.js';
 import {
   BOARD_LIMIT,
   PLAYS_PER_TURN,
@@ -51,6 +52,7 @@ export function instance(card) {
     maxHp: card.hp,
     hp: card.hp,
     attackedThisTurn: false,
+    turnsOnBoard: 0,
   };
 }
 
@@ -127,7 +129,50 @@ export function beginTurn(state) {
     say(state, `+${income} points`, { kind: 'income', points: side.points });
   }
 
+  for (const card of side.board) {
+    card.turnsOnBoard += 1;
+    evolveIfReady(state, card);
+  }
+
   for (let i = 0; i < DRAW_PER_TURN; i += 1) draw(state, state.active);
+}
+
+/**
+ * A card that has survived long enough becomes the next thing.
+ *
+ * Damage carries over rather than being washed off: a Zaplin down to 2 of its 5
+ * becomes a Bolter on 4 of 7, not a fresh one. Otherwise evolving would be a
+ * free heal and you would hold the card back rather than fight with it.
+ *
+ * Anything gear added rides along too - the boots you put on the Zaplin are
+ * still on the Bolter.
+ */
+export function evolveIfReady(state, card) {
+  if (!card.evolvesTo || card.turnsOnBoard < card.evolvesAfter) return false;
+
+  const next = getCard(card.evolvesTo);
+  const damage = card.maxHp - card.hp;
+  const bonus = {
+    hp: card.maxHp - getCard(card.id).hp,
+    power: card.power - getCard(card.id).power,
+    speed: card.speed - getCard(card.id).speed,
+  };
+
+  const was = card.name;
+  card.id = next.id;
+  card.name = next.name;
+  card.blurb = next.blurb;
+  card.maxHp = next.hp + bonus.hp;
+  card.hp = Math.max(1, card.maxHp - damage);
+  card.power = next.power + bonus.power;
+  card.speed = next.speed + bonus.speed;
+  card.evolvesTo = next.evolvesTo || null;
+  card.evolvesAfter = next.evolvesAfter || 0;
+  card.turnsOnBoard = 0;
+
+  say(state, `${was} grows into ${card.name} (${card.hp}/${card.maxHp}hp, ${card.power} power, ${card.speed} speed)`,
+    { kind: 'evolve', uid: card.uid });
+  return true;
 }
 
 export function draw(state, which) {
