@@ -1,11 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  INCOME_BANDS,
   INSTANT_SUPPORT_COUNT,
+  STARTING_POINTS,
   SUPPORT_COUNT,
   SUPPORT_TIMING,
+  bountyFor,
+  canAfford,
   canPlaySupport,
   firstToAct,
+  incomeOnTurn,
+  pointsByTurn,
   instantsIn,
   turnOrder,
 } from '../src/games/strikecards/rules.js';
@@ -68,4 +74,52 @@ test('whoever has the faster card gets their support in first', () => {
   const slow = card(2);
   assert.deepEqual(turnOrder({ a: quick, b: slow }), ['a', 'b']);
   assert.deepEqual(turnOrder({ a: slow, b: quick }), ['b', 'a']);
+});
+
+
+/* ------------------------------------------------------------- the points */
+
+test('income widens at turn 5 and again at turn 9', () => {
+  assert.equal(STARTING_POINTS, 5);
+
+  for (const turn of [1, 2, 3, 4]) assert.equal(incomeOnTurn(turn), 1, `turn ${turn} trickles 1`);
+  for (const turn of [5, 6, 7, 8]) assert.equal(incomeOnTurn(turn), 2, `turn ${turn} trickles 2`);
+  for (const turn of [9, 10, 20, 100]) assert.equal(incomeOnTurn(turn), 3, `turn ${turn} trickles 3`);
+
+  // The bands meet exactly - no turn falls between two of them.
+  assert.equal(INCOME_BANDS[0].to + 1, INCOME_BANDS[1].from);
+  assert.equal(INCOME_BANDS[1].to + 1, INCOME_BANDS[2].from);
+});
+
+test('you open on exactly the five you were promised', () => {
+  assert.equal(pointsByTurn(1), 5, 'turn one is the 5 you start with, no more');
+  assert.equal(pointsByTurn(2), 6);
+  assert.equal(pointsByTurn(4), 8);
+  assert.equal(pointsByTurn(5), 10, 'the first turn of the second band');
+  assert.equal(pointsByTurn(8), 16);
+  assert.equal(pointsByTurn(9), 19, 'and of the third');
+  assert.equal(pointsByTurn(12), 28);
+
+  // It only ever climbs.
+  for (let turn = 2; turn <= 30; turn += 1) {
+    assert.ok(pointsByTurn(turn) > pointsByTurn(turn - 1), `turn ${turn} is richer than ${turn - 1}`);
+  }
+});
+
+test('a kill pays exactly what the thing you killed cost', () => {
+  assert.equal(bountyFor({ cost: 7 }), 7);
+  assert.equal(bountyFor({ cost: 1 }), 1);
+  assert.equal(bountyFor(null), 0);
+});
+
+test('you cannot put down what you cannot pay for', () => {
+  const card = { id: 'brute', cost: 6 };
+  assert.equal(canAfford(card, 5), false);
+  assert.equal(canAfford(card, 6), true, 'exactly enough is enough');
+  assert.equal(canAfford(card, 99), true);
+  assert.equal(canAfford(null, 99), false);
+
+  // On turn one a 6-cost card is out of reach; killing a 3-cost puts it in.
+  assert.equal(canAfford(card, pointsByTurn(1)), false);
+  assert.equal(canAfford(card, pointsByTurn(1) + bountyFor({ cost: 3 })), true);
 });

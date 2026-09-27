@@ -12,7 +12,51 @@ export const SUPPORT_COUNT = 15;
 export const INSTANT_SUPPORT_COUNT = 5;
 
 /** The shape every strike card fills in. */
-export const CARD_FIELDS = ['id', 'name', 'rarity', 'speed', 'power', 'hp'];
+export const CARD_FIELDS = ['id', 'name', 'rarity', 'cost', 'speed', 'power', 'hp'];
+
+/* ------------------------------------------------------------- the points */
+
+/**
+ * Points are what you pay to put a card down, and there are two taps: a
+ * quickening trickle each turn, and whatever a card you kill was worth.
+ *
+ * The second one is the interesting half. Killing something expensive hands you
+ * its cost, so trading up does not just remove their card, it pays for your
+ * next one - which means a board that is losing can climb back rather than
+ * simply falling further behind.
+ */
+export const STARTING_POINTS = 5;
+
+/** Per-turn income, widening as the game goes on. */
+export const INCOME_BANDS = [
+  { from: 1, to: 4, points: 1 },
+  { from: 5, to: 8, points: 2 },
+  { from: 9, to: Infinity, points: 3 },
+];
+
+/** What the turn's trickle is worth. */
+export function incomeOnTurn(turn) {
+  const band = INCOME_BANDS.find((entry) => turn >= entry.from && turn <= entry.to);
+  return band ? band.points : 0;
+}
+
+/**
+ * Points in hand at the start of `turn`, having killed nothing.
+ *
+ * Turn one is the 5 you start with and no more: income arrives from turn two
+ * onwards, so "you start with 5" is true of the board you actually see first.
+ */
+export function pointsByTurn(turn) {
+  let points = STARTING_POINTS;
+  for (let t = 2; t <= turn; t += 1) points += incomeOnTurn(t);
+  return points;
+}
+
+/** Whether a card is affordable right now. */
+export const canAfford = (card, points) => Boolean(card) && points >= card.cost;
+
+/** What a kill pays: exactly what the thing you killed cost to play. */
+export const bountyFor = (card) => (card ? card.cost : 0);
 
 /** A support is either played on your own turn, or the moment you need it. */
 export const SUPPORT_TIMING = {
