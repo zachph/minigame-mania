@@ -27,6 +27,13 @@ export const DECK_MIN = 20;
 export const DECK_MAX = 30;
 
 /**
+ * How many copies of one card a deck may hold. Two is what makes a collection
+ * worth having: a 20-card deck needs at least ten different cards behind it,
+ * and a full thirty needs fifteen, so nobody builds a deck out of one good card.
+ */
+export const MAX_COPIES = 2;
+
+/**
  * One roll on the table. Walking the tiers and subtracting keeps the boundaries
  * exact: a roll of 0.40 is the first uncommon, not the last common.
  */
@@ -45,15 +52,41 @@ export function openPack(random = Math.random, size = PACK_SIZE) {
   return Array.from({ length: size }, () => rollRarity(random));
 }
 
+/** How many of each card a list holds, as `{ [cardId]: count }`. */
+export function countCopies(cardIds) {
+  const counts = new Map();
+  for (const id of cardIds) counts.set(id, (counts.get(id) || 0) + 1);
+  return counts;
+}
+
 /**
  * What is wrong with this deck, or null if nothing is. Returns the reason
  * rather than a bare false so the deck builder can say why the button is off.
+ *
+ * `nameOf` turns a card id into something worth showing a player; without it
+ * the message falls back to the id.
  */
-export function deckProblem(cardIds) {
+export function deckProblem(cardIds, nameOf = (id) => id) {
   if (!Array.isArray(cardIds)) return 'That is not a deck.';
   if (cardIds.length < DECK_MIN) return `A deck needs at least ${DECK_MIN} cards - this one has ${cardIds.length}.`;
   if (cardIds.length > DECK_MAX) return `A deck holds at most ${DECK_MAX} cards - this one has ${cardIds.length}.`;
+
+  for (const [id, count] of countCopies(cardIds)) {
+    if (count > MAX_COPIES) {
+      return `A deck holds at most ${MAX_COPIES} copies of a card - this one has ${count} of ${nameOf(id)}.`;
+    }
+  }
   return null;
 }
+
+/** Whether one more of this card would still be legal - what the + button asks. */
+export function canAddCopy(cardIds, cardId, ownedCount = Infinity) {
+  if (cardIds.length >= DECK_MAX) return false;
+  const inDeck = countCopies(cardIds).get(cardId) || 0;
+  return inDeck < MAX_COPIES && inDeck < ownedCount;
+}
+
+/** The fewest different cards a deck of this size could be built from. */
+export const distinctCardsNeeded = (size) => Math.ceil(size / MAX_COPIES);
 
 export const isLegalDeck = (cardIds) => deckProblem(cardIds) === null;

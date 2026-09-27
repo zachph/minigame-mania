@@ -3,10 +3,14 @@ import assert from 'node:assert/strict';
 import {
   DECK_MAX,
   DECK_MIN,
+  MAX_COPIES,
   PACK_SIZE,
   RARITIES,
   RARITY_IDS,
+  canAddCopy,
+  countCopies,
   deckProblem,
+  distinctCardsNeeded,
   isLegalDeck,
   openPack,
   rarityRank,
@@ -84,4 +88,41 @@ test('a deck is 20 to 30 cards, and says so when it is not', () => {
 
   assert.equal(isLegalDeck(deck(24)), true);
   assert.equal(isLegalDeck(deck(19)), false);
+});
+
+test('a deck holds at most two copies of a card', () => {
+  assert.equal(MAX_COPIES, 2);
+
+  // Twenty cards, ten different ones, two of each: the tightest legal deck.
+  const pairs = [];
+  for (let i = 0; i < 10; i += 1) pairs.push(`card-${i}`, `card-${i}`);
+  assert.equal(pairs.length, 20);
+  assert.equal(deckProblem(pairs), null);
+  assert.equal(distinctCardsNeeded(20), 10, 'which is as few different cards as 20 can be built from');
+  assert.equal(distinctCardsNeeded(30), 15);
+
+  const triple = [...pairs.slice(0, 19), 'card-0'];
+  assert.match(deckProblem(triple), /at most 2 copies/);
+  assert.match(deckProblem(triple, (id) => id.toUpperCase()), /CARD-0/, 'and it names the card');
+
+  const counts = countCopies(['a', 'b', 'a', 'a']);
+  assert.equal(counts.get('a'), 3);
+  assert.equal(counts.get('b'), 1);
+});
+
+test('the + button knows when to stop', () => {
+  const deck = ['ember', 'ember', 'shard'];
+
+  assert.equal(canAddCopy(deck, 'shard'), true, 'a second Shard is fine');
+  assert.equal(canAddCopy(deck, 'ember'), false, 'a third Ember is not');
+  assert.equal(canAddCopy(deck, 'newcard'), true);
+
+  // You cannot put in more copies than you own.
+  assert.equal(canAddCopy(deck, 'shard', 1), false, 'you only pulled one Shard');
+  assert.equal(canAddCopy(deck, 'shard', 2), true);
+
+  const full = Array.from({ length: DECK_MAX }, (_, i) => `card-${Math.floor(i / 2)}`);
+  assert.equal(full.length, 30);
+  assert.equal(deckProblem(full), null, 'fifteen pairs is a full legal deck');
+  assert.equal(canAddCopy(full, 'anything'), false, 'and nothing else fits');
 });
