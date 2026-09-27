@@ -23,9 +23,14 @@ const gear = (id, name, rarity, cost, boost, blurb = '') =>
 
 export const CARDS = [
   /* ------------------------------------------------------------- commons */
+  striker('nipper', 'Nipper', 'common', 2, 6, 3, 3, 'Something to put down on turn one and not mind losing.'),
+  striker('flicker', 'Flicker', 'common', 3, 9, 4, 2, 'The fastest thing at this rarity. Kills small, dies to anything that lives through it.'),
+  striker('warden', 'Warden', 'common', 3, 2, 2, 6, 'Cheap, slow and annoying to get rid of.'),
   striker('hiver', 'Hiver', 'common', 4, 8, 6, 4, 'Quick and sharp, and it barely has to take a hit.'),
   striker('armoren', 'Armoren', 'common', 4, 3, 3, 7, 'Slow, blunt, and hard to shift.'),
   striker('razor', 'Razor', 'common', 5, 5, 8, 2, 'Hits harder than anything this cheap, and folds to a breath.'),
+  striker('bulwark', 'Bulwark', 'common', 6, 2, 4, 12, 'Too big to kill in one swing, and it hits back every time.'),
+  striker('gorewing', 'Gorewing', 'common', 6, 7, 9, 5, 'Fast and vicious. Only something faster puts it down.'),
   gear('iron-boots', 'Iron Boots', 'common', 3, { speed: 1 }, 'One more point of speed, which is sometimes the whole fight.'),
   gear('sword', 'Sword', 'common', 5, { power: 2 }, 'Two more damage on every swing it makes.'),
 ];

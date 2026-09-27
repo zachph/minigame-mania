@@ -101,6 +101,15 @@ export function beginTurn(state) {
   side.supportsPlayedThisTurn = 0;
   for (const card of side.board) card.attackedThisTurn = false;
 
+  // Anything that lasted "until the turn ends" ends here, on both boards - a
+  // Sidestep played on their turn should not still be helping on yours.
+  for (const key of ['a', 'b']) {
+    for (const card of state.sides[key].board) {
+      for (const [stat, amount] of Object.entries(card.temp || {})) card[stat] -= amount;
+      card.temp = {};
+    }
+  }
+
   // Turn one is the five you start with; the trickle begins on turn two.
   if (side.turn > 1) {
     const income = incomeOnTurn(side.turn);
@@ -236,22 +245,82 @@ export function attack(state, attackerUid, targetUid) {
   if (second.hp > 0) hit(second, first);
   else say(state, `${second.name} never got its blow in`, { kind: 'text' });
 
-  for (const card of [attacker, target]) {
-    if (card.hp > 0) continue;
-    const ownerKey = side.board.includes(card) ? state.active : other(state.active);
-    const killerKey = other(ownerKey);
-    const owner = state.sides[ownerKey];
-    const killer = state.sides[killerKey];
-
-    owner.board = owner.board.filter((entry) => entry.uid !== card.uid);
-    owner.graveyard.push(card);
-    killer.points += bountyFor(card);
-    killer.kills += 1;
-    say(state, `${card.name} falls - ${killerKey === 'a' ? 'A' : 'B'} takes ${bountyFor(card)} points for it`, { kind: 'faint', uid: card.uid });
-  }
+  for (const card of [attacker, target]) reap(state, card);
 
   checkOver(state);
   return { attacker, target };
+}
+
+/**
+ * Moves a card that has run out of health off the board and pays whoever put it
+ * there. Everything that can kill goes through here, so a support bolt pays a
+ * bounty exactly as a swing does.
+ */
+export function reap(state, card) {
+  if (!card || card.hp > 0) return false;
+  const ownerKey = state.sides.a.board.some((entry) => entry.uid === card.uid) ? 'a' : 'b';
+  if (!state.sides[ownerKey].board.some((entry) => entry.uid === card.uid)) return false;
+
+  const owner = state.sides[ownerKey];
+  const killer = state.sides[other(ownerKey)];
+  owner.board = owner.board.filter((entry) => entry.uid !== card.uid);
+  owner.graveyard.push(card);
+  killer.points += bountyFor(card);
+  killer.kills += 1;
+  say(state, `${card.name} falls - ${bountyFor(card)} points for it`, { kind: 'faint', uid: card.uid });
+  return true;
+}
+
+/* ---------------------------------------------------- what a support does */
+
+const findCard = (state, uid) =>
+  state.sides.a.board.find((c) => c.uid === uid) || state.sides.b.board.find((c) => c.uid === uid) || null;
+
+const ownerOf = (state, card) => (state.sides.a.board.some((c) => c.uid === card.uid) ? 'a' : 'b');
+
+/**
+ * Runs a support's effect. `target` is a card uid, or an index into the
+ * graveyard for the one that brings something back.
+ */
+export function applySupport(state, which, support, target) {
+  const effect = support.effect;
+  if (!effect) return { error: `${support.name} does nothing.` };
+
+  if (effect.kind === 'recall') return recallFromGraveyard(state, which, target ?? 0);
+
+  const card = findCard(state, target);
+  if (!card) return { error: 'Nothing there to aim it at.' };
+  const side = ownerOf(state, card);
+  if (effect.target === 'friendly' && side !== which) return { error: `${support.name} is for your own cards.` };
+  if (effect.target === 'enemy' && side === which) return { error: `${support.name} is for theirs.` };
+
+  if (effect.kind === 'heal') {
+    const healed = Math.min(effect.amount, card.maxHp - card.hp);
+    card.hp += healed;
+    say(state, `${card.name} patched up for ${healed}`, { kind: 'heal', uid: card.uid, hp: card.hp });
+    return { healed };
+  }
+
+  if (effect.kind === 'damage') {
+    card.hp -= effect.amount;
+    say(state, `${card.name} takes ${effect.amount}`, { kind: 'damage', uid: card.uid, hp: Math.max(0, card.hp) });
+    reap(state, card);
+    checkOver(state);
+    return { damage: effect.amount };
+  }
+
+  if (effect.kind === 'buff') {
+    card[effect.stat] += effect.amount;
+    if (effect.stat === 'hp') card.maxHp += effect.amount;
+    if (effect.lasts === 'turn') {
+      card.temp = card.temp || {};
+      card.temp[effect.stat] = (card.temp[effect.stat] || 0) + effect.amount;
+    }
+    say(state, `${card.name} takes +${effect.amount} ${effect.stat}${effect.lasts === 'turn' ? ' for the turn' : ''}`, { kind: 'buff', uid: card.uid });
+    return { buffed: effect.stat };
+  }
+
+  return { error: `${support.name} does nothing the battle knows about.` };
 }
 
 /* -------------------------------------------------------------- the end */
