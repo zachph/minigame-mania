@@ -169,8 +169,11 @@ test('you are beaten when there is nothing left to knock out', () => {
   const holding = { board: [], hand: [{ id: 'x' }], deck: [] };
   const drawing = { board: [], hand: [], deck: [{ id: 'y' }] };
   const fighting = { board: [{ id: 'z' }], hand: [], deck: [] };
+  // A hand of gear is not a defence: nothing to field, nothing to knock out.
+  const onlyGear = { board: [], hand: [{ id: 'sword', kind: 'gear' }], deck: [] };
 
   assert.equal(isBeaten(empty), true);
+  assert.equal(isBeaten(onlyGear), true, 'gear cannot take the field by itself');
   assert.equal(isBeaten(holding), false, 'a card in hand is a card you can still field');
   assert.equal(isBeaten(drawing), false);
   assert.equal(isBeaten(fighting), false);

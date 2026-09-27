@@ -30,6 +30,16 @@ import {
 export const OPENING_HAND = 5;
 export const DRAW_PER_TURN = 1;
 
+/**
+ * A backstop, not a rule anybody should meet.
+ *
+ * Two careful players can refuse to attack forever: a full board, no swing
+ * either of them likes, and nothing in the rules that makes them move. A normal
+ * match is over inside 35 turns a side, so this only ever catches a match that
+ * had stopped being one.
+ */
+export const TURN_LIMIT = 60;
+
 let uid = 0;
 const nextUid = () => (uid += 1);
 
@@ -133,6 +143,19 @@ export function endTurn(state) {
   state.active = other(state.active);
   beginTurn(state);
   checkOver(state);
+  return state;
+}
+
+/** Most kills takes it, then most cards still standing; level on both is a draw. */
+function callIt(state) {
+  const score = (side) => [side.kills, side.board.length + side.hand.length + side.deck.length];
+  const [aKills, aLeft] = score(state.sides.a);
+  const [bKills, bLeft] = score(state.sides.b);
+  state.over = true;
+  state.reason = 'nobody would commit';
+  if (aKills !== bKills) state.winner = aKills > bKills ? 'a' : 'b';
+  else if (aLeft !== bLeft) state.winner = aLeft > bLeft ? 'a' : 'b';
+  else state.winner = null;
   return state;
 }
 
@@ -325,14 +348,30 @@ export function applySupport(state, which, support, target) {
 
 /* -------------------------------------------------------------- the end */
 
-/** Nothing on the board, nothing in hand, nothing left to draw. */
-export const isBeaten = (side) => side.board.length === 0 && side.hand.length === 0 && side.deck.length === 0;
+/**
+ * Beaten means you have nothing left that can fight: nothing on the board, and
+ * no striker in hand or deck to put there.
+ *
+ * Gear does not count. A hand of Swords with an empty board and an empty deck
+ * is not a defence - it is a player who can never act again, and before this
+ * checked for strikers rather than cards, such a match ran forever with neither
+ * side able to end it.
+ */
+const canFight = (card) => card.kind !== 'gear';
+
+const canStillFight = (side) =>
+  side.board.length > 0 || side.hand.some(canFight) || side.deck.some(canFight);
+
+export const isBeaten = (side) => !canStillFight(side);
 
 export function checkOver(state) {
   if (state.over) return state;
   const aBeaten = isBeaten(state.sides.a);
   const bBeaten = isBeaten(state.sides.b);
-  if (!aBeaten && !bBeaten) return state;
+  if (!aBeaten && !bBeaten) {
+    if (state.sides.a.turn > TURN_LIMIT || state.sides.b.turn > TURN_LIMIT) return callIt(state);
+    return state;
+  }
 
   state.over = true;
   state.winner = aBeaten && bBeaten ? null : aBeaten ? 'b' : 'a';

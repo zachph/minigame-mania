@@ -109,7 +109,9 @@ export function recall(card) {
  * nothing in hand, nothing left to draw.
  */
 export const isBeaten = (side) =>
-  side.board.length === 0 && side.hand.length === 0 && side.deck.length === 0;
+  side.board.length === 0
+  && !side.hand.some((card) => card.kind !== 'gear')
+  && !side.deck.some((card) => card.kind !== 'gear');
 
 /** 'a', 'b', or null while both still have something. */
 export function loser(sides) {

@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   OPENING_HAND,
+  TURN_LIMIT,
+  checkOver,
   attack,
   createMatch,
   endTurn,
@@ -302,4 +304,33 @@ test('the five commons are five real supports, two of them instants', () => {
     assert.ok(support.effect?.kind, `${support.id} does something`);
   }
   assert.deepEqual(instantSupports().map((s) => s.id), ['sidestep', 'iron-will']);
+});
+
+test('a hand of nothing but gear is a loss, not a stalemate', () => {
+  const state = match();
+  // Everything gone except gear, which cannot take the field on its own.
+  state.sides.b.board = [];
+  state.sides.b.deck = [];
+  state.sides.b.hand = [{ ...sword }, { ...boots }];
+  state.sides.a.board = [place(state, 'a', card('Last'))];
+
+  checkOver(state);
+  assert.equal(state.over, true, 'there is nothing left to knock out');
+  assert.equal(state.winner, 'a');
+});
+
+test('a match that nobody will finish gets called', () => {
+  const state = match();
+  // Two full boards and neither side willing to swing: without a backstop this
+  // runs forever.
+  place(state, 'a', card('Standoff1', { hp: 99 }));
+  place(state, 'b', card('Standoff2', { hp: 99 }));
+  state.sides.a.kills = 4;
+  state.sides.b.kills = 1;
+  state.sides.a.turn = TURN_LIMIT + 1;
+
+  checkOver(state);
+  assert.equal(state.over, true);
+  assert.equal(state.winner, 'a', 'most kills takes it');
+  assert.match(state.reason, /nobody would commit/);
 });
