@@ -7,6 +7,7 @@ import {
   endTurn,
   instance,
   playCard,
+  playGear,
   recallFromGraveyard,
 } from '../src/games/strikecards/battle.js';
 import { seededRandom } from '../src/core/utils.js';
@@ -157,4 +158,81 @@ test('you lose when there is nothing left to knock out', () => {
   assert.equal(state.over, true);
   assert.equal(state.winner, 'a');
   assert.match(state.reason, /every card knocked out/);
+});
+
+
+/* ---------------------------------------------------------------- gear */
+
+const boots = { id: 'iron-boots', name: 'Iron Boots', kind: 'gear', cost: 3, boost: { speed: 1 } };
+const sword = { id: 'sword', name: 'Sword', kind: 'gear', cost: 5, boost: { power: 2 } };
+
+test('gear is spent, and its boost stays on the card', () => {
+  const state = match();
+  state.sides.a.points = 20;
+  const razor = place(state, 'a', card('Razor', { speed: 5, power: 8, hp: 2 }));
+  state.sides.a.hand = [{ ...boots }];
+
+  const played = playGear(state, 0, razor.uid);
+  assert.equal(played.target.speed, 6, 'five and one');
+  assert.equal(state.sides.a.points, 17, 'and it cost its three');
+  assert.equal(state.sides.a.hand.length, 0, 'the gear is out of your hand');
+  assert.equal(state.sides.a.graveyard.at(-1).name, 'Iron Boots', 'and into the graveyard');
+  assert.equal(razor.speed, 6, 'the card itself keeps the boost');
+});
+
+test('a card can be boosted again, and they stack', () => {
+  const state = match();
+  state.sides.a.points = 30;
+  const razor = place(state, 'a', card('Razor', { speed: 5, power: 8, hp: 2 }));
+  state.sides.a.hand = [{ ...boots }, { ...sword }, { ...boots }];
+
+  playGear(state, 0, razor.uid);
+  playGear(state, 0, razor.uid);
+  playGear(state, 0, razor.uid);
+
+  assert.deepEqual([razor.speed, razor.power], [7, 10], 'two boots and a sword');
+  assert.equal(razor.boosts, 3);
+  assert.equal(state.sides.a.graveyard.length, 3);
+});
+
+test('gear goes on your own cards, and only onto something that is there', () => {
+  const state = match();
+  state.sides.a.points = 20;
+  const mine = place(state, 'a', card('Mine'));
+  const theirs = place(state, 'b', card('Theirs'));
+  state.sides.a.hand = [{ ...sword }, instance(card('NotGear'))];
+
+  assert.match(playGear(state, 0, theirs.uid).error, /your own cards/);
+  assert.match(playGear(state, 1, mine.uid).error, /not gear/i);
+  assert.ok(!playGear(state, 0, mine.uid).error);
+});
+
+test('gear you cannot pay for stays in your hand', () => {
+  const state = match();
+  state.sides.a.points = 2;
+  const mine = place(state, 'a', card('Mine'));
+  state.sides.a.hand = [{ ...boots }];
+
+  assert.match(playGear(state, 0, mine.uid).error, /costs 3 - you have 2/);
+  assert.equal(state.sides.a.hand.length, 1);
+  assert.equal(mine.speed, 5, 'and nothing was boosted');
+});
+
+test('a boost can flip a fight that would otherwise be lost', () => {
+  const state = match();
+  state.sides.a.points = 20;
+  // Armoren is slower than Razor and dies to it. One pair of Boots is not
+  // enough to fix that - it takes two.
+  const armoren = place(state, 'a', card('Armoren', { speed: 3, power: 3, hp: 7 }));
+  const razor = place(state, 'b', card('Razor', { speed: 5, power: 8, hp: 2, cost: 5 }));
+  state.sides.a.hand = [{ ...boots }, { ...boots }, { ...boots }];
+
+  playGear(state, 0, armoren.uid);
+  playGear(state, 0, armoren.uid);
+  playGear(state, 0, armoren.uid);
+  assert.equal(armoren.speed, 6, 'now the faster of the two');
+
+  attack(state, armoren.uid, razor.uid);
+  assert.equal(state.sides.b.board.length, 0, 'and it kills the Razor first');
+  assert.equal(armoren.hp, 7, 'without taking the 8 back');
 });

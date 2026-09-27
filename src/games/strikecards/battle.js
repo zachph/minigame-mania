@@ -144,6 +144,39 @@ export function playCard(state, handIndex) {
   return { card };
 }
 
+/**
+ * Plays a piece of gear onto one of your own cards.
+ *
+ * Gear is spent, not worn: it costs its points, the boost goes into the card
+ * for good, and the gear itself goes to the graveyard. The card is not holding
+ * anything afterwards, which is why a second piece can go on the same card
+ * later and stack on top of the first.
+ */
+export function playGear(state, handIndex, targetUid) {
+  const side = activeSide(state);
+  const piece = side.hand[handIndex];
+  if (!piece || piece.kind !== 'gear') return { error: 'That is not gear.' };
+  if (side.points < piece.cost) return { error: `${piece.name} costs ${piece.cost} - you have ${side.points}.` };
+
+  const target = side.board.find((card) => card.uid === targetUid);
+  if (!target) return { error: 'Put it on one of your own cards.' };
+
+  side.hand.splice(handIndex, 1);
+  side.points -= piece.cost;
+  side.graveyard.push(piece);
+
+  const gained = [];
+  for (const [stat, amount] of Object.entries(piece.boost || {})) {
+    target[stat] = (target[stat] || 0) + amount;
+    if (stat === 'hp') target.maxHp += amount;
+    gained.push(`${amount > 0 ? '+' : ''}${amount} ${stat}`);
+  }
+  target.boosts = (target.boosts || 0) + 1;
+
+  say(state, `${piece.name} on ${target.name} (${gained.join(', ')})`, { kind: 'gear', uid: target.uid });
+  return { gear: piece, target };
+}
+
 /** Plays a support. `which` may be the side that is not active, for an instant. */
 export function playSupport(state, which, supportIndex, apply) {
   const side = state.sides[which];
