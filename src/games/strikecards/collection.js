@@ -33,6 +33,30 @@ export const DECK_MAX = 30;
  */
 export const MAX_COPIES = 2;
 
+/* ------------------------------------------------------------- the shop */
+
+/**
+ * Coins only come from selling cards, and they only go on packs. Five cards
+ * sold buys one pack, which holds five cards - so the shop is a way of turning
+ * cards you cannot use into a fresh roll of the dice, not a second economy.
+ */
+export const COINS_PER_SALE = 20;
+export const PACK_COST = 100;
+export const CARDS_PER_PACK = PACK_COST / COINS_PER_SALE;
+
+export const sellValue = (copies = 1) => copies * COINS_PER_SALE;
+export const canBuyPack = (coins) => coins >= PACK_COST;
+
+/**
+ * How many of a card may be sold. Never the last one: a collection you have
+ * torn a hole in is not a mistake worth letting someone make by accident, and
+ * the copies actually worth selling are the third onwards anyway.
+ */
+export const sellableCopies = (ownedCount) => Math.max(0, ownedCount - 1);
+
+/** The copies of a card that no deck could ever hold - the truly dead ones. */
+export const spareCopies = (ownedCount) => Math.max(0, ownedCount - MAX_COPIES);
+
 /**
  * One roll on the table. Walking the tiers and subtracting keeps the boundaries
  * exact: a roll of 0.40 is the first uncommon, not the last common.

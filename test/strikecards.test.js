@@ -7,12 +7,19 @@ import {
   PACK_SIZE,
   RARITIES,
   RARITY_IDS,
+  CARDS_PER_PACK,
+  COINS_PER_SALE,
+  PACK_COST,
   canAddCopy,
+  canBuyPack,
   countCopies,
   deckProblem,
   distinctCardsNeeded,
   isLegalDeck,
   openPack,
+  sellValue,
+  sellableCopies,
+  spareCopies,
   rarityRank,
   rollRarity,
 } from '../src/games/strikecards/collection.js';
@@ -108,6 +115,34 @@ test('a deck holds at most two copies of a card', () => {
   const counts = countCopies(['a', 'b', 'a', 'a']);
   assert.equal(counts.get('a'), 3);
   assert.equal(counts.get('b'), 1);
+});
+
+test('five cards sold buys one pack, which holds five cards', () => {
+  assert.equal(COINS_PER_SALE, 20);
+  assert.equal(PACK_COST, 100);
+  assert.equal(CARDS_PER_PACK, 5);
+  assert.equal(CARDS_PER_PACK, PACK_SIZE, 'so the shop neither prints cards nor eats them');
+
+  assert.equal(sellValue(1), 20);
+  assert.equal(sellValue(5), 100, 'five spares is exactly a pack');
+  assert.equal(sellValue(0), 0);
+
+  assert.equal(canBuyPack(99), false);
+  assert.equal(canBuyPack(100), true);
+  assert.equal(canBuyPack(240), true);
+});
+
+test('you can sell spares but never your last copy', () => {
+  assert.equal(sellableCopies(0), 0);
+  assert.equal(sellableCopies(1), 0, 'one copy is not a spare');
+  assert.equal(sellableCopies(2), 1);
+  assert.equal(sellableCopies(5), 4);
+
+  // The ones no deck could hold even if you wanted them to.
+  assert.equal(spareCopies(1), 0);
+  assert.equal(spareCopies(2), 0, 'two is exactly what a deck may hold');
+  assert.equal(spareCopies(3), 1, 'the third is dead weight');
+  assert.equal(spareCopies(6), 4);
 });
 
 test('the + button knows when to stop', () => {
