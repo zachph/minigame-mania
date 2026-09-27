@@ -34,7 +34,14 @@ test('the three commons are the numbers you gave', () => {
   const razor = getCard('razor');
   assert.deepEqual([razor.cost, razor.hp, razor.power, razor.speed], [5, 2, 8, 5]);
 
-  assert.equal(strikersOf('common').length, 3);
+  assert.equal(strikersOf('common').length, 8, 'your three, plus the five I filled in around them');
+});
+
+test('the commons cover the cost curve rather than crowding one slot', () => {
+  const costs = strikersOf('common').map((card) => card.cost).sort((a, b) => a - b);
+  assert.deepEqual(costs, [2, 3, 3, 4, 4, 5, 6, 6]);
+  assert.ok(costs[0] <= 2, 'something to play on turn one');
+  assert.ok(costs.at(-1) >= 6, 'and something worth saving up for');
 });
 
 test('gear has no body of its own, only a boost', () => {
