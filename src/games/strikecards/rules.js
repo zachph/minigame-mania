@@ -63,9 +63,30 @@ export const bountyFor = (card) => (card ? card.cost : 0);
 /** One of each, however many points are going spare. */
 export const PLAYS_PER_TURN = { card: 1, support: 1 };
 
+/**
+ * Two cards a side, and only one goes down per turn - so a full board takes
+ * two turns to build and one bad trade to lose half of.
+ */
+export const BOARD_LIMIT = 2;
+
 /** Whether this side may still put a strike card down this turn. */
 export const canPlayCard = (side, card) =>
-  side.cardsPlayedThisTurn < PLAYS_PER_TURN.card && canAfford(card, side.points);
+  side.cardsPlayedThisTurn < PLAYS_PER_TURN.card
+  && side.board.length < BOARD_LIMIT
+  && canAfford(card, side.points);
+
+/** Why a card cannot go down, for the button that is greyed out. */
+export function playProblem(side, card) {
+  if (!card) return 'Nothing selected.';
+  if (side.cardsPlayedThisTurn >= PLAYS_PER_TURN.card) return 'One card a turn.';
+  if (side.board.length >= BOARD_LIMIT) return `Only ${BOARD_LIMIT} cards out at a time.`;
+  if (!canAfford(card, side.points)) return `${card.name} costs ${card.cost} - you have ${side.points}.`;
+  return null;
+}
+
+/** You pick what to hit, so long as it is actually there. */
+export const canAttack = (target, defenderBoard) =>
+  Boolean(target) && defenderBoard.some((card) => card.uid === target.uid);
 
 /** Whether this side may still play a support this turn, on or off its turn. */
 export const canUseSupport = (side, support, { isYourTurn }) =>

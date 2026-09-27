@@ -10,8 +10,11 @@ import {
   canAfford,
   canPlaySupport,
   firstToAct,
+  BOARD_LIMIT,
   PLAYS_PER_TURN,
+  canAttack,
   canPlayCard,
+  playProblem,
   canUseSupport,
   incomeOnTurn,
   isBeaten,
@@ -136,8 +139,8 @@ test('you cannot put down what you cannot pay for', () => {
 test('one strike card and one support a turn, whatever you can afford', () => {
   assert.deepEqual(PLAYS_PER_TURN, { card: 1, support: 1 });
 
-  const fresh = { points: 20, cardsPlayedThisTurn: 0, supportsPlayedThisTurn: 0 };
-  const spent = { points: 20, cardsPlayedThisTurn: 1, supportsPlayedThisTurn: 1 };
+  const fresh = { points: 20, board: [], cardsPlayedThisTurn: 0, supportsPlayedThisTurn: 0 };
+  const spent = { points: 20, board: [], cardsPlayedThisTurn: 1, supportsPlayedThisTurn: 1 };
   const cheap = { id: 'pebble', cost: 2 };
 
   assert.equal(canPlayCard(fresh, cheap), true);
@@ -176,4 +179,30 @@ test('you are beaten when there is nothing left to knock out', () => {
   assert.equal(loser({ a: fighting, b: empty }), 'b');
   assert.equal(loser({ a: fighting, b: holding }), null, 'nobody yet');
   assert.equal(loser({ a: empty, b: empty }), 'both');
+});
+
+
+test('two cards out at a time, and one a turn to get there', () => {
+  assert.equal(BOARD_LIMIT, 2);
+  const cheap = { id: 'pebble', name: 'Pebble', cost: 2 };
+  const side = (board, played = 0) => ({ points: 20, board, cardsPlayedThisTurn: played });
+
+  assert.equal(canPlayCard(side([]), cheap), true);
+  assert.equal(canPlayCard(side([{ uid: 1 }]), cheap), true, 'one out, room for one more');
+  assert.equal(canPlayCard(side([{ uid: 1 }, { uid: 2 }]), cheap), false, 'a full board takes nothing');
+
+  assert.equal(playProblem(side([]), cheap), null);
+  assert.match(playProblem(side([], 1), cheap), /One card a turn/);
+  assert.match(playProblem(side([{ uid: 1 }, { uid: 2 }]), cheap), /2 cards out/);
+  assert.match(playProblem({ points: 1, board: [], cardsPlayedThisTurn: 0 }, cheap), /costs 2 - you have 1/);
+  assert.match(playProblem(side([]), null), /Nothing selected/);
+});
+
+test('you may only swing at something that is actually there', () => {
+  const theirs = [{ uid: 'x', name: 'Ox' }, { uid: 'y', name: 'Yak' }];
+  assert.equal(canAttack({ uid: 'x' }, theirs), true);
+  assert.equal(canAttack({ uid: 'y' }, theirs), true);
+  assert.equal(canAttack({ uid: 'gone' }, theirs), false, 'not one that already died');
+  assert.equal(canAttack(null, theirs), false);
+  assert.equal(canAttack({ uid: 'x' }, []), false, 'nor into an empty board');
 });
