@@ -93,7 +93,9 @@ function emit(modules) {
   const chunks = ['const __modules = {};'];
   for (const [path, module] of modules) {
     const bindings = module.imports
-      .filter((entry) => entry.bindings.length > 0)
+      // A namespace import carries no named bindings, so it has to be kept on
+      // its own merit or `import * as x` quietly vanishes from the bundle.
+      .filter((entry) => entry.bindings.length > 0 || entry.namespace)
       .map((entry) => {
         const from = `__modules[${JSON.stringify(entry.path)}]`;
         if (entry.namespace) return `  const ${entry.namespace} = ${from};`;

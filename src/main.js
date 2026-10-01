@@ -4,6 +4,7 @@ import './games/nopoly/index.js';
 import './games/shubat/index.js';
 import './games/defensele/index.js';
 import './games/strikecards/index.js';
+import './games/bumpers/index.js';
 
 const shell = new Shell();
 shell.showMenu();
