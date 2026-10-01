@@ -1289,6 +1289,87 @@ kbd {
 .sc-hint { margin: 0; color: var(--muted); font-size: 0.76em; text-align: right; line-height: 1.3; }
 .sc-end { padding: 0.35em 0.9em; font-size: 0.9em; }
 .sc-empty { color: var(--muted); font-size: 0.85em; padding: 1em 0.5em; }
+
+/* ------------------------------------------------------------- Bumpers */
+
+.bb-select {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7em;
+  padding: 1.1em 1.4em;
+  overflow: auto;
+  background: rgba(10, 15, 28, 0.9);
+  pointer-events: auto;
+}
+.bb-select-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1em; }
+.bb-select-title h2 { margin: 0; font-size: 1.5em; }
+.bb-select-title p { margin: 0.25em 0 0; color: var(--muted); font-size: 0.85em; max-width: 46ch; }
+.bb-modes { display: flex; gap: 0.4em; flex-shrink: 0; }
+.bb-mode {
+  padding: 0.5em 0.9em;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.82em;
+  cursor: pointer;
+}
+.bb-mode.is-active { background: var(--accent); color: #17203a; border-color: transparent; }
+
+.bb-seats { display: flex; gap: 0.5em; }
+.bb-seat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 0.45em 0.8em;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.bb-seat.is-active { border-color: var(--accent); background: rgba(255, 209, 102, 0.12); }
+.bb-seat-label { font-size: 0.7em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.bb-seat strong { font-size: 0.95em; }
+.bb-seat-keys { font-size: 0.7em; color: var(--muted); }
+
+.bb-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6em; }
+.bb-card {
+  display: flex;
+  gap: 0.7em;
+  padding: 0.7em;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bb-card:hover { background: rgba(255, 255, 255, 0.09); }
+.bb-card.is-picked { border-color: var(--accent); background: rgba(255, 209, 102, 0.12); }
+.bb-swatch { flex-shrink: 0; }
+.bb-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.25em; }
+.bb-card-name { display: flex; align-items: baseline; gap: 0.45em; justify-content: space-between; }
+.bb-card-name strong { font-size: 1em; }
+.bb-card-role { color: var(--muted); font-size: 0.72em; text-align: right; }
+.bb-card-blurb { margin: 0; color: var(--muted); font-size: 0.76em; line-height: 1.35; }
+.bb-stats { display: grid; gap: 2px; }
+.bb-stat { display: flex; align-items: center; gap: 0.4em; font-size: 0.68em; }
+.bb-stat-label { width: 3.6em; color: var(--muted); }
+.bb-stat-track { flex: 1; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); }
+.bb-stat-fill { display: block; height: 100%; border-radius: 2px; background: var(--accent); }
+.bb-card-ability { margin: 0.15em 0 0; font-size: 0.72em; color: #ffd166; line-height: 1.3; }
+
+.bb-select-foot { display: flex; align-items: center; justify-content: space-between; gap: 1em; margin-top: auto; }
+.bb-hint { margin: 0; color: var(--muted); font-size: 0.8em; }
 </style>
 </head>
 <body>
@@ -1681,6 +1762,7 @@ function listGames() {
 
 // ---- src/core/friends.js -----------------------------------------
 __modules["src/core/friends.js"] = (function () {
+  const account = __modules["src/core/account.js"];
   const { listGames } = __modules["src/core/registry.js"];
 
 /**
@@ -2128,6 +2210,7 @@ class Input {
 
 // ---- src/core/shell.js -------------------------------------------
 __modules["src/core/shell.js"] = (function () {
+  const account = __modules["src/core/account.js"];
   const { FriendsPanel } = __modules["src/core/friends.js"];
   const { Input } = __modules["src/core/input.js"];
   const { listGames, getGame } = __modules["src/core/registry.js"];
@@ -12228,6 +12311,1682 @@ registerGame({
     'Win by knocking out <strong>every</strong> card they have.',
   ],
   create: createStrikeCards,
+});
+
+  return {  };
+})();
+
+// ---- src/games/bumpers/content.js --------------------------------
+__modules["src/games/bumpers/content.js"] = (function () {
+/**
+ * Bumpers: the arena, the fighters, and the ladder of bots you climb.
+ *
+ * Everything here is data. `physics.js` and `rules.js` read it and have no
+ * idea what any of it is called, so adding a character is a matter of adding
+ * an entry below - as long as its ability is one of the kinds in `rules.js`.
+ */
+
+/* ------------------------------------------------------------- the arena */
+
+/**
+ * The floor you fight on, in the shell's 960x540 logical space. The band above
+ * it holds the two health bars, and nothing is drawn below it, so the whole
+ * fight stays on the canvas with no DOM in the way.
+ */
+const FIELD = { x: 26, y: 78, w: 908, h: 436 };
+
+const WALL_BOUNCE = 0.9;   // speed kept when you come off a wall
+const DRAG = 0.55;         // how quickly a drifting ball sheds speed
+const DRIFT_SPEED = 115;   // nobody ever fully stops; this is the floor
+const BALL_BOUNCE = 0.94;  // speed kept when the two of you collide
+
+/**
+ * Damage. An approach of `HIT_REFERENCE` is the yardstick: one ball moving at
+ * exactly that speed into a stationary, equally heavy one does `HIT_BASE`.
+ *
+ * The rule the whole game rests on is in `damageFor` in rules.js: only the
+ * speed you were carrying *into* the hit counts. Drift into someone who is
+ * charging and you take the lot and give nothing back.
+ */
+const HIT_BASE = 13;
+const HIT_REFERENCE = 300;
+/**
+ * Damage does not rise in a straight line with the speed you brought: it
+ * curves. Arriving twice as fast hurts rather more than twice as much, which
+ * is what makes a proper run worth setting up instead of just leaning on them.
+ */
+const HIT_CURVE = 1.6;
+const HIT_FLOOR = 55;      // below this approach, it is just a nudge
+const HIT_LOCK = 0.34;     // seconds before the same pair can trade again
+
+/**
+ * Taking a hit sends you flying, and without this that would be a gift: the
+ * ball that just got hit is now the fast one, and it turns straight round and
+ * cashes in speed it never earned. While you are reeling you still bounce, you
+ * just cannot hurt anyone with it.
+ */
+const STAGGER_TIME = 0.8;
+const STAGGER_OUTPUT = 0.3;
+
+/* -------------------------------------------------------- the characters */
+
+/**
+ * `thrust` is acceleration in px/s^2, `top` the speed your own steering can
+ * reach, `mass` decides who wins a shoulder-charge, and `power` scales the
+ * damage you deal. A ball can be flung past `top` by a dash or a shove - that
+ * cap is on your engine, not on the world.
+ */
+const fighter = (spec) => ({ hp: 100, radius: 20, mass: 1, thrust: 900, top: 380, power: 1, ...spec });
+
+const CHARACTERS = [
+  fighter({
+    id: 'pebble',
+    name: 'Pebble',
+    blurb: 'Nothing special, and good at everything because of it.',
+    role: 'The one to learn on.',
+    colour: '#7fd4ff',
+    shade: '#1a5b80',
+    ability: { kind: 'dash', name: 'Dart', cooldown: 2.6, speed: 720, blurb: 'A hard shove in the way you are already pointing.' },
+  }),
+  fighter({
+    id: 'boulder',
+    name: 'Boulder',
+    blurb: 'Slow to get going, and nothing you do moves it once it has.',
+    role: 'Hits like a truck, steers like one.',
+    hp: 130,
+    radius: 26,
+    mass: 2.2,
+    thrust: 520,
+    top: 300,
+    power: 1.15,
+    colour: '#ff9f6b',
+    shade: '#8a3a12',
+    ability: { kind: 'anchor', name: 'Set', cooldown: 5, duration: 1.6, mass: 6, blurb: 'Plants itself. For a moment nothing can push it at all.' },
+  }),
+  fighter({
+    id: 'zip',
+    name: 'Zip',
+    blurb: 'Quick enough to pick the moment, light enough to regret it.',
+    role: 'Fast, sharp, and made of glass.',
+    hp: 80,
+    radius: 16,
+    mass: 0.62,
+    thrust: 1250,
+    top: 470,
+    power: 1.3,
+    colour: '#ffe07a',
+    shade: '#8a6a10',
+    ability: { kind: 'shockwave', name: 'Clap', cooldown: 3.4, radius: 120, push: 620, blurb: 'Throws them away from you. Does nothing itself.' },
+  }),
+];
+
+const CHARACTER_BY_ID = new Map(CHARACTERS.map((c) => [c.id, c]));
+
+const getCharacter = (id) => {
+  const found = CHARACTER_BY_ID.get(id);
+  if (!found) throw new Error(`Unknown fighter: ${id}`);
+  return found;
+};
+
+/* --------------------------------------------------------- the solo climb */
+
+/**
+ * Six rungs. `skill` is the only dial: it widens or tightens the bot's aim,
+ * shortens how long it takes to notice you, and decides how willingly it
+ * spends an ability. See `ai.js`.
+ */
+const LADDER = [
+  { character: 'pebble', skill: 0.2, title: 'Pebble, going easy' },
+  { character: 'zip', skill: 0.35, title: 'Zip, warming up' },
+  { character: 'boulder', skill: 0.45, title: 'Boulder, immovable' },
+  { character: 'zip', skill: 0.62, title: 'Zip, serious now' },
+  { character: 'boulder', skill: 0.78, title: 'Boulder, set and waiting' },
+  { character: 'pebble', skill: 0.95, title: 'Pebble, who has done this before' },
+];
+
+const ROUND_LIMIT = 75;    // seconds; whoever has more health left wins
+
+  return { FIELD, WALL_BOUNCE, DRAG, DRIFT_SPEED, BALL_BOUNCE, HIT_BASE, HIT_REFERENCE, HIT_CURVE, HIT_FLOOR, HIT_LOCK, STAGGER_TIME, STAGGER_OUTPUT, CHARACTERS, CHARACTER_BY_ID, getCharacter, LADDER, ROUND_LIMIT };
+})();
+
+// ---- src/games/bumpers/physics.js --------------------------------
+__modules["src/games/bumpers/physics.js"] = (function () {
+  const { BALL_BOUNCE, DRAG, DRIFT_SPEED, FIELD, WALL_BOUNCE } = __modules["src/games/bumpers/content.js"];
+
+/**
+ * The moving-balls half of Bumpers, with no idea that anyone has health.
+ *
+ * Nothing in here reads a clock or a keyboard: you hand `stepMotion` a steering
+ * vector and a timestep and it moves one ball, and you hand `collide` two balls
+ * that are overlapping and it separates them and tells you how hard they met.
+ * That is what makes the whole thing testable without a browser.
+ */
+
+const speedOf = (ball) => Math.hypot(ball.vx, ball.vy);
+
+/** Scales a ball's velocity to exactly `speed`, keeping its direction. */
+function setSpeed(ball, speed) {
+  const now = speedOf(ball);
+  if (now < 1e-6) {
+    ball.vx = speed;
+    ball.vy = 0;
+    return;
+  }
+  const k = speed / now;
+  ball.vx *= k;
+  ball.vy *= k;
+}
+
+/** Caps a ball at `limit` without touching it if it is already slower. */
+function capSpeed(ball, limit) {
+  const now = speedOf(ball);
+  if (now > limit) setSpeed(ball, limit);
+}
+
+/**
+ * Moves one ball for `dt` seconds.
+ *
+ * `steer` is a direction you are leaning in, length 0..1. Drag always pulls
+ * speed down, but a ball is never allowed below `DRIFT_SPEED`, which is why
+ * the arena keeps moving even when both players let go of everything.
+ */
+function stepMotion(ball, steer, dt) {
+  const thrust = ball.thrust * (ball.thrustScale ?? 1);
+  ball.vx += steer.x * thrust * dt;
+  ball.vy += steer.y * thrust * dt;
+
+  // Your own engine cannot push you past your top speed, but a dash or a shove
+  // can, so the cap only bites while you are the one doing the pushing.
+  const steering = Math.hypot(steer.x, steer.y) > 0.01;
+  if (steering && speedOf(ball) > ball.top) {
+    const over = speedOf(ball) - ball.top;
+    setSpeed(ball, speedOf(ball) - Math.min(over, ball.thrust * dt));
+  }
+
+  const decay = Math.exp(-DRAG * dt);
+  ball.vx *= decay;
+  ball.vy *= decay;
+  if (!ball.rooted && speedOf(ball) < DRIFT_SPEED) setSpeed(ball, DRIFT_SPEED);
+  if (ball.rooted) {
+    ball.vx *= 0.02;
+    ball.vy *= 0.02;
+  }
+
+  ball.x += ball.vx * dt;
+  ball.y += ball.vy * dt;
+}
+
+/**
+ * Keeps a ball inside the arena. Returns the speed it hit the wall with, or 0
+ * if it never touched one, so a caller can spark and rattle on contact.
+ */
+function bounceOffWalls(ball, field = FIELD) {
+  const left = field.x + ball.radius;
+  const right = field.x + field.w - ball.radius;
+  const top = field.y + ball.radius;
+  const bottom = field.y + field.h - ball.radius;
+  let impact = 0;
+
+  if (ball.x < left) {
+    impact = Math.max(impact, Math.abs(ball.vx));
+    ball.x = left;
+    ball.vx = Math.abs(ball.vx) * WALL_BOUNCE;
+  } else if (ball.x > right) {
+    impact = Math.max(impact, Math.abs(ball.vx));
+    ball.x = right;
+    ball.vx = -Math.abs(ball.vx) * WALL_BOUNCE;
+  }
+  if (ball.y < top) {
+    impact = Math.max(impact, Math.abs(ball.vy));
+    ball.y = top;
+    ball.vy = Math.abs(ball.vy) * WALL_BOUNCE;
+  } else if (ball.y > bottom) {
+    impact = Math.max(impact, Math.abs(ball.vy));
+    ball.y = bottom;
+    ball.vy = -Math.abs(ball.vy) * WALL_BOUNCE;
+  }
+  return impact;
+}
+
+/** True when the two balls are touching or overlapping. */
+function overlapping(a, b) {
+  return Math.hypot(b.x - a.x, b.y - a.y) <= a.radius + b.radius;
+}
+
+/**
+ * Resolves a collision between two balls and reports what happened.
+ *
+ * The return is `{ nx, ny, approachA, approachB, closing }` where `approachA`
+ * is how fast A was travelling *into* B along the line between their centres,
+ * never below zero. Those two numbers are the whole damage model: the one who
+ * brought the speed is the one who deals the hit.
+ *
+ * A ball with `rooted` set does not move and does not give ground, which is
+ * what makes Boulder's Set worth having.
+ */
+function collide(a, b) {
+  let dx = b.x - a.x;
+  let dy = b.y - a.y;
+  let dist = Math.hypot(dx, dy);
+  if (dist < 1e-6) {
+    // Exactly on top of each other: pick an axis so the maths stays finite.
+    dx = 1;
+    dy = 0;
+    dist = 1;
+  }
+  const nx = dx / dist;
+  const ny = dy / dist;
+
+  const approachA = Math.max(0, a.vx * nx + a.vy * ny);
+  const approachB = Math.max(0, -(b.vx * nx + b.vy * ny));
+  const closing = approachA + approachB;
+
+  // Push them apart first, so the next frame does not see them overlapping and
+  // charge for the same hit twice.
+  const gap = a.radius + b.radius - dist;
+  if (gap > 0) {
+    const aFixed = a.rooted ? 1 : 0;
+    const bFixed = b.rooted ? 1 : 0;
+    let shareA = 0.5;
+    if (aFixed && !bFixed) shareA = 0;
+    else if (bFixed && !aFixed) shareA = 1;
+    else if (aFixed && bFixed) shareA = 0.5;
+    a.x -= nx * gap * shareA;
+    a.y -= ny * gap * shareA;
+    b.x += nx * gap * (1 - shareA);
+    b.y += ny * gap * (1 - shareA);
+  }
+
+  // Equal-and-opposite impulse along the normal, weighted by mass. A rooted
+  // ball is treated as infinitely heavy: it takes none of the push.
+  const relative = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+  if (relative < 0) {
+    const invA = a.rooted ? 0 : 1 / a.mass;
+    const invB = b.rooted ? 0 : 1 / b.mass;
+    const total = invA + invB;
+    if (total > 0) {
+      const impulse = (-(1 + BALL_BOUNCE) * relative) / total;
+      a.vx -= nx * impulse * invA;
+      a.vy -= ny * impulse * invA;
+      b.vx += nx * impulse * invB;
+      b.vy += ny * impulse * invB;
+    }
+  }
+
+  return { nx, ny, approachA, approachB, closing };
+}
+
+/** Shoves a ball directly away from a point, for shockwaves and the like. */
+function shoveFrom(ball, x, y, strength) {
+  let dx = ball.x - x;
+  let dy = ball.y - y;
+  const dist = Math.hypot(dx, dy) || 1;
+  dx /= dist;
+  dy /= dist;
+  ball.vx += dx * strength;
+  ball.vy += dy * strength;
+}
+
+  return { setSpeed, capSpeed, stepMotion, bounceOffWalls, overlapping, collide, shoveFrom, speedOf };
+})();
+
+// ---- src/games/bumpers/rules.js ----------------------------------
+__modules["src/games/bumpers/rules.js"] = (function () {
+  const { clamp } = __modules["src/core/utils.js"];
+  const { FIELD, HIT_BASE, HIT_CURVE, HIT_FLOOR, HIT_LOCK, HIT_REFERENCE, ROUND_LIMIT, STAGGER_OUTPUT, STAGGER_TIME, getCharacter } = __modules["src/games/bumpers/content.js"];
+  const { bounceOffWalls, collide, overlapping, setSpeed, shoveFrom, speedOf, stepMotion } = __modules["src/games/bumpers/physics.js"];
+
+/**
+ * The rules of a Bumpers duel: health, abilities, and who wins.
+ *
+ * A match is a plain object you step with `stepMatch(match, dt, commands)`.
+ * There is no canvas, no clock and no randomness in here, so a test can fight a
+ * whole round in a loop and a simulation can fight ten thousand.
+ */
+
+const MAX_SUB_STEP = 1 / 120;  // physics runs fine-grained so nobody tunnels
+
+/* ----------------------------------------------------------- the fighters */
+
+function createFighter(characterId, side, spawn) {
+  const spec = getCharacter(characterId);
+  return {
+    side,
+    spec,
+    name: spec.name,
+    x: spawn.x,
+    y: spawn.y,
+    vx: spawn.vx ?? 0,
+    vy: spawn.vy ?? 0,
+    radius: spec.radius,
+    mass: spec.mass,
+    baseMass: spec.mass,
+    thrust: spec.thrust,
+    top: spec.top,
+    power: spec.power,
+    hp: spec.hp,
+    maxHp: spec.hp,
+    cooldown: 0,
+    rooted: false,
+    guard: 0,        // seconds of reduced damage left
+    spike: 0,        // seconds of bonus damage left
+    anchor: 0,       // seconds of Set left
+    dash: 0,         // seconds of dash afterglow, for the trail
+    hitLock: 0,      // seconds before this pair may trade again
+    stagger: 0,      // seconds of reeling, during which your hits do little
+    thrustScale: 1,
+    dealt: 0,
+    taken: 0,
+  };
+}
+
+/** Opposite corners, pointed at each other, so round one starts immediately. */
+function spawnPoints(field = FIELD) {
+  const insetX = field.w * 0.22;
+  const midY = field.y + field.h / 2;
+  return [
+    { x: field.x + insetX, y: midY, vx: 140, vy: -90 },
+    { x: field.x + field.w - insetX, y: midY, vx: -140, vy: 90 },
+  ];
+}
+
+function createMatch(aId, bId, { field = FIELD, limit = ROUND_LIMIT } = {}) {
+  const [left, right] = spawnPoints(field);
+  return {
+    field,
+    limit,
+    time: 0,
+    a: createFighter(aId, 'a', left),
+    b: createFighter(bId, 'b', right),
+    events: [],   // one round's worth of things worth drawing or hearing
+    over: null,   // { winner: 'a' | 'b' | 'draw', reason }
+  };
+}
+
+const fightersOf = (match) => [match.a, match.b];
+const otherSide = (side) => (side === 'a' ? 'b' : 'a');
+
+/* -------------------------------------------------------------- the damage */
+
+/**
+ * What one ball does to the other in a collision.
+ *
+ * `approach` is the speed the attacker carried into the hit, and nothing else
+ * about the attacker's motion matters. Below `HIT_FLOOR` it is a nudge and
+ * costs nothing. Being heavier than the ball you hit scales it up, but only on
+ * the square root, so Boulder is worth about one and a half Zips rather than
+ * three and a half.
+ */
+function damageFor(attacker, defender, approach) {
+  if (approach < HIT_FLOOR) return 0;
+  const massEdge = clamp(Math.sqrt(attacker.mass / defender.mass), 0.55, 1.9);
+  const spike = attacker.spike > 0 ? 1.5 : 1;
+  const guard = defender.guard > 0 ? 0.45 : 1;
+  const reeling = attacker.stagger > 0 ? STAGGER_OUTPUT : 1;
+  const carried = Math.pow(approach / HIT_REFERENCE, HIT_CURVE);
+  const raw = HIT_BASE * attacker.power * carried * massEdge * spike * guard * reeling;
+  return Math.round(raw * 10) / 10;
+}
+
+/* ------------------------------------------------------------ the abilities */
+
+/**
+ * Every ability a character can carry. A character names one of these in its
+ * `ability.kind` and supplies the numbers; adding a new kind is adding a key.
+ *
+ * `fire` is handed the match, the fighter using it and its opponent, and may
+ * return a short label for the log.
+ */
+const ABILITIES = {
+  /** A hard shove in the direction you are already travelling. */
+  dash(match, me, foe, spec) {
+    const speed = Math.max(speedOf(me), 1);
+    me.vx = (me.vx / speed) * spec.speed;
+    me.vy = (me.vy / speed) * spec.speed;
+    me.dash = 0.35;
+    return 'dash';
+  },
+
+  /** Plants you. Nothing shifts you, and you shift nothing. */
+  anchor(match, me, foe, spec) {
+    me.anchor = spec.duration;
+    me.rooted = true;
+    me.mass = spec.mass;
+    return 'anchor';
+  },
+
+  /** Throws the other ball away from you. Deals nothing by itself. */
+  shockwave(match, me, foe, spec) {
+    const reach = spec.radius + me.radius + foe.radius;
+    if (Math.hypot(foe.x - me.x, foe.y - me.y) <= reach) {
+      shoveFrom(foe, me.x, me.y, spec.push);
+      match.events.push({ kind: 'shock', x: me.x, y: me.y, radius: spec.radius, side: me.side, hit: true });
+      return 'shockwave-hit';
+    }
+    match.events.push({ kind: 'shock', x: me.x, y: me.y, radius: spec.radius, side: me.side, hit: false });
+    return 'shockwave-miss';
+  },
+
+  /** A short window where everything hurts you less. */
+  guard(match, me, foe, spec) {
+    me.guard = spec.duration;
+    return 'guard';
+  },
+
+  /** Your next few seconds of hits land harder. */
+  spikes(match, me, foe, spec) {
+    me.spike = spec.duration;
+    return 'spikes';
+  },
+
+  /** Drags them towards you, if they are within reach. */
+  hook(match, me, foe, spec) {
+    const reach = spec.radius + me.radius + foe.radius;
+    if (Math.hypot(foe.x - me.x, foe.y - me.y) > reach) {
+      match.events.push({ kind: 'hook', x: me.x, y: me.y, toX: foe.x, toY: foe.y, side: me.side, hit: false });
+      return 'hook-miss';
+    }
+    shoveFrom(foe, me.x, me.y, -spec.pull);
+    match.events.push({ kind: 'hook', x: me.x, y: me.y, toX: foe.x, toY: foe.y, side: me.side, hit: true });
+    return 'hook-hit';
+  },
+
+  /** Patches you up, once in a while. */
+  mend(match, me, foe, spec) {
+    me.hp = Math.min(me.maxHp, me.hp + spec.amount);
+    return 'mend';
+  },
+};
+
+const canUseAbility = (fighter) => fighter.cooldown <= 0 && !fighter.spent;
+
+/** Fires a fighter's ability if it is off cooldown. Returns true if it went. */
+function useAbility(match, me, foe) {
+  if (!canUseAbility(me)) return false;
+  const spec = me.spec.ability;
+  const run = ABILITIES[spec.kind];
+  if (!run) throw new Error(`${me.spec.name} has an unknown ability: ${spec.kind}`);
+  me.cooldown = spec.cooldown;
+  const label = run(match, me, foe, spec) || spec.kind;
+  match.events.push({ kind: 'ability', side: me.side, name: spec.name, label });
+  return true;
+}
+
+/* ----------------------------------------------------------------- the step */
+
+function tickTimers(fighter, dt) {
+  fighter.cooldown = Math.max(0, fighter.cooldown - dt);
+  fighter.guard = Math.max(0, fighter.guard - dt);
+  fighter.spike = Math.max(0, fighter.spike - dt);
+  fighter.dash = Math.max(0, fighter.dash - dt);
+  fighter.hitLock = Math.max(0, fighter.hitLock - dt);
+  fighter.stagger = Math.max(0, fighter.stagger - dt);
+  if (fighter.anchor > 0) {
+    fighter.anchor = Math.max(0, fighter.anchor - dt);
+    if (fighter.anchor === 0) {
+      fighter.rooted = false;
+      fighter.mass = fighter.baseMass;
+      // Let go of the floor gently rather than springing away from a standstill.
+      setSpeed(fighter, 140);
+    }
+  }
+}
+
+const steerOf = (command) => {
+  const x = command?.x ?? 0;
+  const y = command?.y ?? 0;
+  const length = Math.hypot(x, y);
+  if (length <= 1) return { x, y };
+  return { x: x / length, y: y / length };
+};
+
+/**
+ * Advances a match by `dt` seconds.
+ *
+ * `commands` is `{ a: { x, y, ability }, b: { ... } }`: a steering direction of
+ * length at most one, and whether that side is asking for its ability this
+ * frame. Anything missing counts as letting go of the controls.
+ */
+function stepMatch(match, dt, commands = {}) {
+  if (match.over) return match;
+  match.events.length = 0;
+
+  const { a, b } = match;
+  for (const [fighter, foe] of [[a, b], [b, a]]) {
+    if (commands[fighter.side]?.ability) useAbility(match, fighter, foe);
+  }
+
+  let left = dt;
+  while (left > 1e-9) {
+    const slice = Math.min(left, MAX_SUB_STEP);
+    left -= slice;
+
+    for (const fighter of [a, b]) {
+      tickTimers(fighter, slice);
+      stepMotion(fighter, steerOf(commands[fighter.side]), slice);
+      const wall = bounceOffWalls(fighter, match.field);
+      if (wall > 240) match.events.push({ kind: 'wall', x: fighter.x, y: fighter.y, force: wall, side: fighter.side });
+    }
+
+    if (overlapping(a, b)) {
+      const hit = collide(a, b);
+      if (a.hitLock <= 0 && b.hitLock <= 0 && hit.closing >= HIT_FLOOR) {
+        const toB = damageFor(a, b, hit.approachA);
+        const toA = damageFor(b, a, hit.approachB);
+        b.hp = Math.max(0, Math.round((b.hp - toB) * 10) / 10);
+        a.hp = Math.max(0, Math.round((a.hp - toA) * 10) / 10);
+        a.dealt += toB;
+        b.dealt += toA;
+        a.taken += toA;
+        b.taken += toB;
+        a.hitLock = HIT_LOCK;
+        b.hitLock = HIT_LOCK;
+        if (toA > 0) a.stagger = STAGGER_TIME;
+        if (toB > 0) b.stagger = STAGGER_TIME;
+        match.events.push({
+          kind: 'clash',
+          x: (a.x + b.x) / 2,
+          y: (a.y + b.y) / 2,
+          closing: hit.closing,
+          toA,
+          toB,
+        });
+      }
+    }
+
+    match.time += slice;
+    if (checkOver(match)) break;
+  }
+  return match;
+}
+
+/** Decides whether the round is finished, and writes the verdict if it is. */
+function checkOver(match) {
+  if (match.over) return match.over;
+  const { a, b } = match;
+  if (a.hp <= 0 && b.hp <= 0) {
+    // You went out in the same exchange, which happens often when every hit is
+    // mutual. Rather than call it a draw, it goes to whoever hit harder over
+    // the round - you both fell, but one of you was winning.
+    const edge = a.dealt - b.dealt;
+    if (Math.abs(edge) < 1e-9) match.over = { winner: 'draw', reason: 'you both went out together' };
+    else match.over = { winner: edge > 0 ? 'a' : 'b', reason: 'you both went out - they hit harder' };
+  }
+  else if (b.hp <= 0) match.over = { winner: 'a', reason: 'knocked out' };
+  else if (a.hp <= 0) match.over = { winner: 'b', reason: 'knocked out' };
+  else if (match.time >= match.limit) {
+    const share = (f) => f.hp / f.maxHp;
+    const diff = share(a) - share(b);
+    if (Math.abs(diff) < 1e-9) match.over = { winner: 'draw', reason: 'time, and nothing between you' };
+    else match.over = { winner: diff > 0 ? 'a' : 'b', reason: 'time - more health left' };
+  }
+  return match.over;
+}
+
+/** How full a health bar is, 0..1. */
+const healthShare = (fighter) => clamp(fighter.hp / fighter.maxHp, 0, 1);
+
+  return { createFighter, spawnPoints, createMatch, fightersOf, otherSide, damageFor, ABILITIES, canUseAbility, useAbility, stepMatch, checkOver, healthShare };
+})();
+
+// ---- src/games/bumpers/ai.js -------------------------------------
+__modules["src/games/bumpers/ai.js"] = (function () {
+  const { clamp, lerp } = __modules["src/core/utils.js"];
+  const { canUseAbility } = __modules["src/games/bumpers/rules.js"];
+  const { speedOf } = __modules["src/games/bumpers/physics.js"];
+
+/**
+ * The bot that plays the other ball.
+ *
+ * It knows the one thing this game is really about: a hit is worth the speed
+ * you carried into it, and the only way to carry speed is to pick a line and
+ * hold it. Chasing someone - turning a little bit towards them every frame -
+ * looks busy and arrives slow, because every correction bleeds the run.
+ *
+ * So the bot does two things in turn. It *builds*, steering into open floor
+ * until it is quick, and then it *commits*, locking one heading and riding it
+ * all the way in without looking again. Skill decides how straight that line
+ * is, how fast it insists on being before it goes, and how quickly it is ready
+ * to go again afterwards - never how often it twitches.
+ */
+
+const CHARGE_RANGE = 360;    // close enough that a locked line will still land
+const CHARGE_TIME = 1.5;     // give up on a committed run after this long
+const BUILD_LOOK = 0.3;      // seconds between glances while building speed
+
+/** Where the other ball will be by the time we could get there. */
+function intercept(me, foe) {
+  const dist = Math.hypot(foe.x - me.x, foe.y - me.y);
+  const closing = Math.max(140, speedOf(me));
+  const lead = clamp(dist / closing, 0, 0.55);
+  return { x: foe.x + foe.vx * lead, y: foe.y + foe.vy * lead };
+}
+
+/** Open floor to build speed in: away from them, but back towards the middle. */
+function openFloor(me, foe, field) {
+  const cx = field.x + field.w / 2;
+  const cy = field.y + field.h / 2;
+  const away = { x: me.x - foe.x, y: me.y - foe.y };
+  const inward = { x: cx - me.x, y: cy - me.y };
+  const edge = clamp(Math.hypot(inward.x, inward.y) / (field.w / 2), 0, 1);
+  return {
+    x: lerp(away.x, inward.x, edge * 0.85),
+    y: lerp(away.y, inward.y, edge * 0.85),
+  };
+}
+
+const unit = (v) => {
+  const length = Math.hypot(v.x, v.y) || 1;
+  return { x: v.x / length, y: v.y / length };
+};
+
+const rotate = (v, angle) => ({
+  x: v.x * Math.cos(angle) - v.y * Math.sin(angle),
+  y: v.x * Math.sin(angle) + v.y * Math.cos(angle),
+});
+
+/**
+ * Whether this frame is worth the ability. Each kind wants a different moment:
+ * a dash is for a run already locked in, a shockwave for when they are on top
+ * of you, and Set for when you can see one coming and cannot get out of it.
+ */
+function wantsAbility(me, foe, dist, charging) {
+  const spec = me.spec.ability;
+  switch (spec.kind) {
+    case 'dash':
+      return charging && dist > me.radius + foe.radius + 40 && dist < CHARGE_RANGE;
+    case 'shockwave':
+      return dist < spec.radius + me.radius + foe.radius;
+    case 'anchor': {
+      const theirApproach = ((me.x - foe.x) * foe.vx + (me.y - foe.y) * foe.vy) / (dist || 1);
+      return dist < 260 && theirApproach > 200;
+    }
+    case 'guard':
+      return dist < 260;
+    case 'spikes':
+      return charging;
+    case 'hook':
+      return dist < spec.radius + me.radius + foe.radius;
+    case 'mend':
+      return me.hp < me.maxHp * 0.6;
+    default:
+      return dist < 240;
+  }
+}
+
+/**
+ * Builds a bot for one side. Call `think(match, dt)` once a frame and feed what
+ * it returns straight into `stepMatch` as that side's command.
+ *
+ * `tuning` overrides any of the skill-derived dials, which is how the balance
+ * simulations test one of them at a time.
+ */
+function createBot(side, skill = 0.5, rng = Math.random, tuning = {}) {
+  const grade = clamp(skill, 0, 1);
+  const wobble = tuning.wobble ?? lerp(0.9, 0.05, grade);     // radians of aim error
+  const nerve = tuning.nerve ?? lerp(0.15, 1, grade);         // willingness to spend an ability
+  // Share of top speed it insists on before committing. A weak bot dithers,
+  // waiting for a run it will never quite have; a strong one goes. Hanging
+  // back is punished by the game's own rule - if they are coming at you and
+  // you are backing away, the whole exchange is theirs - so hesitation is a
+  // fault, and that is exactly what the low end of the ladder should look like.
+  const patience = tuning.patience ?? lerp(0.8, 0.25, grade);
+  const regroup = tuning.regroup ?? lerp(0.5, 0.15, grade);   // pause after a run
+
+  let mode = 'build';
+  let aim = { x: 1, y: 0 };
+  let look = 0;
+  let chargeLeft = 0;
+
+  return {
+    side,
+    skill: grade,
+    get mode() { return mode; },
+    think(match, dt) {
+      const me = side === 'a' ? match.a : match.b;
+      const foe = side === 'a' ? match.b : match.a;
+      const dist = Math.hypot(foe.x - me.x, foe.y - me.y);
+      look -= dt;
+
+      if (mode === 'charge') {
+        chargeLeft -= dt;
+        // The run is spent once it has landed, or once it has clearly missed.
+        if (chargeLeft <= 0 || me.hitLock > 0) {
+          mode = 'build';
+          look = regroup;
+        }
+      }
+
+      if (mode === 'build' && look <= 0) {
+        look = BUILD_LOOK;
+        const ready = speedOf(me) >= me.top * patience;
+        if (ready && dist < CHARGE_RANGE) {
+          const target = intercept(me, foe);
+          aim = rotate(unit({ x: target.x - me.x, y: target.y - me.y }), (rng() - 0.5) * 2 * wobble);
+          mode = 'charge';
+          chargeLeft = CHARGE_TIME;
+        } else {
+          // Close by and still slow: peel into open floor. Far off: close the
+          // gap, which builds the speed the next run needs anyway.
+          const target = intercept(me, foe);
+          const want = dist < CHARGE_RANGE
+            ? openFloor(me, foe, match.field)
+            : { x: target.x - me.x, y: target.y - me.y };
+          aim = rotate(unit(want), (rng() - 0.5) * 2 * wobble);
+        }
+      }
+
+      const ability =
+        canUseAbility(me) &&
+        rng() < nerve * dt * 12 &&
+        wantsAbility(me, foe, dist, mode === 'charge');
+
+      return { x: aim.x, y: aim.y, ability };
+    },
+  };
+}
+
+  return { createBot };
+})();
+
+// ---- src/games/bumpers/select.js ---------------------------------
+__modules["src/games/bumpers/select.js"] = (function () {
+  const { CHARACTERS } = __modules["src/games/bumpers/content.js"];
+
+/**
+ * The DOM half of Bumpers: pick a mode, pick a ball, start.
+ *
+ * It is a panel over the canvas rather than something drawn, because a grid of
+ * things you hover and click is a job the browser already does properly. Once
+ * the fight starts the panel goes away and the rest is all canvas.
+ */
+
+const el = (tag, className, text) => {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+};
+
+/** A little canvas showing the ball itself, so you pick by sight not by name. */
+function ballSwatch(spec) {
+  const size = 46;
+  const canvas = el('canvas', 'bb-swatch');
+  const ratio = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = size * ratio;
+  canvas.height = size * ratio;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(ratio, ratio);
+  const grad = ctx.createRadialGradient(size * 0.36, size * 0.34, 3, size / 2, size / 2, size / 2 - 2);
+  grad.addColorStop(0, spec.colour);
+  grad.addColorStop(1, spec.shade);
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size / 2 - 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(8, 12, 20, 0.8)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  return canvas;
+}
+
+const STAT_MAX = { hp: 150, top: 500, mass: 2.6, power: 1.5 };
+const STAT_LABEL = { hp: 'health', top: 'speed', mass: 'weight', power: 'power' };
+
+function statRow(spec, key) {
+  const row = el('div', 'bb-stat');
+  row.append(el('span', 'bb-stat-label', STAT_LABEL[key]));
+  const track = el('span', 'bb-stat-track');
+  const fill = el('span', 'bb-stat-fill');
+  fill.style.width = `${Math.min(100, (spec[key] / STAT_MAX[key]) * 100)}%`;
+  track.append(fill);
+  row.append(track);
+  return row;
+}
+
+class SelectPanel {
+  constructor(container, { onStart }) {
+    this.onStart = onStart;
+    this.mode = 'ladder';
+    this.picks = { a: CHARACTERS[0].id, b: CHARACTERS[1].id };
+    this.seat = 'a';   // which seat the grid is currently choosing for
+
+    this.root = el('div', 'bb-select');
+    container.append(this.root);
+
+    const head = el('div', 'bb-select-head');
+    const title = el('div', 'bb-select-title');
+    title.append(el('h2', null, 'Bumpers'));
+    title.append(el('p', null, 'Two balls, one room, and only the speed you bring into a hit counts.'));
+    head.append(title);
+
+    this.modes = el('div', 'bb-modes');
+    for (const [id, label] of [['ladder', 'Climb the ladder'], ['versus', 'Two players']]) {
+      const button = el('button', 'bb-mode', label);
+      button.type = 'button';
+      button.dataset.mode = id;
+      button.addEventListener('click', () => this.setMode(id));
+      this.modes.append(button);
+    }
+    head.append(this.modes);
+    this.root.append(head);
+
+    this.seats = el('div', 'bb-seats');
+    this.root.append(this.seats);
+
+    this.grid = el('div', 'bb-grid');
+    for (const spec of CHARACTERS) {
+      const card = el('button', 'bb-card');
+      card.type = 'button';
+      card.dataset.id = spec.id;
+      card.append(ballSwatch(spec));
+      const body = el('div', 'bb-card-body');
+      const name = el('div', 'bb-card-name');
+      name.append(el('strong', null, spec.name));
+      name.append(el('span', 'bb-card-role', spec.role));
+      body.append(name);
+      body.append(el('p', 'bb-card-blurb', spec.blurb));
+      const stats = el('div', 'bb-stats');
+      for (const key of ['hp', 'top', 'mass', 'power']) stats.append(statRow(spec, key));
+      body.append(stats);
+      body.append(el('p', 'bb-card-ability', `${spec.ability.name} - ${spec.ability.blurb}`));
+      card.append(body);
+      card.addEventListener('click', () => this.pick(spec.id));
+      this.grid.append(card);
+    }
+    this.root.append(this.grid);
+
+    const foot = el('div', 'bb-select-foot');
+    this.hint = el('p', 'bb-hint', '');
+    this.startButton = el('button', 'btn btn--primary', 'Start');
+    this.startButton.type = 'button';
+    this.startButton.addEventListener('click', () => {
+      this.onStart({ mode: this.mode, picks: { ...this.picks } });
+    });
+    foot.append(this.hint, this.startButton);
+    this.root.append(foot);
+
+    this.setMode('ladder');
+  }
+
+  setMode(mode) {
+    this.mode = mode;
+    this.seat = 'a';
+    this.render();
+  }
+
+  pick(id) {
+    this.picks[this.seat] = id;
+    // In versus, choosing for player one moves you straight on to player two.
+    if (this.mode === 'versus' && this.seat === 'a') this.seat = 'b';
+    this.render();
+  }
+
+  render() {
+    for (const button of this.modes.children) {
+      button.classList.toggle('is-active', button.dataset.mode === this.mode);
+    }
+
+    this.seats.innerHTML = '';
+    const seats = this.mode === 'versus'
+      ? [['a', 'Player 1', 'WASD + Space'], ['b', 'Player 2', 'Arrows + Enter']]
+      : [['a', 'You', 'WASD or arrows, Space for your ability']];
+    for (const [seat, label, keys] of seats) {
+      const chip = el('button', 'bb-seat');
+      chip.type = 'button';
+      chip.classList.toggle('is-active', this.mode === 'versus' && seat === this.seat);
+      const pick = CHARACTERS.find((c) => c.id === this.picks[seat]);
+      chip.append(el('span', 'bb-seat-label', label));
+      chip.append(el('strong', null, pick ? pick.name : 'pick one'));
+      chip.append(el('span', 'bb-seat-keys', keys));
+      chip.addEventListener('click', () => { this.seat = seat; this.render(); });
+      this.seats.append(chip);
+    }
+
+    const active = this.picks[this.seat];
+    for (const card of this.grid.children) {
+      card.classList.toggle('is-picked', card.dataset.id === active);
+    }
+
+    this.hint.textContent = this.mode === 'versus'
+      ? 'Best of three. Both of you on one keyboard.'
+      : 'Six opponents, each harder than the last. You keep your health between rounds.';
+  }
+
+  destroy() {
+    this.root.remove();
+  }
+}
+
+  return { SelectPanel };
+})();
+
+// ---- src/games/bumpers/art.js ------------------------------------
+__modules["src/games/bumpers/art.js"] = (function () {
+  const { TAU, clamp, roundedRect } = __modules["src/core/utils.js"];
+  const { healthShare } = __modules["src/games/bumpers/rules.js"];
+  const { speedOf } = __modules["src/games/bumpers/physics.js"];
+
+/**
+ * Everything Bumpers puts on the canvas.
+ *
+ * The arena is drawn once a frame underneath, then the trails, then the balls,
+ * then whatever is exploding. None of it is read back, so a character that
+ * arrives with a face nobody has drawn yet still turns up as a ball.
+ */
+
+const INK = 'rgba(8, 12, 20, 0.85)';
+
+/* ------------------------------------------------------------- the arena */
+
+function drawArena(ctx, field, time = 0) {
+  ctx.save();
+  const grad = ctx.createLinearGradient(field.x, field.y, field.x, field.y + field.h);
+  grad.addColorStop(0, '#17203a');
+  grad.addColorStop(1, '#0f1627');
+  ctx.fillStyle = grad;
+  roundedRect(ctx, field.x, field.y, field.w, field.h, 18);
+  ctx.fill();
+
+  // A faint grid so speed is legible - a ball crossing it reads as fast.
+  ctx.save();
+  roundedRect(ctx, field.x, field.y, field.w, field.h, 18);
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.045)';
+  ctx.lineWidth = 1;
+  for (let x = field.x + 48; x < field.x + field.w; x += 48) {
+    ctx.beginPath(); ctx.moveTo(x, field.y); ctx.lineTo(x, field.y + field.h); ctx.stroke();
+  }
+  for (let y = field.y + 48; y < field.y + field.h; y += 48) {
+    ctx.beginPath(); ctx.moveTo(field.x, y); ctx.lineTo(field.x + field.w, y); ctx.stroke();
+  }
+  // A slow sweep of light, so the floor is not completely dead.
+  const sweep = ((time * 0.06) % 1) * (field.w + 300) - 150;
+  const glow = ctx.createLinearGradient(field.x + sweep - 120, 0, field.x + sweep + 120, 0);
+  glow.addColorStop(0, 'rgba(120, 180, 255, 0)');
+  glow.addColorStop(0.5, 'rgba(120, 180, 255, 0.05)');
+  glow.addColorStop(1, 'rgba(120, 180, 255, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(field.x, field.y, field.w, field.h);
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+  ctx.lineWidth = 2;
+  roundedRect(ctx, field.x, field.y, field.w, field.h, 18);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* ------------------------------------------------------------- the faces */
+
+/**
+ * One drawing per character, in a box from -1 to 1 that gets scaled to the
+ * ball's radius. `fallback` means a character invented later still shows up
+ * with eyes rather than as a blank disc.
+ */
+const FACES = {
+  pebble(ctx, f) {
+    ctx.fillStyle = f.spec.shade;
+    ctx.beginPath(); ctx.ellipse(-0.3, -0.3, 0.3, 0.22, -0.5, 0, TAU); ctx.fill();
+    eyes(ctx, 0.34, 0.2, 0.17);
+  },
+  boulder(ctx, f) {
+    // A craggy rim, so the heavy one does not read as a smooth bubble.
+    ctx.fillStyle = f.spec.shade;
+    ctx.beginPath();
+    for (let i = 0; i < 9; i += 1) {
+      const a = (i / 9) * TAU;
+      const r = 0.96 - (i % 2 ? 0.17 : 0);
+      const x = Math.cos(a) * r;
+      const y = Math.sin(a) * r;
+      if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    }
+    ctx.closePath();
+    ctx.globalAlpha = 0.45;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    eyes(ctx, 0.3, 0.1, 0.15);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 0.07;
+    ctx.beginPath(); ctx.moveTo(-0.3, 0.46); ctx.lineTo(0.3, 0.46); ctx.stroke();
+  },
+  zip(ctx, f) {
+    ctx.fillStyle = f.spec.shade;
+    ctx.beginPath(); ctx.moveTo(-0.1, -0.75); ctx.lineTo(0.42, -0.05);
+    ctx.lineTo(0.08, -0.02); ctx.lineTo(0.3, 0.72); ctx.lineTo(-0.42, -0.04);
+    ctx.lineTo(-0.06, -0.06); ctx.closePath();
+    ctx.globalAlpha = 0.5; ctx.fill(); ctx.globalAlpha = 1;
+    eyes(ctx, 0.28, -0.08, 0.15);
+  },
+};
+
+function eyes(ctx, spread, y, size) {
+  ctx.fillStyle = 'rgba(10, 16, 26, 0.9)';
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.arc(side * spread, y, size, 0, TAU);
+    ctx.fill();
+  }
+}
+
+const fallback = (ctx) => eyes(ctx, 0.3, 0.05, 0.16);
+
+/* ------------------------------------------------------------- the balls */
+
+/** A fading streak behind a ball, so you can read where it came from. */
+function drawTrail(ctx, fighter, trail) {
+  if (trail.length < 2) return;
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (let i = 1; i < trail.length; i += 1) {
+    const t = i / trail.length;
+    ctx.strokeStyle = fighter.spec.colour;
+    ctx.globalAlpha = t * 0.3;
+    ctx.lineWidth = fighter.radius * 1.5 * t;
+    ctx.beginPath();
+    ctx.moveTo(trail[i - 1].x, trail[i - 1].y);
+    ctx.lineTo(trail[i].x, trail[i].y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
+ * A ring in the seat's colour, not the character's. Both sides can pick the
+ * same ball, so the thing that says which one is yours cannot be the ball.
+ */
+const SEAT_TINT = { a: '#6ee7ff', b: '#ff7aa8' };
+
+function drawFighter(ctx, fighter, { flash = 0, mine = false } = {}) {
+  const { x, y, radius, spec } = fighter;
+  ctx.save();
+
+  // Set plants you: show the ground gripping before anything else.
+  if (fighter.rooted) {
+    ctx.strokeStyle = 'rgba(255, 190, 120, 0.75)';
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 6; i += 1) {
+      const a = (i / 6) * TAU;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a) * (radius + 3), y + Math.sin(a) * (radius + 3));
+      ctx.lineTo(x + Math.cos(a) * (radius + 13), y + Math.sin(a) * (radius + 13));
+      ctx.stroke();
+    }
+  }
+
+  // Dashing and guarding each get a ring, because both change what a hit does.
+  if (fighter.dash > 0) {
+    ctx.strokeStyle = spec.colour;
+    ctx.globalAlpha = clamp(fighter.dash / 0.35, 0, 1) * 0.8;
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(x, y, radius + 7, 0, TAU); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  if (fighter.guard > 0) {
+    ctx.strokeStyle = 'rgba(160, 220, 255, 0.8)';
+    ctx.setLineDash([6, 5]);
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, radius + 9, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  const body = ctx.createRadialGradient(x - radius * 0.35, y - radius * 0.4, radius * 0.15, x, y, radius);
+  body.addColorStop(0, spec.colour);
+  body.addColorStop(1, spec.shade);
+  ctx.fillStyle = body;
+  ctx.beginPath(); ctx.arc(x, y, radius, 0, TAU); ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(radius, radius);
+  (FACES[spec.id] || fallback)(ctx, fighter);
+  ctx.restore();
+
+  // Whose ball this is, drawn outside the body so it survives any face.
+  ctx.strokeStyle = SEAT_TINT[fighter.side] || '#fff';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(x, y, radius + 4, 0, TAU);
+  ctx.stroke();
+  if (mine) {
+    ctx.fillStyle = SEAT_TINT[fighter.side] || '#fff';
+    ctx.beginPath();
+    ctx.moveTo(x, y - radius - 11);
+    ctx.lineTo(x - 5, y - radius - 19);
+    ctx.lineTo(x + 5, y - radius - 19);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Reeling: a ring of sparks says "anything you hit right now barely counts".
+  if (fighter.stagger > 0) {
+    ctx.strokeStyle = 'rgba(255, 240, 160, 0.8)';
+    ctx.lineWidth = 2;
+    const spin = fighter.stagger * 9;
+    for (let i = 0; i < 3; i += 1) {
+      const a = spin + (i / 3) * TAU;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a) * (radius + 10), y + Math.sin(a) * (radius + 10), 2.6, 0, TAU);
+      ctx.stroke();
+    }
+  }
+
+  if (flash > 0) {
+    ctx.globalAlpha = clamp(flash, 0, 1) * 0.75;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x, y, radius, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ----------------------------------------------------------- the effects */
+
+function drawRing(ctx, effect) {
+  const t = 1 - effect.life / effect.maxLife;
+  ctx.save();
+  ctx.globalAlpha = (1 - t) * 0.85;
+  ctx.strokeStyle = effect.colour || '#fff';
+  ctx.lineWidth = 5 * (1 - t) + 1;
+  ctx.beginPath();
+  ctx.arc(effect.x, effect.y, effect.radius * (0.3 + t * 0.9), 0, TAU);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawSpark(ctx, spark) {
+  const t = spark.life / spark.maxLife;
+  ctx.save();
+  ctx.globalAlpha = clamp(t, 0, 1);
+  ctx.fillStyle = spark.colour;
+  ctx.beginPath();
+  ctx.arc(spark.x, spark.y, spark.size * t, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** The number that floats off a ball when it takes one. */
+function drawPopup(ctx, popup) {
+  const t = popup.life / popup.maxLife;
+  ctx.save();
+  ctx.globalAlpha = clamp(t * 1.4, 0, 1);
+  ctx.fillStyle = popup.colour;
+  ctx.font = `700 ${popup.size}px "Trebuchet MS", system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText(popup.text, popup.x, popup.y - (1 - t) * 34);
+  ctx.restore();
+}
+
+/* --------------------------------------------------------------- the HUD */
+
+/**
+ * Three rows that cannot run into each other: the name on top, the bar, then
+ * the ability pip. `y` is the top of the bar; the name sits above it and the
+ * pip below, and nothing is drawn past 74 so the arena still starts at 78.
+ */
+function healthBar(ctx, fighter, x, y, w, align) {
+  const h = 15;
+  const right = align === 'right';
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+  roundedRect(ctx, x, y, w, h, 7);
+  ctx.fill();
+
+  const share = healthShare(fighter);
+  const fillW = Math.max(0, w * share);
+  if (fillW > 2) {
+    ctx.fillStyle = share > 0.5 ? '#8ef0a8' : share > 0.22 ? '#ffd166' : '#ff8b6b';
+    roundedRect(ctx, right ? x + w - fillW : x, y, fillW, h, 7);
+    ctx.fill();
+  }
+
+  // The number sits at the outer end of the bar, which is the end that still
+  // has colour under it right up until the ball is nearly out.
+  ctx.fillStyle = 'rgba(12, 18, 30, 0.8)';
+  ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = right ? 'right' : 'left';
+  ctx.fillText(`${Math.ceil(fighter.hp)}`, right ? x + w - 8 : x + 8, y + 11);
+
+  // The name is drawn in the seat's colour, which is the same colour as the
+  // ring around that ball - so there is nothing extra to read to know whose is
+  // whose, even when both of you picked the same character.
+  ctx.fillStyle = SEAT_TINT[fighter.side] || '#fff';
+  ctx.font = '700 15px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = right ? 'right' : 'left';
+  ctx.fillText(fighter.name, right ? x + w : x, y - 6);
+  ctx.restore();
+}
+
+/** The ability pip: full and lit when it is ready, draining while it is not. */
+function abilityPip(ctx, fighter, x, y, align) {
+  const spec = fighter.spec.ability;
+  const ready = fighter.cooldown <= 0;
+  const share = ready ? 1 : 1 - fighter.cooldown / spec.cooldown;
+  const w = 108;
+  const left = align === 'right' ? x - w : x;
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+  roundedRect(ctx, left, y, w, 18, 9);
+  ctx.fill();
+  ctx.fillStyle = ready ? 'rgba(255, 209, 102, 0.85)' : 'rgba(255, 209, 102, 0.3)';
+  roundedRect(ctx, left, y, Math.max(6, w * share), 18, 9);
+  ctx.fill();
+  ctx.fillStyle = ready ? '#1b2238' : 'rgba(255, 255, 255, 0.7)';
+  ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(spec.name, left + w / 2, y + 13);
+  ctx.restore();
+}
+
+function drawHud(ctx, match, { width, leftLabel, rightLabel, clock }) {
+  const pad = 26;
+  const barW = 286;
+  const barY = 34;
+  healthBar(ctx, match.a, pad, barY, barW, 'left');
+  healthBar(ctx, match.b, width - pad - barW, barY, barW, 'right');
+  abilityPip(ctx, match.a, pad, barY + 22, 'left');
+  abilityPip(ctx, match.b, width - pad, barY + 22, 'right');
+
+  // The labels go at the inner end of each bar, so they can never run into the
+  // name at the outer end however long either of them gets.
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+  ctx.font = '700 12px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(leftLabel, pad + barW, barY - 7);
+  ctx.textAlign = 'left';
+  ctx.fillText(rightLabel, width - pad - barW, barY - 7);
+
+  if (clock != null) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = clock <= 10 ? '#ff8b6b' : 'rgba(255, 255, 255, 0.8)';
+    ctx.font = '700 24px "Trebuchet MS", system-ui, sans-serif';
+    ctx.fillText(String(Math.ceil(clock)), width / 2, barY + 20);
+  }
+  ctx.restore();
+}
+
+/** Big centred words: the countdown, and the verdict. */
+function drawBanner(ctx, width, height, text, sub) {
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(8, 12, 22, 0.55)';
+  ctx.fillRect(0, height / 2 - 70, width, sub ? 128 : 96);
+  ctx.fillStyle = '#ffd166';
+  ctx.font = '800 46px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(text, width / 2, height / 2);
+  if (sub) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
+    ctx.font = '700 17px "Trebuchet MS", system-ui, sans-serif';
+    ctx.fillText(sub, width / 2, height / 2 + 34);
+  }
+  ctx.restore();
+}
+
+  return { drawArena, drawTrail, SEAT_TINT, drawFighter, drawRing, drawSpark, drawPopup, drawHud, drawBanner, speedOf };
+})();
+
+// ---- src/games/bumpers/game.js -----------------------------------
+__modules["src/games/bumpers/game.js"] = (function () {
+  const { clamp } = __modules["src/core/utils.js"];
+  const { CHARACTERS, FIELD, LADDER, ROUND_LIMIT, getCharacter } = __modules["src/games/bumpers/content.js"];
+  const { createMatch, healthShare, stepMatch } = __modules["src/games/bumpers/rules.js"];
+  const { createBot } = __modules["src/games/bumpers/ai.js"];
+  const { SelectPanel } = __modules["src/games/bumpers/select.js"];
+  const { drawArena, drawBanner, drawFighter, drawHud, drawPopup, drawRing, drawSpark, drawTrail } = __modules["src/games/bumpers/art.js"];
+
+const GAME_ID = 'bumpers';
+
+/**
+ * Bumpers on a screen: the select panel, the countdown, the round, and the
+ * bookkeeping for a ladder run or a best-of-three on one keyboard.
+ *
+ * All the actual rules live in `rules.js`, which has never heard of a canvas.
+ * This file only turns keys into a steering vector, draws what came back, and
+ * decides what happens between rounds.
+ */
+
+const COUNTDOWN = 2.2;
+const BETWEEN = 2.4;          // how long the verdict sits on screen
+const TRAIL_POINTS = 14;
+const HEAL_BETWEEN_RUNGS = 40;
+const VERSUS_TARGET = 2;      // rounds needed to take a best-of-three
+
+const KEYS = {
+  a: { up: ['KeyW'], down: ['KeyS'], left: ['KeyA'], right: ['KeyD'], ability: ['Space', 'ShiftLeft'] },
+  b: { up: ['ArrowUp'], down: ['ArrowDown'], left: ['ArrowLeft'], right: ['ArrowRight'], ability: ['Enter', 'NumpadEnter', 'ShiftRight'] },
+  solo: {
+    up: ['KeyW', 'ArrowUp'],
+    down: ['KeyS', 'ArrowDown'],
+    left: ['KeyA', 'ArrowLeft'],
+    right: ['KeyD', 'ArrowRight'],
+    ability: ['Space', 'ShiftLeft', 'Enter'],
+  },
+};
+
+/** Turns held keys into a steering vector of length at most one. */
+function readKeys(input, map) {
+  const x = (input.isKeyDown(...map.right) ? 1 : 0) - (input.isKeyDown(...map.left) ? 1 : 0);
+  const y = (input.isKeyDown(...map.down) ? 1 : 0) - (input.isKeyDown(...map.up) ? 1 : 0);
+  const length = Math.hypot(x, y);
+  const ability = input.wasKeyPressed(...map.ability);
+  if (length === 0) return { x: 0, y: 0, ability };
+  return { x: x / length, y: y / length, ability };
+}
+
+class BumpersGame {
+  constructor(context) {
+    this.ctx = context;
+    this.width = context.width;
+    this.height = context.height;
+
+    this.phase = 'select';   // select | countdown | fighting | between | over
+    this.mode = 'ladder';
+    this.match = null;
+    this.bot = null;
+    this.rung = 0;
+    this.wins = { a: 0, b: 0 };
+    this.carryHp = null;     // health carried into the next ladder rung
+    this.timer = 0;
+    this.verdict = null;
+
+    this.trails = { a: [], b: [] };
+    this.sparks = [];
+    this.rings = [];
+    this.popups = [];
+    this.flash = { a: 0, b: 0 };
+    this.shake = 0;
+    this.clock = 0;
+
+    this.panel = new SelectPanel(context.ui, {
+      onStart: ({ mode, picks }) => this.begin(mode, picks),
+    });
+  }
+
+  /* --------------------------------------------------------------- setup */
+
+  begin(mode, picks) {
+    this.mode = mode;
+    this.picks = picks;
+    this.rung = 0;
+    this.wins = { a: 0, b: 0 };
+    this.carryHp = null;
+    this.panel.destroy();
+    this.panel = null;
+    this.startRound();
+  }
+
+  /** The opponent for the round about to start. */
+  opponentFor() {
+    if (this.mode === 'versus') return { character: this.picks.b, skill: null, title: 'Player 2' };
+    const rung = LADDER[Math.min(this.rung, LADDER.length - 1)];
+    return rung;
+  }
+
+  startRound() {
+    const foe = this.opponentFor();
+    this.match = createMatch(this.picks.a, foe.character, { limit: ROUND_LIMIT });
+    // A ladder run is one long fight with breathers, not six fresh ones.
+    if (this.mode === 'ladder' && this.carryHp != null) {
+      this.match.a.hp = clamp(this.carryHp, 1, this.match.a.maxHp);
+    }
+    this.bot = this.mode === 'ladder' ? createBot('b', foe.skill) : null;
+    this.trails = { a: [], b: [] };
+    this.sparks = [];
+    this.rings = [];
+    this.popups = [];
+    this.phase = 'countdown';
+    this.timer = COUNTDOWN;
+    this.verdict = null;
+  }
+
+  /* ---------------------------------------------------------- the update */
+
+  update(dt, input) {
+    this.clock += dt;
+    this.shake = Math.max(0, this.shake - dt * 3);
+    this.decay(dt);
+
+    if (this.phase === 'select') return;
+
+    if (this.phase === 'countdown') {
+      this.timer -= dt;
+      if (this.timer <= 0) this.phase = 'fighting';
+      return;
+    }
+
+    if (this.phase === 'between') {
+      this.timer -= dt;
+      if (this.timer <= 0) this.advance();
+      return;
+    }
+
+    if (this.phase !== 'fighting') return;
+
+    const commands = {
+      a: readKeys(input, this.mode === 'versus' ? KEYS.a : KEYS.solo),
+      b: this.bot ? this.bot.think(this.match, dt) : readKeys(input, KEYS.b),
+    };
+    stepMatch(this.match, dt, commands);
+    this.absorbEvents();
+    this.pushTrails();
+
+    if (this.match.over) {
+      this.verdict = this.match.over;
+      this.phase = 'between';
+      this.timer = BETWEEN;
+      if (this.verdict.winner === 'a') this.wins.a += 1;
+      else if (this.verdict.winner === 'b') this.wins.b += 1;
+    }
+  }
+
+  /** Turns the round's events into things that fly about on screen. */
+  absorbEvents() {
+    for (const event of this.match.events) {
+      if (event.kind === 'clash') {
+        this.shake = Math.min(1, event.closing / 500);
+        this.rings.push({ x: event.x, y: event.y, radius: 46, life: 0.4, maxLife: 0.4, colour: '#ffffff' });
+        const count = Math.round(clamp(event.closing / 40, 3, 16));
+        for (let i = 0; i < count; i += 1) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 60 + Math.random() * event.closing * 0.4;
+          this.sparks.push({
+            x: event.x, y: event.y,
+            vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+            size: 3.4, life: 0.45, maxLife: 0.45, colour: '#ffe9b0',
+          });
+        }
+        if (event.toA > 0) this.hurt('a', event.toA);
+        if (event.toB > 0) this.hurt('b', event.toB);
+      } else if (event.kind === 'shock') {
+        const who = event.side === 'a' ? this.match.a : this.match.b;
+        this.rings.push({ x: event.x, y: event.y, radius: event.radius, life: 0.45, maxLife: 0.45, colour: who.spec.colour });
+      } else if (event.kind === 'wall') {
+        for (let i = 0; i < 4; i += 1) {
+          const angle = Math.random() * Math.PI * 2;
+          this.sparks.push({
+            x: event.x, y: event.y,
+            vx: Math.cos(angle) * 70, vy: Math.sin(angle) * 70,
+            size: 2.2, life: 0.3, maxLife: 0.3, colour: 'rgba(200, 220, 255, 0.9)',
+          });
+        }
+      } else if (event.kind === 'ability') {
+        const who = event.side === 'a' ? this.match.a : this.match.b;
+        this.popups.push({
+          x: who.x, y: who.y - who.radius - 6, text: event.name,
+          colour: who.spec.colour, size: 13, life: 0.7, maxLife: 0.7,
+        });
+      }
+    }
+  }
+
+  hurt(side, amount) {
+    const who = side === 'a' ? this.match.a : this.match.b;
+    this.flash[side] = 1;
+    this.popups.push({
+      x: who.x, y: who.y - who.radius - 10,
+      text: `-${amount.toFixed(amount < 10 ? 1 : 0)}`,
+      colour: '#ff9f8b', size: 17, life: 0.75, maxLife: 0.75,
+    });
+  }
+
+  pushTrails() {
+    for (const side of ['a', 'b']) {
+      const who = this.match[side];
+      const trail = this.trails[side];
+      trail.push({ x: who.x, y: who.y });
+      if (trail.length > TRAIL_POINTS) trail.shift();
+    }
+  }
+
+  decay(dt) {
+    for (const side of ['a', 'b']) this.flash[side] = Math.max(0, this.flash[side] - dt * 4);
+    const keep = (item) => item.life > 0;
+    for (const spark of this.sparks) {
+      spark.life -= dt;
+      spark.x += spark.vx * dt;
+      spark.y += spark.vy * dt;
+      spark.vx *= 0.92;
+      spark.vy *= 0.92;
+    }
+    for (const ring of this.rings) ring.life -= dt;
+    for (const popup of this.popups) popup.life -= dt;
+    this.sparks = this.sparks.filter(keep);
+    this.rings = this.rings.filter(keep);
+    this.popups = this.popups.filter(keep);
+  }
+
+  /* ------------------------------------------------- what happens next */
+
+  advance() {
+    if (this.mode === 'versus') {
+      if (this.wins.a >= VERSUS_TARGET || this.wins.b >= VERSUS_TARGET) return this.finishVersus();
+      return this.startRound();
+    }
+    if (this.verdict.winner !== 'a') return this.finishLadder(false);
+    this.rung += 1;
+    if (this.rung >= LADDER.length) return this.finishLadder(true);
+    this.carryHp = Math.min(this.match.a.maxHp, this.match.a.hp + HEAL_BETWEEN_RUNGS);
+    this.startRound();
+  }
+
+  finishLadder(cleared) {
+    const left = Math.max(0, Math.round(this.match.a.hp));
+    const score = this.rung * 1000 + (cleared ? 500 : 0) + left * 5;
+    this.ctx.finish({
+      score,
+      title: cleared ? 'You cleared the ladder' : `Beaten on rung ${this.rung + 1}`,
+      detailTitle: 'How the run went',
+      // The shell draws these as a dot, a name and a label.
+      collected: LADDER.map((rung, i) => ({
+        name: rung.title,
+        color: i < this.rung ? '#8ef0a8' : i === this.rung ? '#ff8b6b' : 'rgba(255, 255, 255, 0.18)',
+        label: i < this.rung ? 'beaten' : i === this.rung ? 'stopped you' : '-',
+      })),
+    });
+    this.phase = 'over';
+  }
+
+  finishVersus() {
+    const winner = this.wins.a > this.wins.b ? 'Player 1' : 'Player 2';
+    this.ctx.finish({
+      score: Math.max(this.wins.a, this.wins.b),
+      title: `${winner} takes it ${this.wins.a}-${this.wins.b}`,
+      detailTitle: 'Best of three',
+    });
+    this.phase = 'over';
+  }
+
+  /* --------------------------------------------------------- the drawing */
+
+  render(ctx) {
+    ctx.clearRect(0, 0, this.width, this.height);
+    ctx.save();
+    if (this.shake > 0.02) {
+      ctx.translate((Math.random() - 0.5) * this.shake * 7, (Math.random() - 0.5) * this.shake * 7);
+    }
+    drawArena(ctx, FIELD, this.clock);
+
+    if (this.phase === 'select' || !this.match) {
+      ctx.restore();
+      return;
+    }
+
+    drawTrail(ctx, this.match.a, this.trails.a);
+    drawTrail(ctx, this.match.b, this.trails.b);
+    for (const ring of this.rings) drawRing(ctx, ring);
+    drawFighter(ctx, this.match.a, { flash: this.flash.a, mine: true });
+    drawFighter(ctx, this.match.b, { flash: this.flash.b, mine: this.mode === 'versus' });
+    for (const spark of this.sparks) drawSpark(ctx, spark);
+    for (const popup of this.popups) drawPopup(ctx, popup);
+    ctx.restore();
+
+    const left = this.mode === 'versus' ? `P1 - won ${this.wins.a}` : 'You';
+    const right = this.mode === 'versus'
+      ? `P2 - won ${this.wins.b}`
+      : `Rung ${Math.min(this.rung + 1, LADDER.length)}/${LADDER.length}`;
+    drawHud(ctx, this.match, {
+      width: this.width,
+      leftLabel: left,
+      rightLabel: right,
+      clock: this.phase === 'fighting' ? Math.max(0, this.match.limit - this.match.time) : null,
+    });
+
+    if (this.phase === 'countdown') {
+      const n = Math.ceil(this.timer - 0.2);
+      drawBanner(ctx, this.width, this.height, n > 0 ? String(n) : 'Go', this.opponentTitle());
+    } else if (this.phase === 'between' && this.verdict) {
+      drawBanner(ctx, this.width, this.height, this.verdictText(), this.verdict.reason);
+    }
+  }
+
+  opponentTitle() {
+    if (this.mode === 'versus') return `${getCharacter(this.picks.a).name} versus ${getCharacter(this.picks.b).name}`;
+    return LADDER[Math.min(this.rung, LADDER.length - 1)].title;
+  }
+
+  verdictText() {
+    const { winner } = this.verdict;
+    if (winner === 'draw') return 'Draw';
+    if (this.mode === 'versus') return winner === 'a' ? 'Player 1' : 'Player 2';
+    return winner === 'a' ? 'Win' : 'Knocked out';
+  }
+
+  destroy() {
+    this.panel?.destroy();
+    this.panel = null;
+  }
+}
+
+const createBumpers = (context) => new BumpersGame(context);
+
+  return { GAME_ID, createBumpers, CHARACTERS, healthShare };
+})();
+
+// ---- src/games/bumpers/index.js ----------------------------------
+__modules["src/games/bumpers/index.js"] = (function () {
+  const { registerGame } = __modules["src/core/registry.js"];
+  const { createBumpers, GAME_ID } = __modules["src/games/bumpers/game.js"];
+
+registerGame({
+  id: GAME_ID,
+  name: 'Bumpers',
+  tagline: 'Two balls in one room. Only the speed you carry into a hit counts for anything.',
+  description: 'A bouncing duel: steer, line up a run, and take their health off them before they take yours.',
+  howTo: [
+    'Steer with <strong>WASD or the arrow keys</strong>, and press <strong>Space</strong> for your ability.',
+    'Neither ball ever stops. You are always drifting, so you are always able to be hit.',
+    'When you collide, <strong>you both take damage</strong> - but only for the speed you were carrying <em>into</em> the hit. Drift into someone charging and the whole exchange is theirs.',
+    'Arriving twice as fast hurts <strong>more than twice as much</strong>, so a lined-up run beats leaning on them.',
+    'Right after you are hit you are <strong>reeling</strong>: you go flying, but for a moment you cannot hurt anyone with the speed they just gave you.',
+    'Being <strong>heavier</strong> than what you hit scales the damage up, and every ball carries one ability on a cooldown.',
+    'Climb the <strong>ladder</strong> of six opponents keeping your health between rounds, or play <strong>two on one keyboard</strong> for a best of three.',
+  ],
+  create: createBumpers,
 });
 
   return {  };
