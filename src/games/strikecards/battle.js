@@ -116,6 +116,7 @@ export function beginTurn(state) {
   // Anything that lasted "until the turn ends" ends here, on both boards - a
   // Sidestep played on their turn should not still be helping on yours.
   for (const key of ['a', 'b']) {
+    state.sides[key].oneUp = false;
     for (const card of state.sides[key].board) {
       for (const [stat, amount] of Object.entries(card.temp || {})) card[stat] -= amount;
       card.temp = {};
@@ -334,6 +335,17 @@ export function reap(state, card) {
 
   const owner = state.sides[ownerKey];
   const killer = state.sides[other(ownerKey)];
+
+  // 1 Up: the first card to go down this turn never finishes falling. It costs
+  // the other side the kill and the bounty as well, because as far as the board
+  // is concerned nothing was knocked out.
+  if (owner.oneUp) {
+    owner.oneUp = false;
+    card.hp = card.maxHp;
+    say(state, `${card.name} comes straight back`, { kind: 'heal', uid: card.uid, hp: card.hp });
+    return false;
+  }
+
   owner.board = owner.board.filter((entry) => entry.uid !== card.uid);
   owner.graveyard.push(card);
   killer.points += bountyFor(card);
@@ -386,13 +398,48 @@ function applyBuff(state, card, effect) {
 
 /** Supports that act on their own, with nothing to aim at. */
 export const needsNoTarget = (effect) =>
-  effect.kind === 'recall' || effect.kind === 'draw' || effect.scope === 'board';
+  ['recall', 'draw', 'revive', 'points'].includes(effect.kind) || effect.scope === 'board';
 
-export function applySupport(state, which, support, target) {
+/** Supports that need a second pick as well as the first. */
+export const needsTwoTargets = (effect) => effect.kind === 'swap';
+
+export function applySupport(state, which, support, target, second) {
   const effect = support.effect;
   if (!effect) return { error: `${support.name} does nothing.` };
 
   if (effect.kind === 'recall') return recallFromGraveyard(state, which, target ?? 0);
+
+  if (effect.kind === 'revive') {
+    state.sides[which].oneUp = true;
+    say(state, 'An extra life is waiting', { kind: 'buff', side: which });
+    return { revive: true };
+  }
+
+  if (effect.kind === 'points') {
+    state.sides[which].points += effect.amount;
+    say(state, `+${effect.amount} points`, { kind: 'income', points: state.sides[which].points });
+    return { points: effect.amount };
+  }
+
+  if (effect.kind === 'swap') {
+    const theirs = findCard(state, target);
+    const mine = findCard(state, second);
+    if (!theirs || !mine) return { error: 'Pick one of theirs, then one of yours.' };
+    if (ownerOf(state, theirs) === which) return { error: 'The first pick is one of theirs.' };
+    if (ownerOf(state, mine) !== which) return { error: 'The second pick is one of yours.' };
+    // The gate that stops this ending games on its own.
+    if ((theirs.cost ?? 0) > (mine.cost ?? 0)) {
+      return { error: `${theirs.name} cost ${theirs.cost} - you cannot take it for a ${mine.cost}.` };
+    }
+    const me = state.sides[which];
+    const them = state.sides[other(which)];
+    me.board = me.board.filter((entry) => entry.uid !== mine.uid);
+    them.board = them.board.filter((entry) => entry.uid !== theirs.uid);
+    me.board.push(theirs);
+    them.board.push(mine);
+    say(state, `${theirs.name} and ${mine.name} trade sides`, { kind: 'support' });
+    return { took: theirs.uid, gave: mine.uid };
+  }
 
   if (effect.kind === 'draw') {
     let drawn = 0;
@@ -433,6 +480,20 @@ export function applySupport(state, which, support, target) {
     reap(state, card);
     checkOver(state);
     return { damage: effect.amount };
+  }
+
+  if (effect.kind === 'refresh') {
+    if (!card.attackedThisTurn) return { error: `${card.name} has not swung yet.` };
+    card.attackedThisTurn = false;
+    say(state, `${card.name} goes again`, { kind: 'buff', uid: card.uid });
+    return { refreshed: card.uid };
+  }
+
+  if (effect.kind === 'evolve') {
+    if (!card.evolvesTo) return { error: `${card.name} has nothing to grow into.` };
+    card.turnsOnBoard = card.evolvesAfter;
+    evolveIfReady(state, card);
+    return { evolved: card.uid };
   }
 
   if (effect.kind === 'shield') {

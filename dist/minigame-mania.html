@@ -10934,6 +10934,7 @@ function beginTurn(state) {
   // Anything that lasted "until the turn ends" ends here, on both boards - a
   // Sidestep played on their turn should not still be helping on yours.
   for (const key of ['a', 'b']) {
+    state.sides[key].oneUp = false;
     for (const card of state.sides[key].board) {
       for (const [stat, amount] of Object.entries(card.temp || {})) card[stat] -= amount;
       card.temp = {};
@@ -11152,6 +11153,17 @@ function reap(state, card) {
 
   const owner = state.sides[ownerKey];
   const killer = state.sides[other(ownerKey)];
+
+  // 1 Up: the first card to go down this turn never finishes falling. It costs
+  // the other side the kill and the bounty as well, because as far as the board
+  // is concerned nothing was knocked out.
+  if (owner.oneUp) {
+    owner.oneUp = false;
+    card.hp = card.maxHp;
+    say(state, `${card.name} comes straight back`, { kind: 'heal', uid: card.uid, hp: card.hp });
+    return false;
+  }
+
   owner.board = owner.board.filter((entry) => entry.uid !== card.uid);
   owner.graveyard.push(card);
   killer.points += bountyFor(card);
@@ -11204,13 +11216,48 @@ function applyBuff(state, card, effect) {
 
 /** Supports that act on their own, with nothing to aim at. */
 const needsNoTarget = (effect) =>
-  effect.kind === 'recall' || effect.kind === 'draw' || effect.scope === 'board';
+  ['recall', 'draw', 'revive', 'points'].includes(effect.kind) || effect.scope === 'board';
 
-function applySupport(state, which, support, target) {
+/** Supports that need a second pick as well as the first. */
+const needsTwoTargets = (effect) => effect.kind === 'swap';
+
+function applySupport(state, which, support, target, second) {
   const effect = support.effect;
   if (!effect) return { error: `${support.name} does nothing.` };
 
   if (effect.kind === 'recall') return recallFromGraveyard(state, which, target ?? 0);
+
+  if (effect.kind === 'revive') {
+    state.sides[which].oneUp = true;
+    say(state, 'An extra life is waiting', { kind: 'buff', side: which });
+    return { revive: true };
+  }
+
+  if (effect.kind === 'points') {
+    state.sides[which].points += effect.amount;
+    say(state, `+${effect.amount} points`, { kind: 'income', points: state.sides[which].points });
+    return { points: effect.amount };
+  }
+
+  if (effect.kind === 'swap') {
+    const theirs = findCard(state, target);
+    const mine = findCard(state, second);
+    if (!theirs || !mine) return { error: 'Pick one of theirs, then one of yours.' };
+    if (ownerOf(state, theirs) === which) return { error: 'The first pick is one of theirs.' };
+    if (ownerOf(state, mine) !== which) return { error: 'The second pick is one of yours.' };
+    // The gate that stops this ending games on its own.
+    if ((theirs.cost ?? 0) > (mine.cost ?? 0)) {
+      return { error: `${theirs.name} cost ${theirs.cost} - you cannot take it for a ${mine.cost}.` };
+    }
+    const me = state.sides[which];
+    const them = state.sides[other(which)];
+    me.board = me.board.filter((entry) => entry.uid !== mine.uid);
+    them.board = them.board.filter((entry) => entry.uid !== theirs.uid);
+    me.board.push(theirs);
+    them.board.push(mine);
+    say(state, `${theirs.name} and ${mine.name} trade sides`, { kind: 'support' });
+    return { took: theirs.uid, gave: mine.uid };
+  }
 
   if (effect.kind === 'draw') {
     let drawn = 0;
@@ -11251,6 +11298,20 @@ function applySupport(state, which, support, target) {
     reap(state, card);
     checkOver(state);
     return { damage: effect.amount };
+  }
+
+  if (effect.kind === 'refresh') {
+    if (!card.attackedThisTurn) return { error: `${card.name} has not swung yet.` };
+    card.attackedThisTurn = false;
+    say(state, `${card.name} goes again`, { kind: 'buff', uid: card.uid });
+    return { refreshed: card.uid };
+  }
+
+  if (effect.kind === 'evolve') {
+    if (!card.evolvesTo) return { error: `${card.name} has nothing to grow into.` };
+    card.turnsOnBoard = card.evolvesAfter;
+    evolveIfReady(state, card);
+    return { evolved: card.uid };
   }
 
   if (effect.kind === 'shield') {
@@ -11300,7 +11361,7 @@ function checkOver(state) {
   return state;
 }
 
-  return { OPENING_HAND, DRAW_PER_TURN, TURN_LIMIT, instance, createMatch, other, activeSide, beginTurn, evolveIfReady, draw, endTurn, playCard, playGear, playSupport, recallFromGraveyard, attack, reap, needsNoTarget, applySupport, isBeaten, checkOver };
+  return { OPENING_HAND, DRAW_PER_TURN, TURN_LIMIT, instance, createMatch, other, activeSide, beginTurn, evolveIfReady, draw, endTurn, playCard, playGear, playSupport, recallFromGraveyard, attack, reap, needsNoTarget, needsTwoTargets, applySupport, isBeaten, checkOver };
 })();
 
 // ---- src/games/strikecards/ai.js ---------------------------------
@@ -12279,6 +12340,29 @@ const SUPPORTS = [
   // it never swings back. This is the card that makes them wonder.
   support('last-stand', 'Last Stand', 'rare', 'instant', { kind: 'shield', target: 'friendly' },
     'One of yours cannot be knocked out this turn - it holds on at 1. Played on their turn, the kill they lined up trades instead.'),
+
+  // An extra life, in the arcade sense. Last Stand keeps a card standing so it
+  // swings back; this one lets it fall and hands it straight back, whole. You
+  // do not aim it - it waits for whichever card goes first.
+  support('one-up', '1 Up', 'epic', 'instant', { kind: 'revive' },
+    'The first card of yours to go down this turn comes straight back, at full health. Nothing to aim - it just waits.'),
+
+  support('turbo', 'Turbo', 'rare', 'turn', { kind: 'refresh', target: 'friendly' },
+    'One of your cards swings a second time this turn.'),
+
+  // Growing up is the one thing in the game that costs turns rather than
+  // points, so the one thing worth cheating is the clock.
+  support('chronos-glitch', 'Chronos Glitch', 'epic', 'turn', { kind: 'evolve', target: 'friendly' },
+    'One of your cards grows up on the spot, however long it still had to wait.'),
+
+  // The only card that changes whose side anything is on. It can never hand you
+  // something worth more than what you gave, or trading a Hiver for a Stormbeat
+  // would end games by itself.
+  support('portal-switch', 'Portal Switch', 'legendary', 'turn', { kind: 'swap', target: 'enemy' },
+    'One of theirs and one of yours trade sides. You cannot take anything that cost more than what you gave.'),
+
+  support('golden-roll', 'Golden Roll', 'uncommon', 'turn', { kind: 'points', amount: 5 },
+    '+5 points, there and then. Everything else in the game makes you kill something for them.'),
 ];
 
 const SUPPORT_BY_ID = new Map(SUPPORTS.map((entry) => [entry.id, entry]));
