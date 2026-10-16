@@ -14,6 +14,7 @@ import {
 } from '../src/games/strikecards/battle.js';
 import { applySupport } from '../src/games/strikecards/battle.js';
 import { SUPPORTS, getSupport, instantSupports } from '../src/games/strikecards/supports.js';
+import { SUPPORT_COUNT, INSTANT_SUPPORT_COUNT } from '../src/games/strikecards/rules.js';
 import { seededRandom } from '../src/core/utils.js';
 import { drawBackdrop, drawCard, drawLog, drawSideBar, drawSlot } from '../src/games/strikecards/art.js';
 import { createFakeContext } from './helpers.js';
@@ -298,14 +299,36 @@ test('Iron Will lets a card live through what should have finished it', () => {
   assert.equal(mine.hp, 7, 'and it never had to survive anything');
 });
 
-test('the five commons are five real supports, two of them instants', () => {
-  assert.equal(SUPPORTS.length, 5);
+/**
+ * The kinds of effect `applySupport` actually knows how to run. A support
+ * naming anything else is a card that does nothing when you play it, which is
+ * worse than one that was never written - so adding to the roster without
+ * teaching the battle what the new thing does fails here.
+ */
+const EFFECTS_THE_BATTLE_KNOWS = ['heal', 'damage', 'recall', 'buff', 'draw', 'shield'];
+
+test('every support is a real card the battle knows how to run', () => {
+  const seen = new Set();
   for (const support of SUPPORTS) {
     assert.ok(support.name && support.blurb, `${support.id} says what it is`);
-    assert.ok(['turn', 'instant'].includes(support.timing));
+    assert.ok(['turn', 'instant'].includes(support.timing), `${support.id} has a timing`);
     assert.ok(support.effect?.kind, `${support.id} does something`);
+    assert.ok(
+      EFFECTS_THE_BATTLE_KNOWS.includes(support.effect.kind),
+      `${support.id} uses "${support.effect.kind}", which applySupport cannot run`,
+    );
+    assert.equal(support.kind, 'support');
+    assert.ok(!seen.has(support.id), `two supports share the id ${support.id}`);
+    seen.add(support.id);
   }
-  assert.deepEqual(instantSupports().map((s) => s.id), ['sidestep', 'iron-will']);
+});
+
+test('the roster is growing towards fifteen, and never past it', () => {
+  assert.ok(SUPPORTS.length <= SUPPORT_COUNT, `there are ${SUPPORTS.length} supports, which is more than ${SUPPORT_COUNT}`);
+  assert.ok(
+    instantSupports().length <= INSTANT_SUPPORT_COUNT,
+    `${instantSupports().length} instants, which is more than the ${INSTANT_SUPPORT_COUNT} the rules allow`,
+  );
 });
 
 test('a hand of nothing but gear is a loss, not a stalemate', () => {
