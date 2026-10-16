@@ -222,3 +222,139 @@ export function drawBanner(ctx, width, text, subtext, alpha) {
   }
   ctx.restore();
 }
+
+/* ------------------------------------------------------- opening a pack */
+
+/**
+ * The back of a card: what you see before it turns over. Deliberately the same
+ * for every card, so nothing about a face-down card gives away what it is.
+ */
+export function drawCardBack(ctx, x, y, w = CARD_W, h = CARD_H) {
+  ctx.save();
+  const grad = ctx.createLinearGradient(x, y, x + w, y + h);
+  grad.addColorStop(0, '#2a3356');
+  grad.addColorStop(1, '#141a2e');
+  ctx.fillStyle = grad;
+  roundedRect(ctx, x, y, w, h, 10);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+  ctx.lineWidth = 2;
+  roundedRect(ctx, x, y, w, h, 10);
+  ctx.stroke();
+
+  ctx.save();
+  roundedRect(ctx, x + 7, y + 7, w - 14, h - 14, 7);
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+  ctx.lineWidth = 1;
+  for (let i = -h; i < w; i += 9) {
+    ctx.beginPath();
+    ctx.moveTo(x + i, y);
+    ctx.lineTo(x + i + h, y + h);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+  ctx.lineWidth = 2;
+  roundedRect(ctx, x + 7, y + 7, w - 14, h - 14, 7);
+  ctx.stroke();
+
+  // A struck mark in the middle, the same shape as the menu tile.
+  ctx.save();
+  ctx.translate(x + w / 2, y + h / 2);
+  ctx.strokeStyle = 'rgba(255, 209, 102, 0.5)';
+  ctx.lineWidth = 3.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-13, 11);
+  ctx.lineTo(4, -13);
+  ctx.moveTo(-4, 13);
+  ctx.lineTo(13, -11);
+  ctx.stroke();
+  ctx.restore();
+  ctx.restore();
+}
+
+/**
+ * A card part way through turning over. `turn` runs 0 (face down) to 1 (face
+ * up); the squeeze through the middle is what sells it as one object rotating
+ * rather than two pictures swapping.
+ */
+export function drawCardFlip(ctx, card, x, y, turn, state = {}) {
+  const squeeze = Math.abs(Math.cos(Math.PI * clamp(turn, 0, 1)));
+  const w = Math.max(1, CARD_W * squeeze);
+  ctx.save();
+  ctx.translate(x + CARD_W / 2, y);
+  ctx.scale(w / CARD_W, 1);
+  ctx.translate(-CARD_W / 2, 0);
+  if (turn < 0.5) drawCardBack(ctx, 0, 0);
+  else drawCard(ctx, card, 0, 0, state);
+  ctx.restore();
+}
+
+/** The glow behind a card that has just turned over, strongest for the best. */
+export function drawRarityGlow(ctx, x, y, rarity, strength = 1) {
+  const tone = face(rarity);
+  const cx = x + CARD_W / 2;
+  const cy = y + CARD_H / 2;
+  const reach = CARD_H * (0.62 + strength * 0.45);
+  const glow = ctx.createRadialGradient(cx, cy, CARD_W * 0.2, cx, cy, reach);
+  glow.addColorStop(0, tone.color);
+  glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.save();
+  ctx.globalAlpha = 0.34 * strength;
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, reach, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * The sealed pack, before you tear it. `shake` nudges it about so it reads as
+ * something you are about to do violence to rather than a picture of a box.
+ */
+export function drawSealedPack(ctx, x, y, kind, { shake = 0, scale = 1 } = {}) {
+  const w = CARD_W * 1.28;
+  const h = CARD_H * 1.28;
+  ctx.save();
+  ctx.translate(x + (Math.random() - 0.5) * shake * 7, y + (Math.random() - 0.5) * shake * 7);
+  ctx.scale(scale, scale);
+  ctx.translate(-w / 2, -h / 2);
+
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, kind.color);
+  grad.addColorStop(1, kind.dark);
+  ctx.fillStyle = grad;
+  roundedRect(ctx, 0, 0, w, h, 12);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(8, 12, 20, 0.7)';
+  ctx.lineWidth = 3;
+  roundedRect(ctx, 0, 0, w, h, 12);
+  ctx.stroke();
+
+  // The torn strip across the top, so it is obvious which end opens.
+  ctx.save();
+  roundedRect(ctx, 0, 0, w, h, 12);
+  ctx.clip();
+  ctx.fillStyle = 'rgba(8, 12, 20, 0.35)';
+  ctx.beginPath();
+  ctx.moveTo(0, 26);
+  for (let i = 0; i <= w; i += 11) ctx.lineTo(i, 26 + (i % 22 ? 5 : -5));
+  ctx.lineTo(w, 0);
+  ctx.lineTo(0, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+  ctx.font = '800 17px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(kind.name.split(' ')[0].toUpperCase(), w / 2, h * 0.56);
+  ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.fillText('PACK', w / 2, h * 0.56 + 18);
+  ctx.restore();
+}

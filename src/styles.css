@@ -1363,3 +1363,55 @@ kbd {
 
 .bb-select-foot { display: flex; align-items: center; justify-content: space-between; gap: 1em; margin-top: auto; }
 .bb-hint { margin: 0; color: var(--muted); font-size: 0.8em; }
+
+/* ------------------------------------- Strike Cards: home and pack opening */
+
+.sc-home {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8em;
+  padding: 1.1em 1.4em;
+  overflow: auto;
+  background: rgba(10, 15, 28, 0.9);
+  pointer-events: auto;
+}
+.sc-home-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1em; }
+.sc-home-title h2 { margin: 0; font-size: 1.5em; }
+.sc-home-title p { margin: 0.25em 0 0; color: var(--muted); font-size: 0.85em; }
+.sc-home-stats { display: flex; gap: 0.5em; flex-shrink: 0; }
+.sc-home-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  padding: 0.4em 0.75em;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.sc-home-stat-label { font-size: 0.68em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.sc-home-stat strong { font-size: 1.05em; }
+
+.sc-packs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.7em; }
+.sc-pack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  padding: 0.8em 0.9em;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(140deg, color-mix(in srgb, var(--pack) 16%, transparent), rgba(255, 255, 255, 0.03));
+}
+.sc-pack-top { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5em; }
+.sc-pack-top strong { font-size: 1.02em; color: var(--pack); }
+.sc-pack-count { font-size: 0.78em; color: var(--muted); font-weight: 700; }
+.sc-pack-blurb { margin: 0; font-size: 0.78em; color: var(--muted); }
+.sc-pack-actions { display: flex; gap: 0.4em; margin-top: 0.25em; }
+.sc-pack-actions .btn { font-size: 0.8em; padding: 0.45em 0.85em; }
+.sc-pack-actions .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.sc-pack-missing { margin: 0.15em 0 0; font-size: 0.7em; color: rgba(255, 209, 102, 0.75); line-height: 1.3; }
+
+.sc-home-foot { display: flex; align-items: center; justify-content: space-between; gap: 1em; margin-top: auto; }
+.sc-home-note { margin: 0; color: var(--muted); font-size: 0.8em; }

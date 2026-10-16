@@ -13,6 +13,18 @@ import {
 } from './battle.js';
 import { chooseCard, chooseGear, chooseTarget, shouldForceIt } from './ai.js';
 import { HandBar } from './ui.js';
+import { HomePanel } from './home.js';
+import { createPackOpening } from './packopen.js';
+import { openPackOf } from './packs.js';
+import {
+  addCards,
+  awardPack,
+  buyPack,
+  loadProfile,
+  saveProfile,
+  seedProfile,
+  takePack,
+} from './profile.js';
 import {
   CARD_H,
   CARD_W,
@@ -60,15 +72,84 @@ export function starterDeck() {
 class StrikeCardsGame {
   constructor(context) {
     this.context = context;
+    this.me = 'a';
+    this.foe = 'b';
+
+    // What you own survives between visits, and a brand new player is given
+    // enough to build a deck plus a few packs, so there is something to open
+    // before there is anything to win.
+    this.profile = seedProfile(loadProfile());
+    saveProfile(this.profile);
+
+    this.stage = 'home';   // home | opening | match
+    this.state = null;
+    this.scene = null;
+    this.bar = null;
+    this.home = null;
+    this.finished = false;
+    this.banner = { text: '', subtext: '', life: 0 };
+    this.clock = 0;
+
+    this._showHome();
+  }
+
+  /* ---------------------------------------------------------- the stages */
+
+  _clearStage() {
+    this.home?.destroy();
+    this.home = null;
+    this.bar?.destroy();
+    this.bar = null;
+    this.scene = null;
+  }
+
+  _showHome() {
+    this._clearStage();
+    this.stage = 'home';
+    this.home = new HomePanel(this.context.ui, {
+      onOpenPack: (kind) => this._openPack(kind),
+      onBuyPack: (kind) => {
+        if (buyPack(this.profile, kind)) {
+          saveProfile(this.profile);
+          this.home.refresh(this.profile);
+        }
+      },
+      onPlay: () => this._startMatch(),
+    });
+    this.home.refresh(this.profile);
+  }
+
+  /**
+   * Opens one pack. What came out is decided and banked here, before a single
+   * card turns over, so walking away halfway through cannot cost you anything.
+   */
+  _openPack(kind) {
+    if (!takePack(this.profile, kind)) return;
+    const pulled = openPackOf(kind);
+    const added = addCards(this.profile, pulled.map((entry) => entry.card.id));
+    saveProfile(this.profile);
+
+    const results = pulled.map((entry, i) => ({ ...entry, ...added[i] }));
+    this._clearStage();
+    this.stage = 'opening';
+    this.scene = createPackOpening({
+      kind,
+      results,
+      width: this.context.width,
+      height: this.context.height,
+      onDone: () => this._showHome(),
+    });
+  }
+
+  _startMatch() {
+    this._clearStage();
+    this.stage = 'match';
     const seed = Math.floor(Math.random() * 1e9);
     this.state = createMatch({
       decks: { a: starterDeck(), b: starterDeck() },
       random: seededRandom(seed),
       first: 'a',
     });
-
-    this.me = 'a';
-    this.foe = 'b';
     this.pickedHand = null;      // index into your hand
     this.pickedAttacker = null;  // uid of one of your board cards
     this.enemyQueue = [];
@@ -76,7 +157,7 @@ class StrikeCardsGame {
     this.finished = false;
     this.banner = { text: 'Strike Cards', subtext: 'Faster card swings first. Kill it before it moves and it never swings back.', life: 3.2 };
 
-    this.bar = new HandBar(context.ui, {
+    this.bar = new HandBar(this.context.ui, {
       onPick: (index, card, problem) => this._pickFromHand(index, card, problem),
       onEndTurn: () => this._endMyTurn(),
     });
@@ -193,6 +274,13 @@ class StrikeCardsGame {
   /* --------------------------------------------------------------- loop */
 
   update(dt, input) {
+    this.clock += dt;
+    if (this.stage === 'home') return;
+    if (this.stage === 'opening') {
+      this.scene.update(dt, input);
+      return;
+    }
+
     if (this.banner.life > 0) this.banner.life -= dt;
 
     if (!this.state.over && this.state.active === this.foe) {
@@ -244,6 +332,11 @@ class StrikeCardsGame {
 
   render(ctx) {
     const { width, height } = this.context;
+    if (this.stage !== 'match') {
+      drawBackdrop(ctx, width, height, this.clock);
+      this.scene?.render(ctx);
+      return;
+    }
     drawBackdrop(ctx, width, height, this.state.time);
     void height;
 
@@ -291,6 +384,14 @@ class StrikeCardsGame {
     const theirs = this.state.sides[this.foe];
     const won = this.state.winner === this.me;
 
+    // Winning is how packs are earned. Banked straight away, so it is waiting
+    // on the home screen however you leave the results.
+    if (won) {
+      awardPack(this.profile, 'strike');
+      if (mine.kills >= 6) awardPack(this.profile, 'support');
+      saveProfile(this.profile);
+    }
+
     this.banner = {
       text: won ? 'Their board is clear' : this.state.winner ? 'You are out of cards' : 'A draw',
       subtext: this.state.reason,
@@ -304,6 +405,14 @@ class StrikeCardsGame {
       title: won ? 'Every card knocked out' : this.state.winner ? 'Beaten' : 'A draw',
       detailTitle: `${mine.turn} turns - ${this.state.reason}`,
       collected: [
+        ...(won
+          ? [{
+            name: mine.kills >= 6 ? 'Packs earned - strike and support' : 'Pack earned',
+            color: '#59aef0',
+            count: 1,
+            label: mine.kills >= 6 ? '2' : '1',
+          }]
+          : []),
         { name: 'Cards you knocked out', color: '#ffd166', count: mine.kills, label: `${mine.kills}` },
         { name: 'Cards they knocked out', color: '#ff9d94', count: theirs.kills, label: `${theirs.kills}` },
         { name: 'Still standing', color: '#8ef0a8', count: mine.board.length, label: `${mine.board.length}` },
@@ -313,7 +422,7 @@ class StrikeCardsGame {
   }
 
   destroy() {
-    this.bar?.destroy();
+    this._clearStage();
   }
 }
 
