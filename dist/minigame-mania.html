@@ -1370,6 +1370,58 @@ kbd {
 
 .bb-select-foot { display: flex; align-items: center; justify-content: space-between; gap: 1em; margin-top: auto; }
 .bb-hint { margin: 0; color: var(--muted); font-size: 0.8em; }
+
+/* ------------------------------------- Strike Cards: home and pack opening */
+
+.sc-home {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8em;
+  padding: 1.1em 1.4em;
+  overflow: auto;
+  background: rgba(10, 15, 28, 0.9);
+  pointer-events: auto;
+}
+.sc-home-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1em; }
+.sc-home-title h2 { margin: 0; font-size: 1.5em; }
+.sc-home-title p { margin: 0.25em 0 0; color: var(--muted); font-size: 0.85em; }
+.sc-home-stats { display: flex; gap: 0.5em; flex-shrink: 0; }
+.sc-home-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  padding: 0.4em 0.75em;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.sc-home-stat-label { font-size: 0.68em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.sc-home-stat strong { font-size: 1.05em; }
+
+.sc-packs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.7em; }
+.sc-pack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  padding: 0.8em 0.9em;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(140deg, color-mix(in srgb, var(--pack) 16%, transparent), rgba(255, 255, 255, 0.03));
+}
+.sc-pack-top { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5em; }
+.sc-pack-top strong { font-size: 1.02em; color: var(--pack); }
+.sc-pack-count { font-size: 0.78em; color: var(--muted); font-weight: 700; }
+.sc-pack-blurb { margin: 0; font-size: 0.78em; color: var(--muted); }
+.sc-pack-actions { display: flex; gap: 0.4em; margin-top: 0.25em; }
+.sc-pack-actions .btn { font-size: 0.8em; padding: 0.45em 0.85em; }
+.sc-pack-actions .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.sc-pack-missing { margin: 0.15em 0 0; font-size: 0.7em; color: rgba(255, 209, 102, 0.75); line-height: 1.3; }
+
+.sc-home-foot { display: flex; align-items: center; justify-content: space-between; gap: 1em; margin-top: auto; }
+.sc-home-note { margin: 0; color: var(--muted); font-size: 0.8em; }
 </style>
 </head>
 <body>
@@ -11896,7 +11948,143 @@ function drawBanner(ctx, width, text, subtext, alpha) {
   ctx.restore();
 }
 
-  return { CARD_W, CARD_H, drawCard, drawSlot, drawBackdrop, drawSideBar, drawLog, drawBanner };
+/* ------------------------------------------------------- opening a pack */
+
+/**
+ * The back of a card: what you see before it turns over. Deliberately the same
+ * for every card, so nothing about a face-down card gives away what it is.
+ */
+function drawCardBack(ctx, x, y, w = CARD_W, h = CARD_H) {
+  ctx.save();
+  const grad = ctx.createLinearGradient(x, y, x + w, y + h);
+  grad.addColorStop(0, '#2a3356');
+  grad.addColorStop(1, '#141a2e');
+  ctx.fillStyle = grad;
+  roundedRect(ctx, x, y, w, h, 10);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+  ctx.lineWidth = 2;
+  roundedRect(ctx, x, y, w, h, 10);
+  ctx.stroke();
+
+  ctx.save();
+  roundedRect(ctx, x + 7, y + 7, w - 14, h - 14, 7);
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+  ctx.lineWidth = 1;
+  for (let i = -h; i < w; i += 9) {
+    ctx.beginPath();
+    ctx.moveTo(x + i, y);
+    ctx.lineTo(x + i + h, y + h);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+  ctx.lineWidth = 2;
+  roundedRect(ctx, x + 7, y + 7, w - 14, h - 14, 7);
+  ctx.stroke();
+
+  // A struck mark in the middle, the same shape as the menu tile.
+  ctx.save();
+  ctx.translate(x + w / 2, y + h / 2);
+  ctx.strokeStyle = 'rgba(255, 209, 102, 0.5)';
+  ctx.lineWidth = 3.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-13, 11);
+  ctx.lineTo(4, -13);
+  ctx.moveTo(-4, 13);
+  ctx.lineTo(13, -11);
+  ctx.stroke();
+  ctx.restore();
+  ctx.restore();
+}
+
+/**
+ * A card part way through turning over. `turn` runs 0 (face down) to 1 (face
+ * up); the squeeze through the middle is what sells it as one object rotating
+ * rather than two pictures swapping.
+ */
+function drawCardFlip(ctx, card, x, y, turn, state = {}) {
+  const squeeze = Math.abs(Math.cos(Math.PI * clamp(turn, 0, 1)));
+  const w = Math.max(1, CARD_W * squeeze);
+  ctx.save();
+  ctx.translate(x + CARD_W / 2, y);
+  ctx.scale(w / CARD_W, 1);
+  ctx.translate(-CARD_W / 2, 0);
+  if (turn < 0.5) drawCardBack(ctx, 0, 0);
+  else drawCard(ctx, card, 0, 0, state);
+  ctx.restore();
+}
+
+/** The glow behind a card that has just turned over, strongest for the best. */
+function drawRarityGlow(ctx, x, y, rarity, strength = 1) {
+  const tone = face(rarity);
+  const cx = x + CARD_W / 2;
+  const cy = y + CARD_H / 2;
+  const reach = CARD_H * (0.62 + strength * 0.45);
+  const glow = ctx.createRadialGradient(cx, cy, CARD_W * 0.2, cx, cy, reach);
+  glow.addColorStop(0, tone.color);
+  glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.save();
+  ctx.globalAlpha = 0.34 * strength;
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, reach, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * The sealed pack, before you tear it. `shake` nudges it about so it reads as
+ * something you are about to do violence to rather than a picture of a box.
+ */
+function drawSealedPack(ctx, x, y, kind, { shake = 0, scale = 1 } = {}) {
+  const w = CARD_W * 1.28;
+  const h = CARD_H * 1.28;
+  ctx.save();
+  ctx.translate(x + (Math.random() - 0.5) * shake * 7, y + (Math.random() - 0.5) * shake * 7);
+  ctx.scale(scale, scale);
+  ctx.translate(-w / 2, -h / 2);
+
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, kind.color);
+  grad.addColorStop(1, kind.dark);
+  ctx.fillStyle = grad;
+  roundedRect(ctx, 0, 0, w, h, 12);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(8, 12, 20, 0.7)';
+  ctx.lineWidth = 3;
+  roundedRect(ctx, 0, 0, w, h, 12);
+  ctx.stroke();
+
+  // The torn strip across the top, so it is obvious which end opens.
+  ctx.save();
+  roundedRect(ctx, 0, 0, w, h, 12);
+  ctx.clip();
+  ctx.fillStyle = 'rgba(8, 12, 20, 0.35)';
+  ctx.beginPath();
+  ctx.moveTo(0, 26);
+  for (let i = 0; i <= w; i += 11) ctx.lineTo(i, 26 + (i % 22 ? 5 : -5));
+  ctx.lineTo(w, 0);
+  ctx.lineTo(0, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+  ctx.font = '800 17px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(kind.name.split(' ')[0].toUpperCase(), w / 2, h * 0.56);
+  ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.fillText('PACK', w / 2, h * 0.56 + 18);
+  ctx.restore();
+}
+
+  return { CARD_W, CARD_H, drawCard, drawSlot, drawBackdrop, drawSideBar, drawLog, drawBanner, drawCardBack, drawCardFlip, drawRarityGlow, drawSealedPack };
 })();
 
 // ---- src/games/strikecards/ui.js ---------------------------------
@@ -11983,6 +12171,738 @@ class HandBar {
   return { HandBar };
 })();
 
+// ---- src/games/strikecards/supports.js ---------------------------
+__modules["src/games/strikecards/supports.js"] = (function () {
+/**
+ * The support cards.
+ *
+ * Fifteen exist; a loadout takes five of them, three copies each. Five of the
+ * fifteen can be played when it is not your turn, and those are the ones that
+ * make an attack into a question - a card you were sure you could kill steps
+ * aside, or lives through the swing and hits back.
+ *
+ * `effect` is read by the battle. Nothing here knows how to draw itself.
+ */
+
+const support = (id, name, rarity, timing, effect, blurb) =>
+  ({ id, name, kind: 'support', rarity, timing, effect, blurb });
+
+const SUPPORTS = [
+  support('patch-up', 'Patch Up', 'common', 'turn', { kind: 'heal', amount: 4, target: 'friendly' },
+    'Puts 4 health back on one of your cards.'),
+
+  support('hex-bolt', 'Hex Bolt', 'common', 'turn', { kind: 'damage', amount: 3, target: 'enemy' },
+    'Three damage to any one of theirs, without anything of yours going near it.'),
+
+  support('grave-call', 'Grave Call', 'common', 'turn', { kind: 'recall', target: 'graveyard' },
+    'Brings a card back out of your graveyard, and it comes back free.'),
+
+  support('sidestep', 'Sidestep', 'common', 'instant', { kind: 'buff', stat: 'speed', amount: 4, target: 'friendly', lasts: 'turn' },
+    '+4 speed until the turn ends. Played on their turn, it steals the first swing.'),
+
+  support('iron-will', 'Iron Will', 'common', 'instant', { kind: 'buff', stat: 'hp', amount: 3, target: 'friendly', lasts: 'match' },
+    '+3 health, there and then. Enough to live through a hit that was meant to finish it.'),
+];
+
+const SUPPORT_BY_ID = new Map(SUPPORTS.map((entry) => [entry.id, entry]));
+const getSupport = (id) => {
+  const found = SUPPORT_BY_ID.get(id);
+  if (!found) throw new Error(`Unknown support: ${id}`);
+  return found;
+};
+
+const instantSupports = () => SUPPORTS.filter((entry) => entry.timing === 'instant');
+
+  return { SUPPORTS, SUPPORT_BY_ID, getSupport, instantSupports };
+})();
+
+// ---- src/games/strikecards/packs.js ------------------------------
+__modules["src/games/strikecards/packs.js"] = (function () {
+  const { collectible } = __modules["src/games/strikecards/cards.js"];
+  const { SUPPORTS } = __modules["src/games/strikecards/supports.js"];
+  const { PACK_SIZE, RARITY_IDS, rarityRank, rollRarity } = __modules["src/games/strikecards/collection.js"];
+
+/**
+ * What actually comes out of a pack.
+ *
+ * `collection.js` rolls the tier; this turns a tier into a card you can hold.
+ * They are apart because the odds were settled long before the cards were, and
+ * they still are: rare, epic and legendary have nothing in them yet.
+ */
+
+const PACK_KINDS = [
+  {
+    id: 'strike',
+    name: 'Strike pack',
+    blurb: 'Five cards for the deck you fight with.',
+    color: '#59aef0',
+    dark: '#15375c',
+  },
+  {
+    id: 'support',
+    name: 'Support pack',
+    blurb: 'Five cards for the loadout you play off-turn.',
+    color: '#b98cff',
+    dark: '#3c2170',
+  },
+];
+
+const PACK_BY_ID = new Map(PACK_KINDS.map((pack) => [pack.id, pack]));
+const getPackKind = (id) => {
+  const found = PACK_BY_ID.get(id);
+  if (!found) throw new Error(`Unknown pack: ${id}`);
+  return found;
+};
+
+/** Everything a pack of this kind could ever hand you. */
+const poolFor = (kind) => (kind === 'support' ? [...SUPPORTS] : collectible());
+
+/** The pool split up by tier, as `{ common: [...], rare: [...] }`. */
+function byRarity(pool) {
+  const groups = Object.fromEntries(RARITY_IDS.map((id) => [id, []]));
+  for (const card of pool) {
+    if (groups[card.rarity]) groups[card.rarity].push(card);
+  }
+  return groups;
+}
+
+/** The tiers this kind of pack has nothing in, rarest last. */
+const emptyTiers = (kind) => {
+  const groups = byRarity(poolFor(kind));
+  return RARITY_IDS.filter((id) => groups[id].length === 0);
+};
+
+/**
+ * One card of this tier.
+ *
+ * A tier with no cards in it falls to the next one down that has some. That is
+ * a bridge, not a rule: rare, epic and legendary are empty today, so very
+ * nearly a third of every pack lands in a tier that cannot pay out. Rather than
+ * hand back nothing, or quietly reshuffle the odds, the roll keeps its proper
+ * weight and the prize drops a tier. The moment a rare exists it is handed out
+ * at its real 15%, and nothing here has to change.
+ *
+ * Returns `{ card, rolled, fellFrom }` - `fellFrom` is the tier it should have
+ * been, and null when it got what it rolled.
+ */
+function pickOfRarity(pool, rarityId, random = Math.random) {
+  const groups = byRarity(pool);
+  const rank = rarityRank(rarityId);
+  if (rank < 0) throw new Error(`Unknown rarity: ${rarityId}`);
+
+  // Down towards common first, then back up, so there is always something.
+  const order = [
+    ...RARITY_IDS.slice(0, rank + 1).reverse(),
+    ...RARITY_IDS.slice(rank + 1),
+  ];
+  for (const id of order) {
+    const tier = groups[id];
+    if (!tier.length) continue;
+    const card = tier[Math.floor(random() * tier.length)] || tier[0];
+    return { card, rolled: rarityId, fellFrom: id === rarityId ? null : rarityId };
+  }
+  throw new Error('There are no cards at all to put in a pack');
+}
+
+/**
+ * Opens one pack: five independent rolls, each turned into a card. Nothing is
+ * guaranteed and duplicates are expected - that is what the coins are for.
+ */
+function openPackOf(kind = 'strike', random = Math.random, size = PACK_SIZE) {
+  const pool = poolFor(kind);
+  return Array.from({ length: size }, () => {
+    const rarity = rollRarity(random);
+    return pickOfRarity(pool, rarity.id, random);
+  });
+}
+
+  return { PACK_KINDS, PACK_BY_ID, getPackKind, poolFor, byRarity, emptyTiers, pickOfRarity, openPackOf };
+})();
+
+// ---- src/games/strikecards/profile.js ----------------------------
+__modules["src/games/strikecards/profile.js"] = (function () {
+  const { read, write } = __modules["src/core/storage.js"];
+  const { collectible, getCard } = __modules["src/games/strikecards/cards.js"];
+  const { SUPPORTS, SUPPORT_BY_ID } = __modules["src/games/strikecards/supports.js"];
+  const { COINS_PER_SALE, PACK_COST, sellableCopies } = __modules["src/games/strikecards/collection.js"];
+
+/**
+ * What you own between matches: your cards, your coins, and the packs you have
+ * not opened yet.
+ *
+ * Everything here takes a `store` so a test can hand it a plain object instead
+ * of localStorage. The shape that comes back out of storage is never trusted -
+ * it is whatever was in the browser last time, which could be anything at all -
+ * so `normalise` rebuilds it from scratch and throws away what it does not
+ * recognise, including cards that have since been renamed or deleted.
+ */
+
+const KEY = 'strikecards:profile';
+const PACK_KINDS = ['strike', 'support'];
+
+const realStore = { read, write };
+
+const emptyProfile = () => ({ cards: {}, coins: 0, packs: { strike: 0, support: 0 } });
+
+/** Every card that can be owned, strike cards and supports together. */
+const everyCard = () => [...collectible(), ...SUPPORTS];
+
+const cardExists = (id) => SUPPORT_BY_ID.has(id) || collectible().some((card) => card.id === id);
+
+/** Looks a card up whichever list it lives in. */
+function anyCard(id) {
+  if (SUPPORT_BY_ID.has(id)) return SUPPORT_BY_ID.get(id);
+  return getCard(id);
+}
+
+const countOf = (value) => {
+  const n = Math.floor(Number(value));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+};
+
+/** Rebuilds a profile from whatever was in storage, dropping anything odd. */
+function normalise(raw) {
+  const profile = emptyProfile();
+  if (!raw || typeof raw !== 'object') return profile;
+
+  if (raw.cards && typeof raw.cards === 'object') {
+    for (const [id, value] of Object.entries(raw.cards)) {
+      const count = countOf(value);
+      // A card that no longer exists is dropped rather than carried forever.
+      if (count > 0 && cardExists(id)) profile.cards[id] = count;
+    }
+  }
+  profile.coins = countOf(raw.coins);
+  if (raw.packs && typeof raw.packs === 'object') {
+    for (const kind of PACK_KINDS) profile.packs[kind] = countOf(raw.packs[kind]);
+  }
+  return profile;
+}
+
+function loadProfile(store = realStore) {
+  return normalise(store.read(KEY));
+}
+
+function saveProfile(profile, store = realStore) {
+  store.write(KEY, profile);
+  return profile;
+}
+
+/* ------------------------------------------------------------ the basics */
+
+const ownedCount = (profile, id) => profile.cards[id] || 0;
+const owns = (profile, id) => ownedCount(profile, id) > 0;
+
+/** How much of the collection you have seen, for the line on the home screen. */
+function collectionProgress(profile) {
+  const all = everyCard();
+  const owned = all.filter((card) => owns(profile, card.id)).length;
+  return { owned, total: all.length };
+}
+
+/** Total cards held, counting duplicates. */
+const cardsHeld = (profile) =>
+  Object.values(profile.cards).reduce((sum, count) => sum + count, 0);
+
+/**
+ * Adds cards and says what each one meant: a card you had never seen before is
+ * worth announcing, a sixth copy of a common is not.
+ */
+function addCards(profile, ids) {
+  return ids.map((id) => {
+    const before = ownedCount(profile, id);
+    profile.cards[id] = before + 1;
+    return { id, isNew: before === 0, owned: before + 1 };
+  });
+}
+
+/* ------------------------------------------------------------- the shop */
+
+function awardPack(profile, kind = 'strike', count = 1) {
+  if (!PACK_KINDS.includes(kind)) throw new Error(`Unknown pack: ${kind}`);
+  profile.packs[kind] += count;
+  return profile.packs[kind];
+}
+
+/** Takes one unopened pack off the pile. Returns false if there were none. */
+function takePack(profile, kind) {
+  if (!PACK_KINDS.includes(kind)) throw new Error(`Unknown pack: ${kind}`);
+  if (profile.packs[kind] <= 0) return false;
+  profile.packs[kind] -= 1;
+  return true;
+}
+
+const canBuy = (profile) => profile.coins >= PACK_COST;
+
+function buyPack(profile, kind = 'strike') {
+  if (!canBuy(profile)) return false;
+  profile.coins -= PACK_COST;
+  awardPack(profile, kind);
+  return true;
+}
+
+/**
+ * Sells one spare. Never the last copy - see `sellableCopies`: a collection you
+ * have torn a hole in is not a mistake worth letting someone make by accident.
+ */
+function sellOne(profile, id) {
+  if (sellableCopies(ownedCount(profile, id)) <= 0) return false;
+  profile.cards[id] -= 1;
+  profile.coins += COINS_PER_SALE;
+  return true;
+}
+
+/* ------------------------------------------------------- the first run */
+
+/**
+ * What a new player starts with: enough for a legal deck, and no more.
+ *
+ * Deliberately not one of everything. A complete collection on the first day
+ * would make every pack a pile of duplicates and nothing would ever come up
+ * new, which is most of the point of opening one. So the commons come two at
+ * a time, a few uncommons come along to make a thirty-card deck possible, and
+ * the rest of the uncommons - and every support past the first three - are
+ * left out there to be found.
+ */
+const STARTER_UNCOMMONS = ['sparkfly', 'duskmoth', 'spurs', 'stonewall'];
+const STARTER_SUPPORTS = 3;
+
+function seedProfile(profile) {
+  if (cardsHeld(profile) > 0) return profile;
+  for (const card of collectible()) {
+    if (card.rarity === 'common') profile.cards[card.id] = 2;
+  }
+  for (const id of STARTER_UNCOMMONS) {
+    if (cardExists(id)) profile.cards[id] = 1;
+  }
+  for (const support of SUPPORTS.slice(0, STARTER_SUPPORTS)) profile.cards[support.id] = 3;
+  profile.packs.strike = 2;
+  profile.packs.support = 1;
+  return profile;
+}
+
+  return { KEY, PACK_KINDS, emptyProfile, everyCard, cardExists, anyCard, normalise, loadProfile, saveProfile, ownedCount, owns, collectionProgress, cardsHeld, addCards, awardPack, takePack, canBuy, buyPack, sellOne, STARTER_UNCOMMONS, STARTER_SUPPORTS, seedProfile };
+})();
+
+// ---- src/games/strikecards/home.js -------------------------------
+__modules["src/games/strikecards/home.js"] = (function () {
+  const { PACK_COST, RARITY_BY_ID } = __modules["src/games/strikecards/collection.js"];
+  const { PACK_KINDS, emptyTiers } = __modules["src/games/strikecards/packs.js"];
+  const { canBuy, collectionProgress } = __modules["src/games/strikecards/profile.js"];
+
+/**
+ * The screen between matches: what you own, what you can open, and the way
+ * into a game. DOM rather than canvas, because it is a page of buttons and
+ * numbers and the browser is better at those than a drawing is.
+ */
+
+const el = (tag, className, text) => {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+};
+
+class HomePanel {
+  constructor(container, { onOpenPack, onBuyPack, onPlay }) {
+    this.handlers = { onOpenPack, onBuyPack, onPlay };
+    this.root = el('div', 'sc-home');
+    container.append(this.root);
+
+    const head = el('div', 'sc-home-head');
+    const title = el('div', 'sc-home-title');
+    title.append(el('h2', null, 'Strike Cards'));
+    title.append(el('p', null, 'Open what you have earned, then take a deck into a match.'));
+    head.append(title);
+    this.stats = el('div', 'sc-home-stats');
+    head.append(this.stats);
+    this.root.append(head);
+
+    this.packs = el('div', 'sc-packs');
+    this.root.append(this.packs);
+
+    const foot = el('div', 'sc-home-foot');
+    this.note = el('p', 'sc-home-note', '');
+    const play = el('button', 'btn btn--primary', 'Play a match');
+    play.type = 'button';
+    play.addEventListener('click', () => this.handlers.onPlay());
+    foot.append(this.note, play);
+    this.root.append(foot);
+  }
+
+  /** Redraws everything from the profile. Called after every change. */
+  refresh(profile) {
+    const progress = collectionProgress(profile);
+    this.stats.replaceChildren();
+    const rows = [
+      ['Coins', `${profile.coins}`],
+      ['Collection', `${progress.owned} of ${progress.total}`],
+      ['Unopened', `${profile.packs.strike + profile.packs.support}`],
+    ];
+    for (const [label, value] of rows) {
+      const stat = el('div', 'sc-home-stat');
+      stat.append(el('span', 'sc-home-stat-label', label));
+      stat.append(el('strong', null, value));
+      this.stats.append(stat);
+    }
+
+    this.packs.replaceChildren();
+    for (const kind of PACK_KINDS) {
+      const held = profile.packs[kind.id] || 0;
+      const tile = el('div', 'sc-pack');
+      tile.style.setProperty('--pack', kind.color);
+
+      const top = el('div', 'sc-pack-top');
+      top.append(el('strong', null, kind.name));
+      top.append(el('span', 'sc-pack-count', held ? `x${held}` : 'none'));
+      tile.append(top);
+      tile.append(el('p', 'sc-pack-blurb', kind.blurb));
+
+      const actions = el('div', 'sc-pack-actions');
+      const open = el('button', 'btn btn--primary sc-pack-open', 'Open one');
+      open.type = 'button';
+      open.disabled = held <= 0;
+      open.addEventListener('click', () => this.handlers.onOpenPack(kind.id));
+
+      const buy = el('button', 'btn', `Buy - ${PACK_COST}`);
+      buy.type = 'button';
+      buy.disabled = !canBuy(profile);
+      buy.addEventListener('click', () => this.handlers.onBuyPack(kind.id));
+
+      actions.append(open, buy);
+      tile.append(actions);
+
+      // Say plainly which tiers cannot come out of this pack yet, rather than
+      // letting someone wonder why they have never seen a legendary.
+      const missing = emptyTiers(kind.id);
+      if (missing.length) {
+        const names = missing.map((id) => RARITY_BY_ID.get(id)?.name.toLowerCase() || id);
+        tile.append(el('p', 'sc-pack-missing', `No ${names.join(', ')} cards exist yet - those rolls drop a tier.`));
+      }
+      this.packs.append(tile);
+    }
+
+    this.note.textContent = profile.coins >= PACK_COST
+      ? 'Selling spare copies is what pays for packs.'
+      : `Win a match to earn a pack. Spare cards sell for ${PACK_COST / 5} coins each.`;
+  }
+
+  destroy() {
+    this.root.remove();
+  }
+}
+
+  return { HomePanel };
+})();
+
+// ---- src/games/strikecards/packopen.js ---------------------------
+__modules["src/games/strikecards/packopen.js"] = (function () {
+  const { TAU, clamp, lerp } = __modules["src/core/utils.js"];
+  const { RARITY_BY_ID, rarityRank } = __modules["src/games/strikecards/collection.js"];
+  const { getPackKind } = __modules["src/games/strikecards/packs.js"];
+  const { CARD_H, CARD_W, drawCard, drawCardBack, drawCardFlip, drawRarityGlow, drawSealedPack } = __modules["src/games/strikecards/art.js"];
+
+/**
+ * Opening a pack.
+ *
+ * The cards are already decided before this runs - it is handed the five it is
+ * going to show and does nothing but show them. That split is deliberate: what
+ * you pulled is settled by `packs.js` and saved before the first card turns
+ * over, so closing the tab halfway through cannot cost you a legendary.
+ *
+ * One click does the next thing, whatever that is: tear the pack, turn the
+ * next card, or finish. There is nothing to aim at.
+ */
+
+const GAP = 18;
+const ROW_Y = 206;
+const FLIP_TIME = 0.42;
+const DEAL_TIME = 0.5;
+
+/** How much of a fuss a tier is worth making. */
+const FANFARE = { common: 0.25, uncommon: 0.45, rare: 0.7, epic: 0.88, legendary: 1 };
+
+const rowX = (count, width) => (width - (count * CARD_W + (count - 1) * GAP)) / 2;
+
+class PackOpening {
+  /**
+   * `results` is `[{ card, rolled, fellFrom, isNew, owned }]` - what came out,
+   * and what each one meant to a collection that has already been updated.
+   */
+  constructor({ kind, results, width, height, onDone }) {
+    this.kind = getPackKind(kind);
+    this.results = results;
+    this.width = width;
+    this.height = height;
+    this.onDone = onDone;
+
+    this.phase = 'sealed';   // sealed | dealing | revealing | done
+    this.clock = 0;
+    this.phaseTime = 0;
+    this.revealed = 0;       // how many have been turned over
+    this.flip = 0;           // 0..1 through the card turning now
+    this.sparks = [];
+    this.shake = 0;
+    this.pulse = 0;
+  }
+
+  /* ----------------------------------------------------------- the input */
+
+  /** One click or key press, meaning "get on with it". */
+  advance() {
+    if (this.phase === 'sealed') {
+      this.phase = 'dealing';
+      this.phaseTime = 0;
+      this.shake = 1;
+      this.burst(this.width / 2, this.height / 2 - 10, 26, this.kind.color);
+      return;
+    }
+    if (this.phase === 'dealing') {
+      // Impatience is allowed: skip straight to the cards being laid out.
+      this.phaseTime = DEAL_TIME;
+      return;
+    }
+    if (this.phase === 'revealing') {
+      if (this.flip > 0 && this.flip < 1) {
+        this.flip = 1;         // snap the one in progress
+        return;
+      }
+      this.turnNext();
+      return;
+    }
+    this.onDone?.();
+  }
+
+  /** Turns the next card over, or finishes if they are all up. */
+  turnNext() {
+    if (this.revealed >= this.results.length) {
+      this.phase = 'done';
+      return;
+    }
+    this.revealed += 1;
+    this.flip = 0.0001;
+  }
+
+  /** Turns everything over at once, for someone who has seen it before. */
+  revealAll() {
+    this.revealed = this.results.length;
+    this.flip = 1;
+    this.phase = 'done';
+  }
+
+  /* ---------------------------------------------------------- the update */
+
+  update(dt, input) {
+    this.clock += dt;
+    this.phaseTime += dt;
+    this.shake = Math.max(0, this.shake - dt * 2.5);
+    this.pulse = (Math.sin(this.clock * 2.6) + 1) / 2;
+
+    for (const spark of this.sparks) {
+      spark.life -= dt;
+      spark.x += spark.vx * dt;
+      spark.y += spark.vy * dt;
+      spark.vy += 320 * dt;
+      spark.vx *= 0.97;
+    }
+    this.sparks = this.sparks.filter((spark) => spark.life > 0);
+
+    if (this.phase === 'dealing' && this.phaseTime >= DEAL_TIME) {
+      this.phase = 'revealing';
+      this.phaseTime = 0;
+    }
+
+    if (this.phase === 'revealing' && this.flip > 0 && this.flip < 1) {
+      this.flip = Math.min(1, this.flip + dt / FLIP_TIME);
+      if (this.flip >= 1) this.onTurned(this.results[this.revealed - 1]);
+    }
+
+    if (input?.justPressed || input?.wasKeyPressed('Space', 'Enter')) this.advance();
+  }
+
+  /** The moment a card lands face up. */
+  onTurned(result) {
+    const tier = result.card.rarity;
+    const fuss = FANFARE[tier] ?? 0.3;
+    const tone = RARITY_BY_ID.get(tier);
+    const spot = this.slotOf(this.revealed - 1);
+    this.burst(spot.x + CARD_W / 2, spot.y + CARD_H / 2, Math.round(8 + fuss * 34), tone?.color || '#fff');
+    this.shake = fuss * 0.8;
+    if (this.revealed >= this.results.length) {
+      this.phase = 'done';
+      this.phaseTime = 0;
+    }
+  }
+
+  burst(x, y, count, colour) {
+    for (let i = 0; i < count; i += 1) {
+      const angle = Math.random() * TAU;
+      const speed = 70 + Math.random() * 230;
+      this.sparks.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 60,
+        size: 1.8 + Math.random() * 2.6,
+        life: 0.45 + Math.random() * 0.5,
+        maxLife: 0.95,
+        colour,
+      });
+    }
+  }
+
+  /** Where card `i` sits once the pack is open. */
+  slotOf(i) {
+    const x = rowX(this.results.length, this.width) + i * (CARD_W + GAP);
+    return { x, y: ROW_Y };
+  }
+
+  /* --------------------------------------------------------- the drawing */
+
+  render(ctx) {
+    const { width, height } = this;
+    ctx.save();
+    if (this.shake > 0.02) {
+      ctx.translate((Math.random() - 0.5) * this.shake * 9, (Math.random() - 0.5) * this.shake * 9);
+    }
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+
+    if (this.phase === 'sealed') this.drawSealed(ctx);
+    else this.drawCards(ctx);
+
+    for (const spark of this.sparks) {
+      const t = clamp(spark.life / spark.maxLife, 0, 1);
+      ctx.globalAlpha = t;
+      ctx.fillStyle = spark.colour;
+      ctx.beginPath();
+      ctx.arc(spark.x, spark.y, spark.size * t, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    this.drawFooter(ctx, width, height);
+    ctx.restore();
+  }
+
+  drawSealed(ctx) {
+    const { width, height } = this;
+    ctx.fillStyle = '#e9edf7';
+    ctx.font = '800 30px "Trebuchet MS", system-ui, sans-serif';
+    ctx.fillText(this.kind.name, width / 2, 110);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    ctx.font = '700 14px "Trebuchet MS", system-ui, sans-serif';
+    ctx.fillText(this.kind.blurb, width / 2, 134);
+
+    drawSealedPack(ctx, width / 2, height / 2 + 6, this.kind, {
+      shake: 0,
+      scale: 1 + this.pulse * 0.035,
+    });
+  }
+
+  drawCards(ctx) {
+    // The header stays up through the reveal, so the screen is never just
+    // cards floating in the middle of nothing.
+    ctx.fillStyle = '#e9edf7';
+    ctx.font = '800 24px "Trebuchet MS", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(this.kind.name, this.width / 2, 92);
+    if (this.phase !== 'done') {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.font = '700 13px "Trebuchet MS", system-ui, sans-serif';
+      ctx.fillText(`${this.revealed} of ${this.results.length} turned over`, this.width / 2, 114);
+    }
+
+    const dealt = clamp(this.phaseTime / DEAL_TIME, 0, 1);
+    const ease = 1 - (1 - dealt) ** 3;
+
+    for (let i = 0; i < this.results.length; i += 1) {
+      const result = this.results[i];
+      const slot = this.slotOf(i);
+      // On the way out of the pack they fly from the middle to their place.
+      const fromX = this.width / 2 - CARD_W / 2;
+      const fromY = this.height / 2 - CARD_H / 2;
+      const x = this.phase === 'dealing' ? lerp(fromX, slot.x, ease) : slot.x;
+      const y = this.phase === 'dealing' ? lerp(fromY, slot.y, ease) : slot.y;
+
+      const isTurning = this.phase === 'revealing' && i === this.revealed - 1 && this.flip < 1;
+      const isUp = i < this.revealed && !isTurning;
+
+      if (isUp) {
+        const age = clamp((this.clock - (result._shownAt ?? (result._shownAt = this.clock))) * 2.6, 0, 1);
+        drawRarityGlow(ctx, x, y, result.card.rarity, (FANFARE[result.card.rarity] ?? 0.3) * (0.5 + 0.5 * this.pulse));
+        drawCard(ctx, result.card, x, y, {});
+        this.drawTag(ctx, result, x, y, age);
+      } else if (isTurning) {
+        drawCardFlip(ctx, result.card, x, y, this.flip, {});
+      } else {
+        drawCardBack(ctx, x, y);
+      }
+    }
+  }
+
+  /** What this card meant: brand new, another copy, or a tier that fell short. */
+  drawTag(ctx, result, x, y, age) {
+    ctx.save();
+    ctx.globalAlpha = age;
+    ctx.textAlign = 'center';
+    if (result.isNew) {
+      ctx.fillStyle = '#ffd166';
+      ctx.font = '800 13px "Trebuchet MS", system-ui, sans-serif';
+      ctx.fillText('NEW', x + CARD_W / 2, y - 10);
+    } else {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
+      ctx.fillText(`you now have ${result.owned}`, x + CARD_W / 2, y - 10);
+    }
+    const tone = RARITY_BY_ID.get(result.card.rarity);
+    ctx.fillStyle = tone?.color || '#fff';
+    ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
+    ctx.fillText(tone?.name || '', x + CARD_W / 2, y + CARD_H + 16);
+    ctx.restore();
+  }
+
+  /** The line along the bottom that says what a click will do next. */
+  drawFooter(ctx, width, height) {
+    let text = '';
+    if (this.phase === 'sealed') text = 'Click to tear it open';
+    else if (this.phase === 'dealing') text = '';
+    else if (this.phase === 'revealing') text = 'Click to turn the next one';
+    else text = this.summary();
+
+    if (!text) return;
+    const done = this.phase === 'done';
+    ctx.fillStyle = done ? '#e9edf7' : 'rgba(255, 255, 255, 0.6)';
+    ctx.font = `700 ${done ? 16 : 14}px "Trebuchet MS", system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(text, width / 2, height - 74);
+    if (done) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.font = '700 13px "Trebuchet MS", system-ui, sans-serif';
+      ctx.fillText('Click to put them away', width / 2, height - 50);
+    }
+  }
+
+  /** What the whole pack came to, once it is all face up. */
+  summary() {
+    const fresh = this.results.filter((r) => r.isNew).length;
+    const best = this.results.reduce(
+      (top, r) => (rarityRank(r.card.rarity) > rarityRank(top) ? r.card.rarity : top),
+      'common',
+    );
+    const tone = RARITY_BY_ID.get(best);
+    const newPart = fresh === 0 ? 'nothing you did not already have'
+      : fresh === 1 ? '1 you had never seen'
+        : `${fresh} you had never seen`;
+    return `${newPart}  -  best was ${tone?.name.toLowerCase() || best}`;
+  }
+}
+
+const createPackOpening = (options) => new PackOpening(options);
+
+  return { PackOpening, createPackOpening };
+})();
+
 // ---- src/games/strikecards/game.js -------------------------------
 __modules["src/games/strikecards/game.js"] = (function () {
   const { clamp, seededRandom } = __modules["src/core/utils.js"];
@@ -11992,6 +12912,10 @@ __modules["src/games/strikecards/game.js"] = (function () {
   const { activeSide, attack, createMatch, endTurn, other, playCard, playGear } = __modules["src/games/strikecards/battle.js"];
   const { chooseCard, chooseGear, chooseTarget, shouldForceIt } = __modules["src/games/strikecards/ai.js"];
   const { HandBar } = __modules["src/games/strikecards/ui.js"];
+  const { HomePanel } = __modules["src/games/strikecards/home.js"];
+  const { createPackOpening } = __modules["src/games/strikecards/packopen.js"];
+  const { openPackOf } = __modules["src/games/strikecards/packs.js"];
+  const { addCards, awardPack, buyPack, loadProfile, saveProfile, seedProfile, takePack } = __modules["src/games/strikecards/profile.js"];
   const { CARD_H, CARD_W, drawBackdrop, drawBanner, drawCard, drawLog, drawSideBar, drawSlot } = __modules["src/games/strikecards/art.js"];
 
 const GAME_ID = 'strikecards';
@@ -12030,15 +12954,84 @@ function starterDeck() {
 class StrikeCardsGame {
   constructor(context) {
     this.context = context;
+    this.me = 'a';
+    this.foe = 'b';
+
+    // What you own survives between visits, and a brand new player is given
+    // enough to build a deck plus a few packs, so there is something to open
+    // before there is anything to win.
+    this.profile = seedProfile(loadProfile());
+    saveProfile(this.profile);
+
+    this.stage = 'home';   // home | opening | match
+    this.state = null;
+    this.scene = null;
+    this.bar = null;
+    this.home = null;
+    this.finished = false;
+    this.banner = { text: '', subtext: '', life: 0 };
+    this.clock = 0;
+
+    this._showHome();
+  }
+
+  /* ---------------------------------------------------------- the stages */
+
+  _clearStage() {
+    this.home?.destroy();
+    this.home = null;
+    this.bar?.destroy();
+    this.bar = null;
+    this.scene = null;
+  }
+
+  _showHome() {
+    this._clearStage();
+    this.stage = 'home';
+    this.home = new HomePanel(this.context.ui, {
+      onOpenPack: (kind) => this._openPack(kind),
+      onBuyPack: (kind) => {
+        if (buyPack(this.profile, kind)) {
+          saveProfile(this.profile);
+          this.home.refresh(this.profile);
+        }
+      },
+      onPlay: () => this._startMatch(),
+    });
+    this.home.refresh(this.profile);
+  }
+
+  /**
+   * Opens one pack. What came out is decided and banked here, before a single
+   * card turns over, so walking away halfway through cannot cost you anything.
+   */
+  _openPack(kind) {
+    if (!takePack(this.profile, kind)) return;
+    const pulled = openPackOf(kind);
+    const added = addCards(this.profile, pulled.map((entry) => entry.card.id));
+    saveProfile(this.profile);
+
+    const results = pulled.map((entry, i) => ({ ...entry, ...added[i] }));
+    this._clearStage();
+    this.stage = 'opening';
+    this.scene = createPackOpening({
+      kind,
+      results,
+      width: this.context.width,
+      height: this.context.height,
+      onDone: () => this._showHome(),
+    });
+  }
+
+  _startMatch() {
+    this._clearStage();
+    this.stage = 'match';
     const seed = Math.floor(Math.random() * 1e9);
     this.state = createMatch({
       decks: { a: starterDeck(), b: starterDeck() },
       random: seededRandom(seed),
       first: 'a',
     });
-
-    this.me = 'a';
-    this.foe = 'b';
     this.pickedHand = null;      // index into your hand
     this.pickedAttacker = null;  // uid of one of your board cards
     this.enemyQueue = [];
@@ -12046,7 +13039,7 @@ class StrikeCardsGame {
     this.finished = false;
     this.banner = { text: 'Strike Cards', subtext: 'Faster card swings first. Kill it before it moves and it never swings back.', life: 3.2 };
 
-    this.bar = new HandBar(context.ui, {
+    this.bar = new HandBar(this.context.ui, {
       onPick: (index, card, problem) => this._pickFromHand(index, card, problem),
       onEndTurn: () => this._endMyTurn(),
     });
@@ -12163,6 +13156,13 @@ class StrikeCardsGame {
   /* --------------------------------------------------------------- loop */
 
   update(dt, input) {
+    this.clock += dt;
+    if (this.stage === 'home') return;
+    if (this.stage === 'opening') {
+      this.scene.update(dt, input);
+      return;
+    }
+
     if (this.banner.life > 0) this.banner.life -= dt;
 
     if (!this.state.over && this.state.active === this.foe) {
@@ -12214,6 +13214,11 @@ class StrikeCardsGame {
 
   render(ctx) {
     const { width, height } = this.context;
+    if (this.stage !== 'match') {
+      drawBackdrop(ctx, width, height, this.clock);
+      this.scene?.render(ctx);
+      return;
+    }
     drawBackdrop(ctx, width, height, this.state.time);
     void height;
 
@@ -12261,6 +13266,14 @@ class StrikeCardsGame {
     const theirs = this.state.sides[this.foe];
     const won = this.state.winner === this.me;
 
+    // Winning is how packs are earned. Banked straight away, so it is waiting
+    // on the home screen however you leave the results.
+    if (won) {
+      awardPack(this.profile, 'strike');
+      if (mine.kills >= 6) awardPack(this.profile, 'support');
+      saveProfile(this.profile);
+    }
+
     this.banner = {
       text: won ? 'Their board is clear' : this.state.winner ? 'You are out of cards' : 'A draw',
       subtext: this.state.reason,
@@ -12274,6 +13287,14 @@ class StrikeCardsGame {
       title: won ? 'Every card knocked out' : this.state.winner ? 'Beaten' : 'A draw',
       detailTitle: `${mine.turn} turns - ${this.state.reason}`,
       collected: [
+        ...(won
+          ? [{
+            name: mine.kills >= 6 ? 'Packs earned - strike and support' : 'Pack earned',
+            color: '#59aef0',
+            count: 1,
+            label: mine.kills >= 6 ? '2' : '1',
+          }]
+          : []),
         { name: 'Cards you knocked out', color: '#ffd166', count: mine.kills, label: `${mine.kills}` },
         { name: 'Cards they knocked out', color: '#ff9d94', count: theirs.kills, label: `${theirs.kills}` },
         { name: 'Still standing', color: '#8ef0a8', count: mine.board.length, label: `${mine.board.length}` },
@@ -12283,7 +13304,7 @@ class StrikeCardsGame {
   }
 
   destroy() {
-    this.bar?.destroy();
+    this._clearStage();
   }
 }
 
