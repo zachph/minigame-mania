@@ -119,6 +119,7 @@ export function beginTurn(state) {
     for (const card of state.sides[key].board) {
       for (const [stat, amount] of Object.entries(card.temp || {})) card[stat] -= amount;
       card.temp = {};
+      card.shielded = false;
     }
   }
 
@@ -306,7 +307,9 @@ export function attack(state, attackerUid, targetUid) {
 
   const hit = (from, to) => {
     to.hp -= from.power;
+    const held = survives(state, to);
     say(state, `${from.name} hits ${to.name} for ${from.power}`, { kind: 'damage', uid: to.uid, hp: Math.max(0, to.hp) });
+    void held;
   };
 
   hit(first, second);
@@ -341,6 +344,19 @@ export function reap(state, card) {
 
 /* ---------------------------------------------------- what a support does */
 
+/**
+ * Last Stand: a card that would go down holds on at 1 instead, once. Lives
+ * here rather than in the attack, so a support bolt cannot sneak past it
+ * either - everything that can kill asks the same question.
+ */
+function survives(state, card) {
+  if (!card || card.hp > 0 || !card.shielded) return false;
+  card.hp = 1;
+  card.shielded = false;
+  say(state, `${card.name} holds on at 1`, { kind: 'buff', uid: card.uid, hp: 1 });
+  return true;
+}
+
 const findCard = (state, uid) =>
   state.sides.a.board.find((c) => c.uid === uid) || state.sides.b.board.find((c) => c.uid === uid) || null;
 
@@ -350,11 +366,52 @@ const ownerOf = (state, card) => (state.sides.a.board.some((c) => c.uid === card
  * Runs a support's effect. `target` is a card uid, or an index into the
  * graveyard for the one that brings something back.
  */
+/**
+ * Puts one stat change on one card. Shared by the single-target supports and
+ * the board-wide ones so they word themselves the same - including the sign,
+ * because a Dead Weight that announced "+-5 speed" was the first thing anyone
+ * would have noticed about it.
+ */
+function applyBuff(state, card, effect) {
+  card[effect.stat] += effect.amount;
+  if (effect.stat === 'hp') card.maxHp += effect.amount;
+  if (effect.lasts === 'turn') {
+    card.temp = card.temp || {};
+    card.temp[effect.stat] = (card.temp[effect.stat] || 0) + effect.amount;
+  }
+  const sign = effect.amount < 0 ? '' : '+';
+  const window = effect.lasts === 'turn' ? ' for the turn' : '';
+  say(state, `${card.name} takes ${sign}${effect.amount} ${effect.stat}${window}`, { kind: 'buff', uid: card.uid });
+}
+
+/** Supports that act on their own, with nothing to aim at. */
+export const needsNoTarget = (effect) =>
+  effect.kind === 'recall' || effect.kind === 'draw' || effect.scope === 'board';
+
 export function applySupport(state, which, support, target) {
   const effect = support.effect;
   if (!effect) return { error: `${support.name} does nothing.` };
 
   if (effect.kind === 'recall') return recallFromGraveyard(state, which, target ?? 0);
+
+  if (effect.kind === 'draw') {
+    let drawn = 0;
+    for (let i = 0; i < effect.amount; i += 1) {
+      if (draw(state, which)) drawn += 1;
+    }
+    // Drawing on an empty deck is allowed to come up short rather than fail:
+    // the card was spent either way, and saying so is more use than an error.
+    say(state, drawn ? `Drew ${drawn}` : 'Nothing left to draw', { kind: 'text' });
+    return { drawn };
+  }
+
+  if (effect.scope === 'board') {
+    const owner = effect.target === 'enemy' ? other(which) : which;
+    const board = state.sides[owner].board;
+    if (board.length === 0) return { error: 'Nothing out to put it on.' };
+    for (const card of board) applyBuff(state, card, effect);
+    return { buffed: effect.stat, count: board.length };
+  }
 
   const card = findCard(state, target);
   if (!card) return { error: 'Nothing there to aim it at.' };
@@ -371,20 +428,21 @@ export function applySupport(state, which, support, target) {
 
   if (effect.kind === 'damage') {
     card.hp -= effect.amount;
+    survives(state, card);
     say(state, `${card.name} takes ${effect.amount}`, { kind: 'damage', uid: card.uid, hp: Math.max(0, card.hp) });
     reap(state, card);
     checkOver(state);
     return { damage: effect.amount };
   }
 
+  if (effect.kind === 'shield') {
+    card.shielded = true;
+    say(state, `${card.name} will not go down this turn`, { kind: 'buff', uid: card.uid });
+    return { shielded: card.uid };
+  }
+
   if (effect.kind === 'buff') {
-    card[effect.stat] += effect.amount;
-    if (effect.stat === 'hp') card.maxHp += effect.amount;
-    if (effect.lasts === 'turn') {
-      card.temp = card.temp || {};
-      card.temp[effect.stat] = (card.temp[effect.stat] || 0) + effect.amount;
-    }
-    say(state, `${card.name} takes +${effect.amount} ${effect.stat}${effect.lasts === 'turn' ? ' for the turn' : ''}`, { kind: 'buff', uid: card.uid });
+    applyBuff(state, card, effect);
     return { buffed: effect.stat };
   }
 
