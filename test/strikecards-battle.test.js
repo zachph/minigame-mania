@@ -305,7 +305,7 @@ test('Iron Will lets a card live through what should have finished it', () => {
  * worse than one that was never written - so adding to the roster without
  * teaching the battle what the new thing does fails here.
  */
-const EFFECTS_THE_BATTLE_KNOWS = ['heal', 'damage', 'recall', 'buff', 'draw', 'shield'];
+const EFFECTS_THE_BATTLE_KNOWS = ['heal', 'damage', 'recall', 'buff', 'draw', 'shield', 'revive', 'refresh', 'evolve', 'swap', 'points'];
 
 test('every support is a real card the battle knows how to run', () => {
   const seen = new Set();
