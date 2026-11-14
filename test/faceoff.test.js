@@ -253,3 +253,72 @@ test('the Infinity ring draws', async () => {
   drawSlowed(ctx, frontOf(f, 'b'));
   assert.ok(ctx.calls > 5);
 });
+
+/* ------------------------------------------------------------ Sukuna */
+
+test('Sukuna heals a quarter of his health every 15 seconds', async () => {
+  const { nextHealIn } = await import('../src/games/faceoff/battle.js');
+  const f = fight(['sukuna'], ['goku']);
+  const sukuna = frontOf(f, 'a');
+  const goku = frontOf(f, 'b');
+  sukuna.hp = 100;
+  goku.hp = 100000;                       // keep the fight going
+  goku.maxHp = 100000;
+  // Stop them meeting so only the heal moves his health.
+  goku.x = sukuna.x + 400;
+  for (let i = 0; i < 30 * 14.9; i += 1) { f.sinceBump = 0; goku.hitLock = sukuna.hitLock = 99; stepFight(f, 1 / 30); }
+  const before = sukuna.hp;
+  assert.ok(nextHealIn(sukuna) < 0.2);
+  for (let i = 0; i < 10; i += 1) { goku.hitLock = sukuna.hitLock = 99; stepFight(f, 1 / 30); }
+  assert.equal(sukuna.hp - before, 62.5, 'a quarter of 250');
+});
+
+test('the heal never goes over his maximum', () => {
+  const f = fight(['sukuna'], ['goku']);
+  const sukuna = frontOf(f, 'a');
+  sukuna.hp = 240;
+  sukuna.regenTimer = 14.99;
+  frontOf(f, 'b').hitLock = sukuna.hitLock = 99;
+  stepFight(f, 1 / 30);
+  assert.equal(sukuna.hp, 250);
+});
+
+test('waiting on the bench does not count towards the heal', () => {
+  const f = fight(['goku', 'sukuna'], ['garou']);
+  for (let i = 0; i < 30 * 5 && !f.over; i += 1) stepFight(f, 1 / 30);
+  assert.equal(f.sides.a.team[1].regenTimer, 0);
+});
+
+test('the heal timer shows on his status line', async () => {
+  const { nextHealIn } = await import('../src/games/faceoff/battle.js');
+  const f = fight(['sukuna'], ['goku']);
+  assert.equal(nextHealIn(frontOf(f, 'a')), 15);
+  assert.equal(nextHealIn(frontOf(f, 'b')), null, 'Goku has no heal');
+  const ctx = createFakeContext();
+  assert.doesNotThrow(() => drawStatus(ctx, frontOf(f, 'a'), 96, 430));
+});
+
+/* ------------------------------------------------ who lands first */
+
+test('a fighter knocked out by a bump does not hit back on it', () => {
+  for (let seed = 1; seed <= 20; seed += 1) {
+    const f = fight(['goku'], ['garou'], seed);
+    const [a, b] = [frontOf(f, 'a'), frontOf(f, 'b')];
+    b.hp = 1;
+    Object.assign(a, { x: 400, y: 240, vx: 270, vy: 0, hitLock: 0 });
+    Object.assign(b, { x: 440, y: 240, vx: 0, vy: 270, hitLock: 0 });
+    bump(f, a, b);
+    assert.equal(b.hp, 0);
+    assert.equal(a.hp, 250, 'the fighter that went down never got its hit in');
+  }
+});
+
+test('two even fighters almost never knock each other out together', () => {
+  let draws = 0;
+  for (let seed = 1; seed <= 60; seed += 1) {
+    const f = fight(['goku'], ['garou'], seed);
+    runFight(f);
+    if (f.over.winner === 'draw') draws += 1;
+  }
+  assert.ok(draws <= 2, `${draws} of 60 were draws`);
+});

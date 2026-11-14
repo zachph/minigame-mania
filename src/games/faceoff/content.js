@@ -46,7 +46,11 @@ export const FIGHTERS = [
     id: 'gojo', name: 'Gojo', colour: '#9fd8ff', shade: '#2a5d8a',
     ability: { kind: 'infinity', name: 'Infinity', range: 110, slow: 0.5 },
   }),
-  fighter({ id: 'sukuna', name: 'Sukuna', colour: '#ff7a7a', shade: '#7a1e2a' }),
+  // Heals a quarter of his health every 15 seconds he spends in the box.
+  fighter({
+    id: 'sukuna', name: 'Sukuna', colour: '#ff7a7a', shade: '#7a1e2a',
+    ability: { kind: 'regen', name: 'Reverse Cursed Technique', share: 0.25, every: 15 },
+  }),
   // 1 health, but the first 24 attacks that reach him miss. The 25th does not.
   fighter({ id: 'sans', name: 'Sans', hp: 1, dodges: 24, colour: '#e8eef8', shade: '#5a6a8a' }),
   fighter({ id: 'ralsei', name: 'Ralsei', colour: '#7ee08a', shade: '#2a6a3a' }),

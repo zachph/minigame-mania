@@ -44,6 +44,7 @@ export function makeFighter(id, { slot = 0, side = 'a' } = {}) {
     mass: 1,
     x: 0, y: 0, vx: 0, vy: 0,
     hitLock: 0,
+    regenTimer: 0,     // seconds towards the next heal, for a fighter that has one
     dealt: 0,
     taken: 0,
     dodged: 0,
@@ -219,9 +220,40 @@ export function bump(fight, a, b) {
   const y = (a.y + b.y) / 2;
   fight.sinceBump = 0;
   fight.events.push({ kind: 'bump', x, y });
-  hurt(fight, b, toB, { from: a });
-  hurt(fight, a, toA, { from: b });
+
+  // Whoever was moving in harder lands first, and a fighter knocked out by
+  // that never gets its hit in. Landing both at once let two even fighters
+  // knock each other out on the same bump, and nearly half of even fights
+  // ended in a draw that way.
+  const aFirst = approachA > approachB || (approachA === approachB && fight.random() < 0.5);
+  const [first, second, toSecond, toFirst] = aFirst ? [a, b, toB, toA] : [b, a, toA, toB];
+  hurt(fight, second, toSecond, { from: first });
+  if (second.hp > 0) hurt(fight, first, toFirst, { from: second });
   return { toA, toB };
+}
+
+/**
+ * Abilities that run on their own clock. Only the two in the box tick - a
+ * fighter waiting on the bench is not doing anything yet.
+ */
+function tickAbilities(fight, who, dt) {
+  const ability = who.spec.ability;
+  if (!ability || who.hp <= 0) return;
+  if (ability.kind === 'regen') {
+    who.regenTimer += dt;
+    if (who.regenTimer >= ability.every) {
+      who.regenTimer -= ability.every;
+      const given = heal(fight, who, who.maxHp * ability.share);
+      if (given > 0) say(fight, `${who.name} heals ${Math.round(given)}`, { side: who.side });
+    }
+  }
+}
+
+/** Seconds until a regen fighter heals next, or null for anyone else. */
+export function nextHealIn(who) {
+  const ability = who?.spec.ability;
+  if (!ability || ability.kind !== 'regen') return null;
+  return Math.max(0, ability.every - who.regenTimer);
 }
 
 /** Brings the next of a three into the box once the one in it is out. */
@@ -251,7 +283,10 @@ export function stepFight(fight, dt) {
 
     const a = frontOf(fight, 'a');
     const b = frontOf(fight, 'b');
-    for (const who of [a, b]) who.hitLock = Math.max(0, who.hitLock - slice);
+    for (const who of [a, b]) {
+      who.hitLock = Math.max(0, who.hitLock - slice);
+      tickAbilities(fight, who, slice);
+    }
 
     // Break an orbit: point both straight at each other.
     fight.sinceBump += slice;
