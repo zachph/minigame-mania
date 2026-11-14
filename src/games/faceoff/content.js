@@ -32,6 +32,11 @@ export const HIT_LOCK = 0.45;     // seconds before the same pair can trade agai
 export const BUMP_DAMAGE = 20;
 export const BUMP_SPREAD = 0.25;  // how much one bump wanders either side
 
+/** How fast Sans throws someone at a wall. */
+export const LAUNCH_SPEED = 900;
+/** Goku never teleports closer than this to the enemy. */
+export const TELEPORT_CLEAR = 170;
+
 /* ---------------------------------------------------------- the fighters */
 
 export const BASE_HP = 250;
@@ -52,13 +57,43 @@ export const FIGHTERS = [
     ability: { kind: 'regen', name: 'Reverse Cursed Technique', share: 0.25, every: 15 },
   }),
   // 1 health, but the first 24 attacks that reach him miss. The 25th does not.
-  fighter({ id: 'sans', name: 'Sans', hp: 1, dodges: 24, colour: '#e8eef8', shade: '#5a6a8a' }),
-  fighter({ id: 'ralsei', name: 'Ralsei', colour: '#7ee08a', shade: '#2a6a3a' }),
-  fighter({ id: 'undyne', name: 'Undyne', colour: '#6ab4ff', shade: '#1f3f7a' }),
-  fighter({ id: 'garou', name: 'Garou', colour: '#d8d8e0', shade: '#4a4a5a' }),
-  fighter({ id: 'saitama', name: 'Saitama', colour: '#ffe07a', shade: '#a07a10' }),
-  fighter({ id: 'goku', name: 'Goku', colour: '#ffb15a', shade: '#9a4a10' }),
-  fighter({ id: 'beerus', name: 'Beerus', colour: '#c89aff', shade: '#4b2a86' }),
+  // Every 10 seconds he throws the enemy at a wall, and the wall does 5.
+  fighter({
+    id: 'sans', name: 'Sans', hp: 1, dodges: 24, colour: '#e8eef8', shade: '#5a6a8a',
+    ability: { kind: 'launch', name: 'Blue Magic', every: 10, damage: 5 },
+  }),
+  // A quarter of his hits set the enemy burning: 1 a second for 15 seconds.
+  fighter({
+    id: 'ralsei', name: 'Ralsei', colour: '#7ee08a', shade: '#2a6a3a',
+    ability: { kind: 'burn', name: 'Burn', chance: 0.25, damage: 1, every: 1, lasts: 15 },
+  }),
+  // The first time she goes down, a 1 in 5 chance she gets back up as Undyne
+  // the Undying, with 355 health instead of 250.
+  fighter({
+    id: 'undyne', name: 'Undyne', colour: '#6ab4ff', shade: '#1f3f7a',
+    ability: { kind: 'undying', name: 'Undyne the Undying', chance: 0.2, hp: 355 },
+  }),
+  // 40% of his hits land twice.
+  fighter({
+    id: 'garou', name: 'Garou', colour: '#d8d8e0', shade: '#4a4a5a',
+    ability: { kind: 'double', name: 'Double Hit', chance: 0.4 },
+  }),
+  // One hit in twenty ends it.
+  fighter({
+    id: 'saitama', name: 'Saitama', colour: '#ffe07a', shade: '#a07a10',
+    ability: { kind: 'instakill', name: 'Serious Punch', chance: 0.05 },
+  }),
+  // Every 20 seconds he vanishes and reappears somewhere else in the box.
+  fighter({
+    id: 'goku', name: 'Goku', colour: '#ffb15a', shade: '#9a4a10',
+    ability: { kind: 'teleport', name: 'Instant Transmission', every: 20 },
+  }),
+  // Every 15 seconds Whis joins in for 5: a second ball on Beerus's side that
+  // bumps the enemy and cannot be hurt.
+  fighter({
+    id: 'beerus', name: 'Beerus', colour: '#c89aff', shade: '#4b2a86',
+    ability: { kind: 'summon', name: 'Summon Whis', every: 15, lasts: 5 },
+  }),
 ];
 
 export const FIGHTER_BY_ID = new Map(FIGHTERS.map((f) => [f.id, f]));

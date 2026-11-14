@@ -287,6 +287,31 @@ export const HEADS = {
   },
 };
 
+HEADS.whis = (ctx) => {
+  // A tall white crest of hair and a halo ring around the neck.
+  poly(ctx, [[-0.35, -0.2], [-0.2, -1.05], [0.0, -0.4], [0.2, -1.05], [0.35, -0.2]], '#f4f6ff');
+  circle(ctx, 0, 0.18, 0.66, '#9cc4e8');
+  eyes(ctx, 0.12, 0.25, 0.07);
+  mouth(ctx, 0.5, 0.14);
+  ctx.strokeStyle = '#7ab8ff';
+  ctx.lineWidth = 0.1;
+  ctx.beginPath();
+  ctx.ellipse(0, 0.86, 0.6, 0.14, 0, 0, TAU);
+  ctx.stroke();
+};
+
+/** Undyne after she refuses to die: armour, and the eye burning. */
+HEADS.undying = (ctx) => {
+  HEADS.undyne(ctx);
+  ctx.fillStyle = '#e8eef8';
+  ctx.fillRect(-0.85, 0.32, 0.3, 0.42);
+  ctx.fillRect(0.55, 0.32, 0.3, 0.42);
+  ctx.fillStyle = 'rgba(255, 220, 60, 0.5)';
+  ctx.beginPath();
+  ctx.arc(0.28, 0.1, 0.26, 0, TAU);
+  ctx.fill();
+};
+
 /** Draws `id`'s head centred on x, y with radius r. */
 export function drawHead(ctx, id, x, y, r) {
   ctx.save();
