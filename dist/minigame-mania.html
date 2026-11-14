@@ -15270,8 +15270,8 @@ __modules["src/games/faceoff/content.js"] = (function () {
  * You pick three. They go in one at a time; the two in the box bounce around
  * on their own and every collision costs both of them health. Nobody steers.
  *
- * Abilities are still to come - every fighter has `ability: null` until they
- * are written, and the fight runs fine without them.
+ * A fighter without an ability has `ability: null`, and the fight runs fine
+ * with nobody having one.
  */
 
 /* --------------------------------------------------------------- the box */
@@ -15305,7 +15305,13 @@ const BASE_HP = 250;
 const fighter = (spec) => ({ hp: BASE_HP, dodges: 0, ability: null, ...spec });
 
 const FIGHTERS = [
-  fighter({ id: 'gojo', name: 'Gojo', colour: '#9fd8ff', shade: '#2a5d8a' }),
+  // Infinity: anything that comes within `range` of him moves at half speed.
+  // A bump hits as hard as you were moving into it, so a slowed attacker also
+  // hits him for less.
+  fighter({
+    id: 'gojo', name: 'Gojo', colour: '#9fd8ff', shade: '#2a5d8a',
+    ability: { kind: 'infinity', name: 'Infinity', range: 110, slow: 0.5 },
+  }),
   fighter({ id: 'sukuna', name: 'Sukuna', colour: '#ff7a7a', shade: '#7a1e2a' }),
   // 1 health, but the first 24 attacks that reach him miss. The 25th does not.
   fighter({ id: 'sans', name: 'Sans', hp: 1, dodges: 24, colour: '#e8eef8', shade: '#5a6a8a' }),
@@ -15507,6 +15513,20 @@ function setSpeed(b, speed) {
   b.vy = (b.vy / now) * speed;
 }
 
+/**
+ * How fast a ball may move right now. Normally the cruise speed; inside
+ * Gojo's Infinity, a share of it. Gojo is never slowed by his own.
+ */
+function speedFor(who, foe) {
+  const aura = foe?.spec.ability;
+  if (!aura || aura.kind !== 'infinity' || foe.hp <= 0) return CRUISE;
+  const dist = Math.hypot(foe.x - who.x, foe.y - who.y);
+  return dist <= aura.range ? CRUISE * aura.slow : CRUISE;
+}
+
+/** True while `who` is inside the other fighter's Infinity. */
+const inInfinity = (who, foe) => speedFor(who, foe) < CRUISE;
+
 /** Moves one ball: lean towards the other, keep cruising, stay in the box. */
 function move(who, foe, dt) {
   if (foe) {
@@ -15516,7 +15536,7 @@ function move(who, foe, dt) {
     who.vx += (dx / dist) * CRUISE * HOMING * dt;
     who.vy += (dy / dist) * CRUISE * HOMING * dt;
   }
-  setSpeed(who, CRUISE);
+  setSpeed(who, speedFor(who, foe));
   who.x += who.vx * dt;
   who.y += who.vy * dt;
 
@@ -15657,7 +15677,7 @@ function runFight(fight, step = 1 / 30) {
   return fight.over || checkOver(fight);
 }
 
-  return { makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, hurt, heal, move, bump, stepFight, healthShare, checkOver, runFight };
+  return { makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, hurt, heal, speedFor, inInfinity, move, bump, stepFight, healthShare, checkOver, runFight };
 })();
 
 // ---- src/games/faceoff/heads.js ----------------------------------
@@ -16287,16 +16307,46 @@ function drawBanner(ctx, text, sub) {
   ctx.restore();
 }
 
-  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner };
+/**
+ * Gojo's Infinity: a faint ring at its range, brighter while someone is
+ * inside it and being slowed.
+ */
+function drawInfinity(ctx, who, active, time = 0) {
+  const aura = who.spec.ability;
+  if (!aura || aura.kind !== 'infinity' || who.hp <= 0) return;
+  ctx.save();
+  ctx.strokeStyle = '#9fd8ff';
+  ctx.globalAlpha = active ? 0.55 + 0.25 * Math.sin(time * 10) : 0.18;
+  ctx.lineWidth = active ? 3 : 1.5;
+  ctx.setLineDash(active ? [] : [6, 6]);
+  ctx.beginPath();
+  ctx.arc(who.x, who.y, aura.range, 0, TAU);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** A slowed ball gets a blue rim, so you can see Infinity doing its job. */
+function drawSlowed(ctx, who) {
+  ctx.save();
+  ctx.strokeStyle = '#9fd8ff';
+  ctx.lineWidth = 4;
+  ctx.globalAlpha = 0.8;
+  ctx.beginPath();
+  ctx.arc(who.x, who.y, who.radius + 4, 0, TAU);
+  ctx.stroke();
+  ctx.restore();
+}
+
+  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed };
 })();
 
 // ---- src/games/faceoff/game.js -----------------------------------
 __modules["src/games/faceoff/game.js"] = (function () {
   const { clamp, seededRandom } = __modules["src/core/utils.js"];
   const { BOX, FIGHTERS, MODE_BY_ID, STORY, STORY_RECOVERY, TOWER, TOWER_RECOVERY } = __modules["src/games/faceoff/content.js"];
-  const { createFight, frontOf, healthShare, pressureAt, stepFight } = __modules["src/games/faceoff/battle.js"];
+  const { createFight, frontOf, healthShare, inInfinity, pressureAt, stepFight } = __modules["src/games/faceoff/battle.js"];
   const { SelectPanel } = __modules["src/games/faceoff/select.js"];
-  const { drawBall, drawBanner, drawBench, drawBox, drawPopup, drawScreen, drawSpark, drawStatus, drawText } = __modules["src/games/faceoff/art.js"];
+  const { drawBall, drawBanner, drawBench, drawBox, drawInfinity, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawText } = __modules["src/games/faceoff/art.js"];
 
 const GAME_ID = 'faceoff';
 
@@ -16505,9 +16555,15 @@ class FaceoffGame {
     drawText(ctx, this.stage === 'fighting' ? `${this.speed}x - click to watch faster` : '', this.width / 2, 58, { size: 12, colour: '#888' });
 
     drawBox(ctx, pressureAt(this.fight.time), this.clock);
-    for (const side of ['a', 'b']) {
-      const who = frontOf(this.fight, side);
-      if (who) drawBall(ctx, who, { flash: this.flash[who.uid] || 0, trail: this.trails[who.uid] || [] });
+    const a = frontOf(this.fight, 'a');
+    const b = frontOf(this.fight, 'b');
+    for (const [who, foe] of [[a, b], [b, a]]) {
+      if (who && foe) drawInfinity(ctx, who, inInfinity(foe, who), this.clock);
+    }
+    for (const [who, foe] of [[a, b], [b, a]]) {
+      if (!who) continue;
+      drawBall(ctx, who, { flash: this.flash[who.uid] || 0, trail: this.trails[who.uid] || [] });
+      if (foe && inInfinity(who, foe)) drawSlowed(ctx, who);
     }
     for (const s of this.sparks) drawSpark(ctx, s);
     for (const p of this.popups) drawPopup(ctx, p);

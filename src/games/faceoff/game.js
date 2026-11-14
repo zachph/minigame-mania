@@ -8,13 +8,15 @@ import {
   TOWER,
   TOWER_RECOVERY,
 } from './content.js';
-import { createFight, frontOf, healthShare, pressureAt, stepFight } from './battle.js';
+import { createFight, frontOf, healthShare, inInfinity, pressureAt, stepFight } from './battle.js';
 import { SelectPanel } from './select.js';
 import {
   drawBall,
   drawBanner,
   drawBench,
   drawBox,
+  drawInfinity,
+  drawSlowed,
   drawPopup,
   drawScreen,
   drawSpark,
@@ -229,9 +231,15 @@ class FaceoffGame {
     drawText(ctx, this.stage === 'fighting' ? `${this.speed}x - click to watch faster` : '', this.width / 2, 58, { size: 12, colour: '#888' });
 
     drawBox(ctx, pressureAt(this.fight.time), this.clock);
-    for (const side of ['a', 'b']) {
-      const who = frontOf(this.fight, side);
-      if (who) drawBall(ctx, who, { flash: this.flash[who.uid] || 0, trail: this.trails[who.uid] || [] });
+    const a = frontOf(this.fight, 'a');
+    const b = frontOf(this.fight, 'b');
+    for (const [who, foe] of [[a, b], [b, a]]) {
+      if (who && foe) drawInfinity(ctx, who, inInfinity(foe, who), this.clock);
+    }
+    for (const [who, foe] of [[a, b], [b, a]]) {
+      if (!who) continue;
+      drawBall(ctx, who, { flash: this.flash[who.uid] || 0, trail: this.trails[who.uid] || [] });
+      if (foe && inInfinity(who, foe)) drawSlowed(ctx, who);
     }
     for (const s of this.sparks) drawSpark(ctx, s);
     for (const p of this.popups) drawPopup(ctx, p);

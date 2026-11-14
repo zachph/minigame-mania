@@ -4,8 +4,8 @@
  * You pick three. They go in one at a time; the two in the box bounce around
  * on their own and every collision costs both of them health. Nobody steers.
  *
- * Abilities are still to come - every fighter has `ability: null` until they
- * are written, and the fight runs fine without them.
+ * A fighter without an ability has `ability: null`, and the fight runs fine
+ * with nobody having one.
  */
 
 /* --------------------------------------------------------------- the box */
@@ -39,7 +39,13 @@ export const BASE_HP = 250;
 const fighter = (spec) => ({ hp: BASE_HP, dodges: 0, ability: null, ...spec });
 
 export const FIGHTERS = [
-  fighter({ id: 'gojo', name: 'Gojo', colour: '#9fd8ff', shade: '#2a5d8a' }),
+  // Infinity: anything that comes within `range` of him moves at half speed.
+  // A bump hits as hard as you were moving into it, so a slowed attacker also
+  // hits him for less.
+  fighter({
+    id: 'gojo', name: 'Gojo', colour: '#9fd8ff', shade: '#2a5d8a',
+    ability: { kind: 'infinity', name: 'Infinity', range: 110, slow: 0.5 },
+  }),
   fighter({ id: 'sukuna', name: 'Sukuna', colour: '#ff7a7a', shade: '#7a1e2a' }),
   // 1 health, but the first 24 attacks that reach him miss. The 25th does not.
   fighter({ id: 'sans', name: 'Sans', hp: 1, dodges: 24, colour: '#e8eef8', shade: '#5a6a8a' }),

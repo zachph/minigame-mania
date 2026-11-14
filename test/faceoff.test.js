@@ -203,3 +203,53 @@ test('every fighter has a head drawn for them', async () => {
   }
   assert.doesNotThrow(() => drawHead(ctx, 'someone-new', 100, 100, 30));
 });
+
+/* -------------------------------------------------------------- Infinity */
+
+test('inside Gojo\'s Infinity a fighter moves at half speed', async () => {
+  const { speedFor, inInfinity } = await import('../src/games/faceoff/battle.js');
+  const { CRUISE } = await import('../src/games/faceoff/content.js');
+  const f = fight(['gojo'], ['goku']);
+  const [gojo, goku] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  Object.assign(gojo, { x: 400, y: 240 });
+  Object.assign(goku, { x: 480, y: 240 });
+  assert.equal(speedFor(goku, gojo), CRUISE / 2);
+  assert.equal(inInfinity(goku, gojo), true);
+  goku.x = 700;
+  assert.equal(speedFor(goku, gojo), CRUISE, 'out of range, full speed');
+});
+
+test('Gojo is never slowed by his own Infinity, and a fallen Gojo slows nobody', async () => {
+  const { speedFor } = await import('../src/games/faceoff/battle.js');
+  const { CRUISE } = await import('../src/games/faceoff/content.js');
+  const f = fight(['gojo'], ['goku']);
+  const [gojo, goku] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  Object.assign(gojo, { x: 400, y: 240 });
+  Object.assign(goku, { x: 450, y: 240 });
+  assert.equal(speedFor(gojo, goku), CRUISE);
+  gojo.hp = 0;
+  assert.equal(speedFor(goku, gojo), CRUISE);
+});
+
+test('a slowed attacker hits Gojo for less than Gojo hits back', () => {
+  let toGojo = 0;
+  let toGoku = 0;
+  for (let seed = 1; seed <= 40; seed += 1) {
+    const f = fight(['gojo'], ['goku'], seed);
+    while (!f.over) stepFight(f, 1 / 30);
+    toGojo += f.sides.a.team[0].taken;
+    toGoku += f.sides.b.team[0].taken;
+  }
+  assert.ok(toGojo < toGoku * 0.8, `Gojo took ${toGojo.toFixed(0)}, Goku took ${toGoku.toFixed(0)}`);
+});
+
+test('the Infinity ring draws', async () => {
+  const { drawInfinity, drawSlowed } = await import('../src/games/faceoff/art.js');
+  const ctx = createFakeContext();
+  const f = fight(['gojo'], ['goku']);
+  drawInfinity(ctx, frontOf(f, 'a'), true, 1);
+  drawInfinity(ctx, frontOf(f, 'a'), false, 1);
+  drawInfinity(ctx, frontOf(f, 'b'), false, 1);
+  drawSlowed(ctx, frontOf(f, 'b'));
+  assert.ok(ctx.calls > 5);
+});
