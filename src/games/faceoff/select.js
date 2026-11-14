@@ -1,4 +1,5 @@
 import { FIGHTERS, MODES, TEAM_SIZE } from './content.js';
+import { drawHead } from './heads.js';
 
 /**
  * Picking a mode and three fighters, in order.
@@ -17,7 +18,7 @@ const el = (tag, className, text) => {
 
 /** A small drawing of the fighter, so you pick by sight as well as by name. */
 function portrait(spec) {
-  const size = 40;
+  const size = 46;
   const canvas = el('canvas', 'fo-portrait');
   const ratio = Math.min(2, window.devicePixelRatio || 1);
   canvas.width = size * ratio;
@@ -26,16 +27,11 @@ function portrait(spec) {
   canvas.style.height = `${size}px`;
   const ctx = canvas.getContext('2d');
   ctx.scale(ratio, ratio);
-  const body = ctx.createLinearGradient(0, 0, 0, size);
-  body.addColorStop(0, spec.colour);
-  body.addColorStop(1, spec.shade);
-  ctx.fillStyle = body;
+  ctx.fillStyle = '#1a1a22';
   ctx.beginPath();
-  ctx.roundRect ? ctx.roundRect(5, 3, size - 10, size - 6, 9) : ctx.rect(5, 3, size - 10, size - 6);
+  ctx.arc(size / 2, size / 2, size / 2 - 1, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = 'rgba(8, 12, 20, 0.8)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  drawHead(ctx, spec.id, size / 2, size / 2, size / 2 - 2);
   return canvas;
 }
 

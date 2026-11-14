@@ -1,0 +1,249 @@
+import { TAU } from '../../core/utils.js';
+
+/**
+ * A head for every fighter, drawn in code in a box from -1 to 1.
+ *
+ * Simplified on purpose - the hair, the marks, the one thing you would
+ * recognise each of them by - so they still read at the size of a ball
+ * bouncing around the box.
+ */
+
+const SKIN = '#f4d2b0';
+const INK = '#111';
+
+function circle(ctx, x, y, r, fill) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, TAU);
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+function poly(ctx, points, fill) {
+  ctx.beginPath();
+  points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+/** A row of spikes along the top of a head. */
+function spikes(ctx, fill, tips, { base = -0.2, spread = 0.95 } = {}) {
+  ctx.beginPath();
+  ctx.moveTo(-spread, base);
+  tips.forEach(([x, y], i) => {
+    const next = i < tips.length - 1 ? (x + tips[i + 1][0]) / 2 : spread;
+    ctx.lineTo(x, y);
+    ctx.lineTo(next, base - 0.25);
+  });
+  ctx.lineTo(spread, base);
+  ctx.quadraticCurveTo(0, -0.55, -spread, base);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+function eyes(ctx, y, spread, r, fill = INK) {
+  circle(ctx, -spread, y, r, fill);
+  circle(ctx, spread, y, r, fill);
+}
+
+function mouth(ctx, y, w, colour = INK) {
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = 0.07;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-w, y);
+  ctx.quadraticCurveTo(0, y + 0.08, w, y);
+  ctx.stroke();
+}
+
+export const HEADS = {
+  gojo(ctx) {
+    circle(ctx, 0, 0.12, 0.72, SKIN);
+    spikes(ctx, '#f4f6ff', [[-0.8, -0.85], [-0.45, -1.05], [-0.1, -0.95], [0.25, -1.08], [0.6, -0.9], [0.85, -0.7]], { base: -0.05 });
+    // The blindfold.
+    ctx.fillStyle = INK;
+    ctx.fillRect(-0.74, -0.08, 1.48, 0.3);
+    mouth(ctx, 0.5, 0.18);
+  },
+
+  sukuna(ctx) {
+    circle(ctx, 0, 0.12, 0.72, SKIN);
+    spikes(ctx, '#f39aa6', [[-0.75, -0.75], [-0.4, -0.95], [0, -0.85], [0.4, -0.97], [0.75, -0.72]], { base: -0.12 });
+    eyes(ctx, 0.05, 0.28, 0.08, '#c0102a');
+    // The second pair, under the first.
+    eyes(ctx, 0.28, 0.33, 0.055, '#c0102a');
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 0.07;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(side * 0.5, 0.42);
+      ctx.lineTo(side * 0.62, 0.62);
+      ctx.moveTo(side * 0.12, -0.06);
+      ctx.lineTo(side * 0.38, -0.12);
+      ctx.stroke();
+    }
+    mouth(ctx, 0.56, 0.2, '#600');
+  },
+
+  sans(ctx) {
+    circle(ctx, 0, 0, 0.92, '#f2f2f2');
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 0.06;
+    ctx.stroke();
+    // Two empty sockets, each with a pinpoint of light.
+    eyes(ctx, -0.12, 0.34, 0.2, INK);
+    eyes(ctx, -0.12, 0.34, 0.06, '#fff');
+    circle(ctx, 0, 0.18, 0.06, INK);
+    // The grin.
+    ctx.beginPath();
+    ctx.moveTo(-0.55, 0.38);
+    ctx.quadraticCurveTo(0, 0.78, 0.55, 0.38);
+    ctx.stroke();
+    for (let i = -2; i <= 2; i += 1) {
+      ctx.beginPath();
+      ctx.moveTo(i * 0.18, 0.44 + Math.abs(i) * -0.02);
+      ctx.lineTo(i * 0.18, 0.6 - Math.abs(i) * 0.05);
+      ctx.stroke();
+    }
+  },
+
+  ralsei(ctx) {
+    circle(ctx, 0, 0.2, 0.7, '#f6f1e4');
+    // Floppy ears.
+    poly(ctx, [[-0.6, 0.0], [-1.0, 0.35], [-0.62, 0.42]], '#e9e0cc');
+    poly(ctx, [[0.6, 0.0], [1.0, 0.35], [0.62, 0.42]], '#e9e0cc');
+    // The big green hat.
+    poly(ctx, [[-0.85, -0.12], [0.85, -0.12], [0.2, -1.05], [0.05, -0.95]], '#2f8a4a');
+    ctx.fillStyle = '#1f6a36';
+    ctx.fillRect(-0.85, -0.2, 1.7, 0.14);
+    // Glasses.
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 0.06;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(side * 0.28, 0.18, 0.17, 0, TAU);
+      ctx.stroke();
+    }
+    eyes(ctx, 0.18, 0.28, 0.05);
+    mouth(ctx, 0.52, 0.12);
+    ctx.fillStyle = '#e86aa0';
+    ctx.fillRect(-0.55, 0.78, 1.1, 0.16);
+  },
+
+  undyne(ctx) {
+    // The ponytail first, so the head sits over it.
+    poly(ctx, [[0.2, -0.5], [0.95, -1.0], [0.75, -0.3]], '#d6243a');
+    circle(ctx, 0, 0.1, 0.74, '#5aa8e8');
+    spikes(ctx, '#d6243a', [[-0.7, -0.6], [-0.35, -0.82], [0.0, -0.75], [0.35, -0.85]], { base: -0.15, spread: 0.78 });
+    // Fins for ears.
+    poly(ctx, [[-0.7, 0.0], [-1.05, -0.2], [-0.9, 0.25]], '#3d7fc0');
+    poly(ctx, [[0.7, 0.0], [1.05, -0.2], [0.9, 0.25]], '#3d7fc0');
+    // One yellow eye, one eyepatch.
+    circle(ctx, 0.28, 0.1, 0.13, '#ffe14a');
+    circle(ctx, 0.28, 0.1, 0.05, INK);
+    circle(ctx, -0.28, 0.1, 0.17, INK);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 0.05;
+    ctx.beginPath();
+    ctx.moveTo(-0.7, -0.15);
+    ctx.lineTo(0.5, 0.0);
+    ctx.stroke();
+    // A grin with teeth in it.
+    poly(ctx, [[-0.32, 0.45], [0.32, 0.45], [0.2, 0.6], [-0.2, 0.6]], '#fff');
+    ctx.strokeStyle = INK;
+    ctx.beginPath();
+    ctx.moveTo(-0.32, 0.45); ctx.lineTo(0.32, 0.45); ctx.lineTo(0.2, 0.6); ctx.lineTo(-0.2, 0.6); ctx.closePath();
+    ctx.stroke();
+  },
+
+  garou(ctx) {
+    circle(ctx, 0, 0.14, 0.7, SKIN);
+    // Silver hair swept back into points.
+    poly(ctx, [[-0.75, 0.0], [-0.95, -0.55], [-0.55, -0.35], [-0.5, -0.95], [-0.1, -0.5], [0.2, -1.05], [0.35, -0.5], [0.8, -0.85], [0.7, -0.25], [0.95, -0.2], [0.72, 0.05], [0.0, -0.3]], '#dfe2ea');
+    // Narrow, angry eyes.
+    ctx.fillStyle = INK;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(side * 0.12, 0.1);
+      ctx.lineTo(side * 0.48, 0.0);
+      ctx.lineTo(side * 0.42, 0.14);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // A scar across the cheek.
+    ctx.strokeStyle = '#a0403a';
+    ctx.lineWidth = 0.05;
+    ctx.beginPath();
+    ctx.moveTo(0.3, 0.3);
+    ctx.lineTo(0.5, 0.48);
+    ctx.stroke();
+    mouth(ctx, 0.5, 0.18);
+  },
+
+  saitama(ctx) {
+    // Completely bald, and completely unbothered.
+    circle(ctx, 0, 0.05, 0.88, SKIN);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    ctx.beginPath();
+    ctx.ellipse(-0.32, -0.45, 0.22, 0.12, -0.5, 0, TAU);
+    ctx.fill();
+    eyes(ctx, 0.12, 0.3, 0.06);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 0.06;
+    ctx.beginPath();
+    ctx.moveTo(-0.12, 0.5);
+    ctx.lineTo(0.12, 0.5);
+    ctx.stroke();
+  },
+
+  goku(ctx) {
+    // The hair is most of him. Outlined, or black hair vanishes into the dark
+    // disc every fighter sits on.
+    poly(ctx, [[-0.95, 0.15], [-1.0, -0.4], [-0.7, -0.2], [-0.85, -0.85], [-0.4, -0.45], [-0.3, -1.1], [0.0, -0.55], [0.3, -1.08], [0.4, -0.45], [0.85, -0.9], [0.72, -0.2], [1.02, -0.38], [0.92, 0.15]], INK);
+    ctx.strokeStyle = '#6a6a7a';
+    ctx.lineWidth = 0.06;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    circle(ctx, 0, 0.22, 0.64, SKIN);
+    // A fringe of spikes over the forehead.
+    poly(ctx, [[-0.6, -0.15], [-0.3, 0.12], [-0.15, -0.15], [0.05, 0.15], [0.2, -0.15], [0.4, 0.1], [0.6, -0.15], [0.3, -0.4], [-0.3, -0.4]], INK);
+    eyes(ctx, 0.28, 0.25, 0.08);
+    mouth(ctx, 0.58, 0.14);
+  },
+
+  beerus(ctx) {
+    // Tall pointed ears.
+    poly(ctx, [[-0.7, -0.2], [-0.6, -1.05], [-0.2, -0.45]], '#8a5cc8');
+    poly(ctx, [[0.7, -0.2], [0.6, -1.05], [0.2, -0.45]], '#8a5cc8');
+    poly(ctx, [[-0.6, -0.3], [-0.55, -0.85], [-0.32, -0.45]], '#c9a4f0');
+    poly(ctx, [[0.6, -0.3], [0.55, -0.85], [0.32, -0.45]], '#c9a4f0');
+    circle(ctx, 0, 0.15, 0.72, '#9a6cd6');
+    // Yellow eyes with dark rims.
+    for (const side of [-1, 1]) {
+      ctx.fillStyle = INK;
+      ctx.beginPath();
+      ctx.ellipse(side * 0.3, 0.08, 0.2, 0.14, side * 0.3, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#ffd84a';
+      ctx.beginPath();
+      ctx.ellipse(side * 0.3, 0.08, 0.13, 0.09, side * 0.3, 0, TAU);
+      ctx.fill();
+    }
+    // Gold earrings.
+    circle(ctx, -0.74, 0.35, 0.1, '#e8b830');
+    circle(ctx, 0.74, 0.35, 0.1, '#e8b830');
+    mouth(ctx, 0.52, 0.15);
+  },
+};
+
+/** Draws `id`'s head centred on x, y with radius r. */
+export function drawHead(ctx, id, x, y, r) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(r, r);
+  const draw = HEADS[id];
+  if (draw) draw(ctx);
+  else circle(ctx, 0, 0, 0.8, '#888');
+  ctx.restore();
+}

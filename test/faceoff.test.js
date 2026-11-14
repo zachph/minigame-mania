@@ -193,3 +193,13 @@ test('the box and everything in it draws without NaN', () => {
   drawBanner(ctx, '* YOU WON', 'nobody left to send');
   assert.ok(ctx.calls > 100);
 });
+
+test('every fighter has a head drawn for them', async () => {
+  const { HEADS, drawHead } = await import('../src/games/faceoff/heads.js');
+  const ctx = createFakeContext();
+  for (const spec of FIGHTERS) {
+    assert.ok(HEADS[spec.id], `${spec.name} has no head`);
+    drawHead(ctx, spec.id, 100, 100, 30);
+  }
+  assert.doesNotThrow(() => drawHead(ctx, 'someone-new', 100, 100, 30));
+});
