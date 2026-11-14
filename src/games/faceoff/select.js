@@ -39,18 +39,9 @@ function portrait(spec) {
   return canvas;
 }
 
-const STAT_MAX = { hp: 170, attack: 20, speed: 10 };
-const STAT_LABEL = { hp: 'health', attack: 'attack', speed: 'speed' };
-
-function statRow(spec, key) {
-  const row = el('div', 'fo-stat');
-  row.append(el('span', 'fo-stat-label', STAT_LABEL[key]));
-  const track = el('span', 'fo-stat-track');
-  const fill = el('span', 'fo-stat-fill');
-  fill.style.width = `${Math.min(100, (spec[key] / STAT_MAX[key]) * 100)}%`;
-  track.append(fill);
-  row.append(track);
-  return row;
+/** What the card says under the name: health, and dodges for the one that has them. */
+function statLine(spec) {
+  return spec.dodges > 0 ? `${spec.hp} HP - dodges the first ${spec.dodges}` : `${spec.hp} HP`;
 }
 
 export class SelectPanel {
@@ -65,7 +56,7 @@ export class SelectPanel {
     const head = el('div', 'fo-select-head');
     const title = el('div', 'fo-select-title');
     title.append(el('h2', null, 'Faceoff'));
-    title.append(el('p', null, 'Pick three. They go out one at a time, in the order you name them, and you watch.'));
+    title.append(el('p', null, 'Pick three. They go into the box one at a time and bump each other until one is out.'));
     head.append(title);
 
     this.modes = el('div', 'fo-modes');
@@ -95,11 +86,8 @@ export class SelectPanel {
       name.append(el('strong', null, spec.name));
       name.append(el('span', 'fo-card-place', ''));
       body.append(name);
-      body.append(el('p', 'fo-card-blurb', spec.blurb));
-      const stats = el('div', 'fo-stats');
-      for (const key of ['hp', 'attack', 'speed']) stats.append(statRow(spec, key));
-      body.append(stats);
-      body.append(el('p', 'fo-card-ability', `${spec.ability.name}`));
+      body.append(el('p', 'fo-card-blurb', statLine(spec)));
+      body.append(el('p', 'fo-card-ability', spec.ability ? spec.ability.name : 'ability coming'));
       card.append(body);
       card.addEventListener('click', () => this.toggle(spec.id));
       this.grid.append(card);

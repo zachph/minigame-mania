@@ -1,41 +1,35 @@
 import { clamp } from '../../core/utils.js';
 import {
-  BASE_TEMPO,
-  CHARGE_FULL,
-  DAMAGE_SPREAD,
+  BALL_RADIUS,
+  BOX,
+  BUMP_DAMAGE,
+  BUMP_SPREAD,
+  CRUISE,
   FIGHT_LIMIT,
-  OPENING_CHARGE,
+  HIT_LOCK,
+  HOMING,
+  STALL_AFTER,
   PRESSURE_FROM,
   PRESSURE_RATE,
   getFighter,
 } from './content.js';
 
 /**
- * A Faceoff fight, with no idea that a screen exists.
+ * A Faceoff fight with no screen attached.
  *
- * Nobody takes turns. Every fighter fills a bar at its own speed and acts the
- * moment it is full, which is why speed is worth more here than anywhere else
- * in the collection: a Flicker simply gets more goes than a Bulwark.
+ * The front fighter of each side is a ball in the box. Both keep moving at the
+ * same speed, bounce off the walls, and lean towards each other so they keep
+ * meeting. Every collision costs both of them health. When one runs out, the
+ * next of that three is dropped into the box.
  *
- * Only the front fighter of each side is in it. When one falls the next of
- * that three walks in, and a side is beaten when it has nobody left to send.
- *
- * `stepFight` is the whole thing. Hand it a fight and a timestep and it
- * advances; hand it the same seed twice and it plays out identically, which is
- * what lets a few thousand of them settle the balance.
+ * Everything that hurts anyone goes through `hurt`, so Sans's dodges and any
+ * ability added later answer every source of damage the same way.
  */
 
-const MAX_SUB_STEP = 1 / 30;
+const MAX_SUB_STEP = 1 / 120;
 
-/* ---------------------------------------------------------- the fighters */
-
-/**
- * One fighter, ready to fight. `scale` lifts the numbers for the later floors
- * of the tower without needing nine more entries in the roster.
- */
-export function makeFighter(id, { scale = 1, slot = 0, side = 'a' } = {}) {
+export function makeFighter(id, { slot = 0, side = 'a' } = {}) {
   const spec = getFighter(id);
-  const hp = Math.round(spec.hp * scale);
   return {
     uid: `${side}${slot}-${id}`,
     id,
@@ -43,390 +37,256 @@ export function makeFighter(id, { scale = 1, slot = 0, side = 'a' } = {}) {
     slot,
     spec,
     name: spec.name,
-    maxHp: hp,
-    hp,
-    attack: spec.attack * scale,
-    speed: spec.speed,
-    guard: spec.guard || 0,
-    charge: 0,
-    ready: 0,          // how many times its ability is charged
-    acts: 0,           // goes taken, which is what `ready` counts towards
-    effects: [],       // poison and the like, each ticking on its own clock
-    brace: 0,          // seconds of extra guard left
-    riposte: 0,        // seconds of hitting back left
-    riposteShare: 0,
-    usedOnce: false,   // for the abilities that only ever happen once
+    maxHp: spec.hp,
+    hp: spec.hp,
+    dodgesLeft: spec.dodges,
+    radius: BALL_RADIUS,
+    mass: 1,
+    x: 0, y: 0, vx: 0, vy: 0,
+    hitLock: 0,
     dealt: 0,
     taken: 0,
-    healed: 0,
+    dodged: 0,
+    entered: false,
   };
 }
 
-export function makeTeam(ids, { scale = 1, side = 'a' } = {}) {
-  return ids.map((id, slot) => makeFighter(id, { scale, slot, side }));
+export function makeTeam(ids, side) {
+  return ids.map((id, slot) => makeFighter(id, { slot, side }));
 }
 
-/* ------------------------------------------------------------- the fight */
+/** Drops a fighter into its own half of the box, heading somewhere random. */
+export function place(fight, who) {
+  const left = who.side === 'a';
+  who.x = BOX.x + BOX.w * (left ? 0.22 : 0.78);
+  who.y = BOX.y + BOX.h * (0.3 + fight.random() * 0.4);
+  const angle = (left ? 0 : Math.PI) + (fight.random() - 0.5) * 1.6;
+  who.vx = Math.cos(angle) * CRUISE;
+  who.vy = Math.sin(angle) * CRUISE;
+  who.hitLock = 0.3;
+  who.entered = true;
+}
 
 export function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random, limit = FIGHT_LIMIT } = {}) {
-  return openBars({
+  const fight = {
     random,
     limit,
     time: 0,
     sides: {
-      a: { team: makeTeam(a, { scale: scaleA, side: 'a' }), front: 0 },
-      b: { team: makeTeam(b, { scale: scaleB, side: 'b' }), front: 0 },
+      a: { team: makeTeam(a, 'a'), front: 0, scale: scaleA },
+      b: { team: makeTeam(b, 'b'), front: 0, scale: scaleB },
     },
     log: [],
-    events: [],      // one step's worth of things worth drawing
-    over: null,      // { winner: 'a' | 'b' | 'draw', reason }
-  });
-}
-
-/** Starts the two front fighters part way up their bars, by chance. */
-function openBars(fight) {
-  for (const side of ['a', 'b']) {
-    const who = frontOf(fight, side);
-    if (who) who.charge = fight.random() * CHARGE_FULL * OPENING_CHARGE;
-  }
+    events: [],
+    over: null,
+    sinceBump: 0,
+  };
+  for (const side of ['a', 'b']) place(fight, frontOf(fight, side));
   return fight;
 }
 
 export const other = (side) => (side === 'a' ? 'b' : 'a');
 export const frontOf = (fight, side) => fight.sides[side].team[fight.sides[side].front] || null;
-export const standing = (side) => side.team.filter((f) => f.hp > 0);
 export const isBeaten = (side) => side.team.every((f) => f.hp <= 0);
 
 const say = (fight, text, extra = {}) => {
   fight.log.push({ at: fight.time, text, ...extra });
   if (fight.log.length > 60) fight.log.shift();
-  fight.events.push({ kind: 'say', text, ...extra });
 };
 
-/* -------------------------------------------------------------- damage */
+export const pressureAt = (time) => 1 + Math.max(0, time - PRESSURE_FROM) * PRESSURE_RATE;
 
 /**
- * What one hit takes off. Guard is flat rather than a percentage so a heavy
- * defender shrugs off a flurry of small hits and still feels a big one - which
- * is the whole reason Flicker and Edge are different fighters rather than two
- * sets of numbers.
+ * Puts damage on a fighter. An attack that reaches a fighter with dodges left
+ * misses instead and uses one up - that is Sans: one health, and the first
+ * twenty-four things that come at him go nowhere.
  */
-export function damageOf(attacker, defender, multiplier = 1) {
-  const raw = attacker.attack * multiplier;
-  const soaked = defender.guard + defender.brace;
-  return Math.max(1, Math.round((raw - soaked) * 10) / 10);
-}
-
-/**
- * The same hit, with the wobble on it. `damageOf` is the average and stays
- * pure so a test can state exactly what a matchup is worth; this is what the
- * fight actually uses, and it is the reason the same two fighters do not play
- * out the same way twice.
- */
-export function rollDamage(fight, attacker, defender, multiplier = 1) {
-  const average = damageOf(attacker, defender, multiplier);
-  const swing = 1 - DAMAGE_SPREAD + fight.random() * DAMAGE_SPREAD * 2;
-  return Math.max(1, Math.round(average * swing * pressureAt(fight.time) * 10) / 10);
-}
-
-/** How much harder everything hits by now. One before the grace runs out. */
-export const pressureAt = (time) =>
-  1 + Math.max(0, time - PRESSURE_FROM) * PRESSURE_RATE;
-
-/**
- * Puts damage on a fighter and settles everything that answers it: the riposte
- * that sends some back, and the rally that refuses to go down. Everything that
- * can hurt anyone goes through here, so none of those can be stepped around.
- */
-export function hurt(fight, target, amount, { from = null, kind = 'hit' } = {}) {
+export function hurt(fight, target, amount, { from = null, kind = 'bump' } = {}) {
   if (target.hp <= 0 || amount <= 0) return 0;
+  if (target.dodgesLeft > 0) {
+    target.dodgesLeft -= 1;
+    target.dodged += 1;
+    fight.events.push({ kind: 'miss', uid: target.uid, left: target.dodgesLeft });
+    return 0;
+  }
   const dealt = Math.round(Math.min(amount, target.hp) * 10) / 10;
   target.hp = Math.round((target.hp - dealt) * 10) / 10;
   target.taken += dealt;
   if (from) from.dealt += dealt;
   fight.events.push({ kind: 'damage', uid: target.uid, amount: dealt, source: kind });
-
-  // Hitting a Mirror is its own decision.
-  if (from && target.riposte > 0 && kind === 'hit') {
-    const back = Math.round(dealt * target.riposteShare * 10) / 10;
-    if (back > 0 && from.hp > 0) {
-      from.hp = Math.round(Math.max(0, from.hp - back) * 10) / 10;
-      from.taken += back;
-      fight.events.push({ kind: 'damage', uid: from.uid, amount: back, source: 'riposte' });
-      say(fight, `${target.name} turns ${back} of it back`, { uid: from.uid });
-      checkDown(fight, from);
-    }
+  if (target.hp <= 0) {
+    target.hp = 0;
+    fight.events.push({ kind: 'down', uid: target.uid });
+    say(fight, `${target.name} is out`, { side: target.side });
   }
-
-  checkDown(fight, target);
   return dealt;
 }
 
 export function heal(fight, target, amount) {
   if (target.hp <= 0) return 0;
-  const given = Math.round(Math.min(amount, target.maxHp - target.hp) * 10) / 10;
+  const given = Math.min(amount, target.maxHp - target.hp);
   if (given <= 0) return 0;
   target.hp = Math.round((target.hp + given) * 10) / 10;
-  target.healed += given;
   fight.events.push({ kind: 'heal', uid: target.uid, amount: given });
   return given;
 }
 
-/** A fighter that has run out, unless it has something to say about that. */
-function checkDown(fight, who) {
-  if (who.hp > 0) return false;
-  const spec = who.spec.ability;
-  if (spec.kind === 'rally' && !who.usedOnce) {
-    who.usedOnce = true;
-    who.hp = Math.round(who.maxHp * spec.share * 10) / 10;
-    who.effects.length = 0;
-    fight.events.push({ kind: 'rally', uid: who.uid });
-    say(fight, `${who.name} gets back up`, { uid: who.uid });
-    return false;
-  }
-  who.hp = 0;
-  who.charge = 0;
-  fight.events.push({ kind: 'down', uid: who.uid });
-  say(fight, `${who.name} is done`, { uid: who.uid });
-  return true;
+/* ---------------------------------------------------------------- motion */
+
+const speedOf = (b) => Math.hypot(b.vx, b.vy);
+
+function setSpeed(b, speed) {
+  const now = speedOf(b) || 1;
+  b.vx = (b.vx / now) * speed;
+  b.vy = (b.vy / now) * speed;
 }
 
-/* ----------------------------------------------------------- the actions */
+/** Moves one ball: lean towards the other, keep cruising, stay in the box. */
+export function move(who, foe, dt) {
+  if (foe) {
+    const dx = foe.x - who.x;
+    const dy = foe.y - who.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    who.vx += (dx / dist) * CRUISE * HOMING * dt;
+    who.vy += (dy / dist) * CRUISE * HOMING * dt;
+  }
+  setSpeed(who, CRUISE);
+  who.x += who.vx * dt;
+  who.y += who.vy * dt;
 
-/**
- * Everything a fighter can do with its go. A fighter names one of these and
- * supplies the numbers; adding a new one is adding a key, which is what makes
- * the roster replaceable without touching the fight.
- */
-export const ABILITIES = {
-  /** One much bigger hit. */
-  strike(fight, me, foe, spec) {
-    const amount = rollDamage(fight, me, foe, spec.multiplier);
-    hurt(fight, foe, amount, { from: me });
-    return `${me.name} opens ${foe.name} up for ${amount}`;
-  },
-
-  /** Several small ones, which guard eats into far more. */
-  flurry(fight, me, foe, spec) {
-    let total = 0;
-    for (let i = 0; i < spec.hits && foe.hp > 0; i += 1) {
-      total += hurt(fight, foe, rollDamage(fight, me, foe, 0.55), { from: me });
-    }
-    return `${me.name} rattles off ${spec.hits} for ${Math.round(total * 10) / 10}`;
-  },
-
-  /** Hits, and keeps most of it. */
-  drain(fight, me, foe, spec) {
-    const dealt = hurt(fight, foe, rollDamage(fight, me, foe, spec.multiplier), { from: me });
-    const kept = heal(fight, me, dealt * spec.share);
-    return `${me.name} takes ${dealt} and keeps ${Math.round(kept * 10) / 10}`;
-  },
-
-  /** Damage that arrives later, and does not care about guard. */
-  poison(fight, me, foe, spec) {
-    foe.effects.push({ kind: 'poison', damage: spec.damage, left: spec.ticks, interval: spec.interval, next: spec.interval, from: me });
-    return `${me.name} sets ${foe.name} rotting`;
-  },
-
-  /** Heals the worst off, the ones waiting included. */
-  mend(fight, me, foe, spec) {
-    const side = fight.sides[me.side];
-    const pool = spec.bench ? side.team : [me];
-    const hurtOnes = pool.filter((f) => f.hp > 0 && f.hp < f.maxHp);
-    if (hurtOnes.length === 0) return `${me.name} has nobody to patch up`;
-    const worst = hurtOnes.reduce((low, f) => (f.hp / f.maxHp < low.hp / low.maxHp ? f : low));
-    const given = heal(fight, worst, spec.amount);
-    return `${me.name} patches ${worst === me ? 'itself' : worst.name} for ${Math.round(given * 10) / 10}`;
-  },
-
-  /** Takes less for a while. */
-  brace(fight, me, foe, spec) {
-    me.brace = spec.guard;
-    me.braceLeft = spec.duration;
-    return `${me.name} digs in`;
-  },
-
-  /** Sends part of what it takes straight back. */
-  riposte(fight, me, foe, spec) {
-    me.riposte = spec.duration;
-    me.riposteShare = spec.share;
-    return `${me.name} squares up - hitting it will cost you`;
-  },
-
-  /** Empties their bar, so whatever was coming is not coming yet. */
-  stall(fight, me, foe, spec) {
-    const lost = Math.min(foe.charge, spec.drain);
-    foe.charge -= lost;
-    // It hits as well. A go spent purely on tempo loses the damage race, and
-    // the first version of Halt won one fight in eight because of it.
-    const amount = rollDamage(fight, me, foe, spec.multiplier ?? 1);
-    hurt(fight, foe, amount, { from: me });
-    return `${me.name} holds ${foe.name} up and hits for ${amount}`;
-  },
-
-  /**
-   * Never runs. A rally is not something a fighter spends a go on - it happens
-   * in `checkDown`, the first time it would go down. It is listed here so the
-   * roster check still finds a kind it knows, and so nothing has to special
-   * case a fighter whose whole trick is passive.
-   *
-   * Giving it a go of its own was the first version, and it meant the fighter
-   * spent its second life on an attack and then stayed down the one time it
-   * mattered. It won none of its fights.
-   */
-  rally(fight, me, foe) {
-    const amount = rollDamage(fight, me, foe);
-    hurt(fight, foe, amount, { from: me });
-    return `${me.name} hits for ${amount}`;
-  },
-};
-
-/** The plain hit a fighter makes when its ability is not charged. */
-function basicHit(fight, me, foe) {
-  const amount = rollDamage(fight, me, foe);
-  hurt(fight, foe, amount, { from: me });
-  say(fight, `${me.name} hits ${foe.name} for ${amount}`, { uid: foe.uid, side: me.side });
+  const r = who.radius;
+  if (who.x < BOX.x + r) { who.x = BOX.x + r; who.vx = Math.abs(who.vx); }
+  if (who.x > BOX.x + BOX.w - r) { who.x = BOX.x + BOX.w - r; who.vx = -Math.abs(who.vx); }
+  if (who.y < BOX.y + r) { who.y = BOX.y + r; who.vy = Math.abs(who.vy); }
+  if (who.y > BOX.y + BOX.h - r) { who.y = BOX.y + BOX.h - r; who.vy = -Math.abs(who.vy); }
 }
 
 /**
- * One fighter's go. The ability lands every `charge` acts; the rest are plain
- * hits, so a fighter with a cheap ability is doing its special thing most of
- * the time and an expensive one is mostly punching.
+ * Two balls meeting: they bounce apart, and each takes damage. The one that
+ * was moving into the other more takes less, so a clean hit beats being hit,
+ * but every bump costs both of them something.
  */
-export function takeTurn(fight, me) {
-  const foe = frontOf(fight, other(me.side));
-  if (!foe || me.hp <= 0) return;
-  me.acts += 1;
-  const spec = me.spec.ability;
-  const due = spec.charge > 0 && me.acts % spec.charge === 0;
-  // A `passive` ability is never spent on a go - something else watches for it.
-  const canFire = due && !spec.passive && !(spec.once && me.usedOnce);
+export function bump(fight, a, b) {
+  let dx = b.x - a.x;
+  let dy = b.y - a.y;
+  let dist = Math.hypot(dx, dy);
+  if (dist < 1e-6) { dx = 1; dy = 0; dist = 1; }
+  const nx = dx / dist;
+  const ny = dy / dist;
 
-  if (!canFire) {
-    basicHit(fight, me, foe);
-    return;
+  const approachA = Math.max(0, a.vx * nx + a.vy * ny);
+  const approachB = Math.max(0, -(b.vx * nx + b.vy * ny));
+
+  // Push apart and reflect both along the line between them.
+  const gap = a.radius + b.radius - dist;
+  if (gap > 0) {
+    a.x -= nx * gap / 2; a.y -= ny * gap / 2;
+    b.x += nx * gap / 2; b.y += ny * gap / 2;
   }
-  const run = ABILITIES[spec.kind];
-  if (!run) throw new Error(`${me.name} has an unknown ability: ${spec.kind}`);
-  if (spec.once) me.usedOnce = true;
-  const line = run(fight, me, foe, spec);
-  fight.events.push({ kind: 'ability', uid: me.uid, name: spec.name, side: me.side });
-  say(fight, line, { side: me.side, ability: spec.name });
+  const va = a.vx * nx + a.vy * ny;
+  const vb = b.vx * nx + b.vy * ny;
+  a.vx += (vb - va) * nx; a.vy += (vb - va) * ny;
+  b.vx += (va - vb) * nx; b.vy += (va - vb) * ny;
+  setSpeed(a, CRUISE);
+  setSpeed(b, CRUISE);
+
+  if (a.hitLock > 0 || b.hitLock > 0) return null;
+  a.hitLock = HIT_LOCK;
+  b.hitLock = HIT_LOCK;
+
+  const total = approachA + approachB || 1;
+  const pressure = pressureAt(fight.time);
+  const roll = () => 1 - BUMP_SPREAD + fight.random() * BUMP_SPREAD * 2;
+  const share = (approach) => clamp(approach / total, 0.25, 0.75) * 2;
+  const toB = BUMP_DAMAGE * share(approachA) * roll() * pressure * fight.sides[a.side].scale;
+  const toA = BUMP_DAMAGE * share(approachB) * roll() * pressure * fight.sides[b.side].scale;
+
+  const x = (a.x + b.x) / 2;
+  const y = (a.y + b.y) / 2;
+  fight.sinceBump = 0;
+  fight.events.push({ kind: 'bump', x, y });
+  hurt(fight, b, toB, { from: a });
+  hurt(fight, a, toA, { from: b });
+  return { toA, toB };
 }
 
-/* ---------------------------------------------------------------- ticking */
-
-function tickEffects(fight, who, dt) {
-  if (who.hp <= 0) return;
-  for (const effect of who.effects) {
-    effect.next -= dt;
-    if (effect.next > 0) continue;
-    effect.next += effect.interval;
-    effect.left -= 1;
-    if (effect.kind === 'poison') {
-      hurt(fight, who, effect.damage * pressureAt(fight.time), { from: effect.from, kind: 'poison' });
-    }
-  }
-  who.effects = who.effects.filter((effect) => effect.left > 0);
-}
-
-function tickWindows(who, dt) {
-  if (who.braceLeft > 0) {
-    who.braceLeft -= dt;
-    if (who.braceLeft <= 0) who.brace = 0;
-  }
-  if (who.riposte > 0) {
-    who.riposte -= dt;
-    if (who.riposte <= 0) who.riposteShare = 0;
-  }
-}
-
-/** Brings the next one in when the front fighter is done. */
+/** Brings the next of a three into the box once the one in it is out. */
 function sendNext(fight, side) {
   const lane = fight.sides[side];
   while (lane.front < lane.team.length && lane.team[lane.front].hp <= 0) lane.front += 1;
   const next = frontOf(fight, side);
   if (next && !next.entered) {
-    next.entered = true;
+    place(fight, next);
+    fight.sinceBump = 0;
     fight.events.push({ kind: 'enter', uid: next.uid, side });
-    say(fight, `${next.name} steps up`, { side, uid: next.uid });
+    say(fight, `${next.name} steps in`, { side });
   }
-  return next;
 }
 
 export function stepFight(fight, dt) {
   if (fight.over) return fight;
   fight.events.length = 0;
-
   let left = dt;
   while (left > 1e-9 && !fight.over) {
     const slice = Math.min(left, MAX_SUB_STEP);
     left -= slice;
     fight.time += slice;
 
-    for (const side of ['a', 'b']) {
-      for (const who of fight.sides[side].team) {
-        tickWindows(who, slice);
-        tickEffects(fight, who, slice);
-      }
-    }
-
     for (const side of ['a', 'b']) sendNext(fight, side);
     if (checkOver(fight)) break;
 
-    // Bars fill, and whoever fills first goes first. Ties are broken by speed
-    // and then by the coin, so no seat is quietly better than the other.
-    const fighters = ['a', 'b'].map((side) => frontOf(fight, side)).filter(Boolean);
-    for (const who of fighters) {
-      if (who.hp <= 0) continue;
-      who.charge += who.speed * BASE_TEMPO * slice;
+    const a = frontOf(fight, 'a');
+    const b = frontOf(fight, 'b');
+    for (const who of [a, b]) who.hitLock = Math.max(0, who.hitLock - slice);
+
+    // Break an orbit: point both straight at each other.
+    fight.sinceBump += slice;
+    if (fight.sinceBump > STALL_AFTER) {
+      for (const [who, foe] of [[a, b], [b, a]]) {
+        const d = Math.hypot(foe.x - who.x, foe.y - who.y) || 1;
+        who.vx = ((foe.x - who.x) / d) * CRUISE;
+        who.vy = ((foe.y - who.y) / d) * CRUISE;
+      }
+      fight.sinceBump = 0;
     }
-    const acting = fighters
-      .filter((who) => who.hp > 0 && who.charge >= CHARGE_FULL)
-      .sort((x, y) => (y.charge - x.charge) || (y.speed - x.speed) || (fight.random() - 0.5));
-    for (const who of acting) {
-      if (who.hp <= 0 || fight.over) continue;
-      who.charge -= CHARGE_FULL;
-      takeTurn(fight, who);
-      for (const side of ['a', 'b']) sendNext(fight, side);
-      if (checkOver(fight)) break;
-    }
+    move(a, b, slice);
+    move(b, a, slice);
+    if (Math.hypot(b.x - a.x, b.y - a.y) <= a.radius + b.radius) bump(fight, a, b);
+    if (checkOver(fight)) break;
   }
   return fight;
 }
 
-/** The share of a side's health still on its feet, bench included. */
 export function healthShare(side) {
   const total = side.team.reduce((sum, f) => sum + f.maxHp, 0);
   const left = side.team.reduce((sum, f) => sum + Math.max(0, f.hp), 0);
   return total > 0 ? left / total : 0;
 }
 
+/** Fighters still standing, counted - used to settle a fight on the clock. */
+const alive = (side) => side.team.filter((f) => f.hp > 0).length;
+
 export function checkOver(fight) {
   if (fight.over) return fight.over;
   const aOut = isBeaten(fight.sides.a);
   const bOut = isBeaten(fight.sides.b);
-  if (aOut && bOut) fight.over = { winner: 'draw', reason: 'you both ran out together' };
+  if (aOut && bOut) fight.over = { winner: 'draw', reason: 'both out at once' };
   else if (bOut) fight.over = { winner: 'a', reason: 'nobody left to send' };
   else if (aOut) fight.over = { winner: 'b', reason: 'nobody left to send' };
   else if (fight.time >= fight.limit) {
-    const mine = healthShare(fight.sides.a);
-    const theirs = healthShare(fight.sides.b);
-    if (Math.abs(mine - theirs) < 1e-9) fight.over = { winner: 'draw', reason: 'time, and nothing in it' };
-    else fight.over = { winner: mine > theirs ? 'a' : 'b', reason: 'time - more left standing' };
+    // Counted fighters first, so Sans on his one health is not a free loss.
+    const diff = alive(fight.sides.a) - alive(fight.sides.b)
+      || healthShare(fight.sides.a) - healthShare(fight.sides.b);
+    fight.over = Math.abs(diff) < 1e-9
+      ? { winner: 'draw', reason: 'time, and nothing in it' }
+      : { winner: diff > 0 ? 'a' : 'b', reason: 'time - more left standing' };
   }
   if (fight.over) fight.events.push({ kind: 'over', ...fight.over });
   return fight.over;
 }
 
-/** Runs a whole fight with no screen attached. The balance work lives on this. */
 export function runFight(fight, step = 1 / 30) {
   let guard = 0;
-  while (!fight.over && guard < 100000) {
-    stepFight(fight, step);
-    guard += 1;
-  }
+  while (!fight.over && guard < 100000) { stepFight(fight, step); guard += 1; }
   return fight.over || checkOver(fight);
 }
-
-export { clamp };
