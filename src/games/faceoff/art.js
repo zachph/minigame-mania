@@ -101,6 +101,12 @@ export function drawStatus(ctx, who, x, y, align = 'left') {
     ctx.fillStyle = '#9be8ff';
     ctx.fillText(`dodges left ${who.dodgesLeft}`, left, y + 20);
   }
+  const ability = who.spec.ability;
+  if (ability?.kind === 'regen') {
+    ctx.font = `bold 12px ${FONT}`;
+    ctx.fillStyle = '#8f8';
+    ctx.fillText(`heals in ${Math.ceil(Math.max(0, ability.every - who.regenTimer))}s`, left, y + 20);
+  }
   ctx.restore();
 }
 

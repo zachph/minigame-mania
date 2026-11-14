@@ -15312,7 +15312,11 @@ const FIGHTERS = [
     id: 'gojo', name: 'Gojo', colour: '#9fd8ff', shade: '#2a5d8a',
     ability: { kind: 'infinity', name: 'Infinity', range: 110, slow: 0.5 },
   }),
-  fighter({ id: 'sukuna', name: 'Sukuna', colour: '#ff7a7a', shade: '#7a1e2a' }),
+  // Heals a quarter of his health every 15 seconds he spends in the box.
+  fighter({
+    id: 'sukuna', name: 'Sukuna', colour: '#ff7a7a', shade: '#7a1e2a',
+    ability: { kind: 'regen', name: 'Reverse Cursed Technique', share: 0.25, every: 15 },
+  }),
   // 1 health, but the first 24 attacks that reach him miss. The 25th does not.
   fighter({ id: 'sans', name: 'Sans', hp: 1, dodges: 24, colour: '#e8eef8', shade: '#5a6a8a' }),
   fighter({ id: 'ralsei', name: 'Ralsei', colour: '#7ee08a', shade: '#2a6a3a' }),
@@ -15416,6 +15420,7 @@ function makeFighter(id, { slot = 0, side = 'a' } = {}) {
     mass: 1,
     x: 0, y: 0, vx: 0, vy: 0,
     hitLock: 0,
+    regenTimer: 0,     // seconds towards the next heal, for a fighter that has one
     dealt: 0,
     taken: 0,
     dodged: 0,
@@ -15591,9 +15596,40 @@ function bump(fight, a, b) {
   const y = (a.y + b.y) / 2;
   fight.sinceBump = 0;
   fight.events.push({ kind: 'bump', x, y });
-  hurt(fight, b, toB, { from: a });
-  hurt(fight, a, toA, { from: b });
+
+  // Whoever was moving in harder lands first, and a fighter knocked out by
+  // that never gets its hit in. Landing both at once let two even fighters
+  // knock each other out on the same bump, and nearly half of even fights
+  // ended in a draw that way.
+  const aFirst = approachA > approachB || (approachA === approachB && fight.random() < 0.5);
+  const [first, second, toSecond, toFirst] = aFirst ? [a, b, toB, toA] : [b, a, toA, toB];
+  hurt(fight, second, toSecond, { from: first });
+  if (second.hp > 0) hurt(fight, first, toFirst, { from: second });
   return { toA, toB };
+}
+
+/**
+ * Abilities that run on their own clock. Only the two in the box tick - a
+ * fighter waiting on the bench is not doing anything yet.
+ */
+function tickAbilities(fight, who, dt) {
+  const ability = who.spec.ability;
+  if (!ability || who.hp <= 0) return;
+  if (ability.kind === 'regen') {
+    who.regenTimer += dt;
+    if (who.regenTimer >= ability.every) {
+      who.regenTimer -= ability.every;
+      const given = heal(fight, who, who.maxHp * ability.share);
+      if (given > 0) say(fight, `${who.name} heals ${Math.round(given)}`, { side: who.side });
+    }
+  }
+}
+
+/** Seconds until a regen fighter heals next, or null for anyone else. */
+function nextHealIn(who) {
+  const ability = who?.spec.ability;
+  if (!ability || ability.kind !== 'regen') return null;
+  return Math.max(0, ability.every - who.regenTimer);
 }
 
 /** Brings the next of a three into the box once the one in it is out. */
@@ -15623,7 +15659,10 @@ function stepFight(fight, dt) {
 
     const a = frontOf(fight, 'a');
     const b = frontOf(fight, 'b');
-    for (const who of [a, b]) who.hitLock = Math.max(0, who.hitLock - slice);
+    for (const who of [a, b]) {
+      who.hitLock = Math.max(0, who.hitLock - slice);
+      tickAbilities(fight, who, slice);
+    }
 
     // Break an orbit: point both straight at each other.
     fight.sinceBump += slice;
@@ -15677,7 +15716,7 @@ function runFight(fight, step = 1 / 30) {
   return fight.over || checkOver(fight);
 }
 
-  return { makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, hurt, heal, speedFor, inInfinity, move, bump, stepFight, healthShare, checkOver, runFight };
+  return { makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, hurt, heal, speedFor, inInfinity, move, bump, nextHealIn, stepFight, healthShare, checkOver, runFight };
 })();
 
 // ---- src/games/faceoff/heads.js ----------------------------------
@@ -16244,6 +16283,12 @@ function drawStatus(ctx, who, x, y, align = 'left') {
     ctx.font = `bold 12px ${FONT}`;
     ctx.fillStyle = '#9be8ff';
     ctx.fillText(`dodges left ${who.dodgesLeft}`, left, y + 20);
+  }
+  const ability = who.spec.ability;
+  if (ability?.kind === 'regen') {
+    ctx.font = `bold 12px ${FONT}`;
+    ctx.fillStyle = '#8f8';
+    ctx.fillText(`heals in ${Math.ceil(Math.max(0, ability.every - who.regenTimer))}s`, left, y + 20);
   }
   ctx.restore();
 }
