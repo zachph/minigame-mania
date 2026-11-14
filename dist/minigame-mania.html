@@ -1422,6 +1422,94 @@ kbd {
 
 .sc-home-foot { display: flex; align-items: center; justify-content: space-between; gap: 1em; margin-top: auto; }
 .sc-home-note { margin: 0; color: var(--muted); font-size: 0.8em; }
+
+/* ------------------------------------------------------------- Faceoff */
+
+.fo-select {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  padding: 0.9em 1.3em;
+  overflow: auto;
+  background: rgba(10, 15, 28, 0.9);
+  pointer-events: auto;
+}
+.fo-select-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1em; }
+.fo-select-title h2 { margin: 0; font-size: 1.45em; }
+.fo-select-title p { margin: 0.2em 0 0; color: var(--muted); font-size: 0.82em; max-width: 44ch; }
+.fo-modes { display: flex; gap: 0.4em; flex-shrink: 0; }
+.fo-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 11em;
+  padding: 0.45em 0.7em;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fo-mode strong { font-size: 0.9em; color: var(--text); }
+.fo-mode span { font-size: 0.68em; line-height: 1.25; }
+.fo-mode.is-active { border-color: var(--accent); background: rgba(255, 209, 102, 0.12); }
+
+.fo-lineup { display: flex; gap: 0.45em; }
+.fo-slot {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0.35em 0.7em;
+  border-radius: 9px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: default;
+}
+.fo-slot.is-filled {
+  border-style: solid;
+  border-color: var(--who);
+  background: color-mix(in srgb, var(--who) 14%, transparent);
+  cursor: pointer;
+}
+.fo-slot-no { font-size: 0.65em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.fo-slot strong { font-size: 0.95em; }
+
+.fo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.45em; }
+.fo-card {
+  display: flex;
+  gap: 0.55em;
+  padding: 0.5em 0.6em;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fo-card:hover { background: rgba(255, 255, 255, 0.09); }
+.fo-card.is-picked { border-color: var(--accent); background: rgba(255, 209, 102, 0.13); }
+.fo-portrait { flex-shrink: 0; }
+.fo-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15em; }
+.fo-card-name { display: flex; align-items: baseline; justify-content: space-between; gap: 0.4em; }
+.fo-card-name strong { font-size: 0.95em; }
+.fo-card-place { font-size: 0.72em; color: var(--accent); font-weight: 700; }
+.fo-card-blurb { margin: 0; color: var(--muted); font-size: 0.7em; line-height: 1.3; }
+.fo-stats { display: grid; gap: 1px; }
+.fo-stat { display: flex; align-items: center; gap: 0.35em; font-size: 0.62em; }
+.fo-stat-label { width: 3.4em; color: var(--muted); }
+.fo-stat-track { flex: 1; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); }
+.fo-stat-fill { display: block; height: 100%; border-radius: 2px; background: var(--accent); }
+.fo-card-ability { margin: 0.1em 0 0; font-size: 0.68em; color: #ffd166; }
+
+.fo-select-foot { display: flex; align-items: center; justify-content: space-between; gap: 1em; margin-top: auto; }
+.fo-hint { margin: 0; color: var(--muted); font-size: 0.78em; }
+.fo-select-foot .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -15169,6 +15257,1535 @@ registerGame({
     'Climb the <strong>ladder</strong> of six opponents keeping your health between rounds, or play <strong>two on one keyboard</strong> for a best of three.',
   ],
   create: createBumpers,
+});
+
+  return {  };
+})();
+
+// ---- src/games/faceoff/content.js --------------------------------
+__modules["src/games/faceoff/content.js"] = (function () {
+/**
+ * Faceoff: nine fighters, and the three ways to use them.
+ *
+ * You pick three and send them out one at a time. The one in front fights
+ * theirs; when it falls the next of yours walks in. You do not steer any of it
+ * - the picks and the order are the whole decision, and then you watch.
+ *
+ * Every fighter below is a placeholder, standing in until the real nine
+ * arrive. A fighter is data and one ability kind from `ABILITIES` in
+ * `battle.js`, so replacing one is an edit to this file alone.
+ */
+
+/* ------------------------------------------------------------ the clock */
+
+/**
+ * Nobody takes turns. Each fighter fills a bar at its own speed and acts when
+ * it is full, so a fast fighter simply gets more goes - and you can watch it
+ * happen rather than being told whose turn it is.
+ */
+const CHARGE_FULL = 100;
+/**
+ * Everything below is quoted at this pace. Raising it and shortening every
+ * duration by the same factor makes a fight play out sooner without changing
+ * a single outcome; raising damage instead broke half the roster, because a
+ * poison that needs eight seconds is worthless in a fight that lasts six.
+ */
+const BASE_TEMPO = 27.5; // charge per second at speed 1
+
+/* ---------------------------------------------------------- the fighters */
+
+/**
+ * Health and attack below are not hand-picked: they came out of a tuner that
+ * fought every pairing thousands of times and nudged each fighter towards
+ * winning half of them, which settled with nobody more than three points off.
+ * Individual matchups are still lopsided on purpose - that is what makes
+ * choosing three of nine a decision rather than a formality.
+ */
+const fighter = (spec) => ({ hp: 100, attack: 12.0, speed: 5, guard: 0.0, ...spec });
+
+const FIGHTERS = [
+  fighter({
+    id: 'bulwark',
+    name: 'Bulwark',
+    title: 'the one that will not fall',
+    hp: 142,
+    attack: 8.2,
+    speed: 4,
+    guard: 5.0,
+    colour: '#9fb4e8',
+    shade: '#2d3f70',
+    ability: { kind: 'brace', name: 'Dig In', charge: 3, guard: 9.0, duration: 2.4 },
+    blurb: 'Slow, heavy, and takes a quarter off everything that hits it.',
+  }),
+  fighter({
+    id: 'edge',
+    name: 'Edge',
+    title: 'the one that ends it early',
+    hp: 93,
+    attack: 17.3,
+    speed: 5,
+    colour: '#ff8b6b',
+    shade: '#7f2f14',
+    ability: { kind: 'strike', name: 'Open Up', charge: 4, multiplier: 2.4 },
+    blurb: 'Hits harder than anything here and folds the moment it is hit back.',
+  }),
+  fighter({
+    id: 'flicker',
+    name: 'Flicker',
+    title: 'the one that goes twice',
+    hp: 107,
+    attack: 7.8,
+    speed: 9,
+    colour: '#ffe07a',
+    shade: '#8a6a10',
+    ability: { kind: 'flurry', name: 'Rattle', charge: 3, hits: 4 },
+    blurb: 'Acts about twice for every one of theirs. Each hit is small; there are a lot of them.',
+  }),
+  fighter({
+    id: 'mender',
+    name: 'Mender',
+    title: 'the one that will not let you lose',
+    hp: 158,
+    attack: 11.1,
+    speed: 5,
+    colour: '#8ef0a8',
+    shade: '#1d6b3c',
+    ability: { kind: 'mend', name: 'Patch', charge: 4, amount: 34.0, bench: true },
+    blurb: 'Heals whoever is worst off - including the ones waiting their turn.',
+  }),
+  fighter({
+    id: 'rot',
+    name: 'Rot',
+    title: 'the one that wins later',
+    hp: 128,
+    attack: 8.8,
+    speed: 5,
+    colour: '#b7e06a',
+    shade: '#41631a',
+    ability: { kind: 'poison', name: 'Wither', charge: 3, damage: 7.0, ticks: 8, interval: 0.44 },
+    blurb: 'Does almost nothing now and keeps doing it until they are gone.',
+  }),
+  fighter({
+    id: 'mirror',
+    name: 'Mirror',
+    title: 'the one you should not hit',
+    hp: 140,
+    attack: 10.3,
+    speed: 5,
+    colour: '#c8a4ff',
+    shade: '#4b2a86',
+    ability: { kind: 'riposte', name: 'Turn It Back', charge: 3, share: 0.8, duration: 3.6 },
+    blurb: 'For a while, most of what you do to it happens to you as well.',
+  }),
+  fighter({
+    id: 'leech',
+    name: 'Leech',
+    title: 'the one that heals off you',
+    hp: 112,
+    attack: 11.7,
+    speed: 6,
+    colour: '#ff9ad5',
+    shade: '#7a2a5e',
+    ability: { kind: 'drain', name: 'Take It', charge: 4, multiplier: 1.5, share: 0.8 },
+    blurb: 'Hits hard and keeps most of it for itself.',
+  }),
+  fighter({
+    id: 'halt',
+    name: 'Halt',
+    title: 'the one that takes their go away',
+    hp: 127,
+    attack: 11.5,
+    speed: 6,
+    colour: '#9be8ff',
+    shade: '#186a86',
+    ability: { kind: 'stall', name: 'Hold', charge: 3, drain: 75, multiplier: 1.15 },
+    blurb: 'Empties their bar. Whatever they were about to do, they are not doing it yet.',
+  }),
+  fighter({
+    id: 'encore',
+    name: 'Encore',
+    title: 'the one that comes back',
+    hp: 101,
+    attack: 10.8,
+    speed: 6,
+    colour: '#ffd166',
+    shade: '#8a6410',
+    ability: { kind: 'rally', name: 'Not Done', charge: 0, share: 0.6, once: true, passive: true },
+    blurb: 'The first time it would go down, it gets back up on a bit over half.',
+  }),
+];
+
+const FIGHTER_BY_ID = new Map(FIGHTERS.map((f) => [f.id, f]));
+const getFighter = (id) => {
+  const found = FIGHTER_BY_ID.get(id);
+  if (!found) throw new Error(`Unknown fighter: ${id}`);
+  return found;
+};
+
+/** How many you take into a fight. */
+const TEAM_SIZE = 3;
+
+/* ------------------------------------------------------------- the modes */
+
+const MODES = [
+  {
+    id: 'sandbox',
+    name: 'Sandbox',
+    blurb: 'Pick both sides and see what happens. Nothing is saved, nothing is lost.',
+  },
+  {
+    id: 'tower',
+    name: 'Tower',
+    blurb: 'Ten floors. Your three carry their wounds up, and only the floors heal you.',
+  },
+  {
+    id: 'story',
+    name: 'Story',
+    blurb: 'Six set fights, each one picked to argue with whatever beat the last.',
+  },
+];
+
+const MODE_BY_ID = new Map(MODES.map((mode) => [mode.id, mode]));
+
+/**
+ * The tower. Each floor names the three it sends and how much stronger they
+ * are than the roster says - the same nine all the way up, hitting harder.
+ */
+const TOWER = [
+  { floor: 1, team: ['flicker', 'mender', 'bulwark'], scale: 0.8, name: 'The easy ones' },
+  { floor: 2, team: ['edge', 'flicker', 'leech'], scale: 0.9, name: 'Quick and sharp' },
+  { floor: 3, team: ['bulwark', 'mirror', 'mender'], scale: 1.0, name: 'The wall' },
+  { floor: 4, team: ['rot', 'halt', 'mender'], scale: 1.05, name: 'The long game' },
+  { floor: 5, team: ['edge', 'edge', 'flicker'], scale: 1.1, name: 'Two of the worst one' },
+  { floor: 6, team: ['mirror', 'leech', 'encore'], scale: 1.15, name: 'Everything comes back' },
+  { floor: 7, team: ['halt', 'edge', 'bulwark'], scale: 1.2, name: 'Held down' },
+  { floor: 8, team: ['rot', 'mirror', 'bulwark'], scale: 1.25, name: 'Nothing lands' },
+  { floor: 9, team: ['encore', 'leech', 'halt'], scale: 1.3, name: 'The long way down' },
+  { floor: 10, team: ['edge', 'mirror', 'encore'], scale: 1.4, name: 'The top' },
+];
+
+/** Health handed back between floors, as a share of what was lost. */
+const TOWER_RECOVERY = 0.4;
+
+/**
+ * The story. Each chapter answers the one before it: beat a wall with poison
+ * and the next fight punishes patience, and so on.
+ */
+const STORY = [
+  {
+    id: 'first',
+    name: 'Someone has to go first',
+    team: ['flicker', 'edge', 'mender'],
+    scale: 0.85,
+    before: 'Three of them, three of yours, and no reason yet to think it matters which.',
+    after: 'It mattered. Now they have seen you fight.',
+  },
+  {
+    id: 'wall',
+    name: 'The wall',
+    team: ['bulwark', 'bulwark', 'mender'],
+    scale: 1,
+    before: 'Nothing here is quick. Everything here is still standing.',
+    after: 'Big health bars are a problem you solve once.',
+  },
+  {
+    id: 'clock',
+    name: 'Against the clock',
+    team: ['rot', 'rot', 'halt'],
+    scale: 1.05,
+    before: 'They have decided not to beat you. They have decided to wait.',
+    after: 'You beat the waiting. Someone noticed.',
+  },
+  {
+    id: 'mirror',
+    name: 'Your own answer',
+    team: ['mirror', 'mirror', 'encore'],
+    scale: 1.1,
+    before: 'Whatever you did to get here, this is the fight that does it back.',
+    after: 'Hitting harder was not the answer. You found that out.',
+  },
+  {
+    id: 'swarm',
+    name: 'Faster than you',
+    team: ['flicker', 'flicker', 'leech'],
+    scale: 1.2,
+    before: 'Three goes to your one, and all of them small.',
+    after: 'Small hits add up. So do yours.',
+  },
+  {
+    id: 'last',
+    name: 'The one that has been watching',
+    team: ['edge', 'mirror', 'encore'],
+    scale: 1.35,
+    before: 'It picked these three after watching every fight you have had.',
+    after: 'Nothing left to argue with.',
+  },
+];
+
+/** Health handed back between chapters, as a share of what was lost. */
+const STORY_RECOVERY = 0.6;
+
+/**
+ * How much a hit wanders either side of its average.
+ *
+ * Without this every fight is settled before it starts: the same two fighters
+ * play out the same way every single time, and a game you watch is pointless
+ * if you already know the ending. Enough to make a fight worth watching, not
+ * so much that picking well stops mattering.
+ */
+const DAMAGE_SPREAD = 0.2;
+
+/** Nobody starts with an empty bar, so who moves first is not fixed either. */
+const OPENING_CHARGE = 0.5;
+
+/**
+ * Past this point every hit starts landing harder, and keeps getting harder.
+ *
+ * Two fighters who both heal can otherwise stand there all day, and about one
+ * fight in six was being settled by the bell rather than by anyone winning.
+ * This makes a long fight get tense instead of getting boring, and means the
+ * clock below is a backstop almost nothing reaches.
+ */
+const PRESSURE_FROM = 22;   // seconds of grace before it starts
+const PRESSURE_RATE = 0.07; // extra share of damage per second after
+
+/**
+ * A fight that drags is a fight nobody is watching. At these numbers nine in
+ * ten finish inside about forty seconds on their own, so the clock is a
+ * backstop rather than a way of winning.
+ */
+const FIGHT_LIMIT = 70;   // seconds before it is called on health left
+
+  return { CHARGE_FULL, BASE_TEMPO, FIGHTERS, FIGHTER_BY_ID, getFighter, TEAM_SIZE, MODES, MODE_BY_ID, TOWER, TOWER_RECOVERY, STORY, STORY_RECOVERY, DAMAGE_SPREAD, OPENING_CHARGE, PRESSURE_FROM, PRESSURE_RATE, FIGHT_LIMIT };
+})();
+
+// ---- src/games/faceoff/battle.js ---------------------------------
+__modules["src/games/faceoff/battle.js"] = (function () {
+  const { clamp } = __modules["src/core/utils.js"];
+  const { BASE_TEMPO, CHARGE_FULL, DAMAGE_SPREAD, FIGHT_LIMIT, OPENING_CHARGE, PRESSURE_FROM, PRESSURE_RATE, getFighter } = __modules["src/games/faceoff/content.js"];
+
+/**
+ * A Faceoff fight, with no idea that a screen exists.
+ *
+ * Nobody takes turns. Every fighter fills a bar at its own speed and acts the
+ * moment it is full, which is why speed is worth more here than anywhere else
+ * in the collection: a Flicker simply gets more goes than a Bulwark.
+ *
+ * Only the front fighter of each side is in it. When one falls the next of
+ * that three walks in, and a side is beaten when it has nobody left to send.
+ *
+ * `stepFight` is the whole thing. Hand it a fight and a timestep and it
+ * advances; hand it the same seed twice and it plays out identically, which is
+ * what lets a few thousand of them settle the balance.
+ */
+
+const MAX_SUB_STEP = 1 / 30;
+
+/* ---------------------------------------------------------- the fighters */
+
+/**
+ * One fighter, ready to fight. `scale` lifts the numbers for the later floors
+ * of the tower without needing nine more entries in the roster.
+ */
+function makeFighter(id, { scale = 1, slot = 0, side = 'a' } = {}) {
+  const spec = getFighter(id);
+  const hp = Math.round(spec.hp * scale);
+  return {
+    uid: `${side}${slot}-${id}`,
+    id,
+    side,
+    slot,
+    spec,
+    name: spec.name,
+    maxHp: hp,
+    hp,
+    attack: spec.attack * scale,
+    speed: spec.speed,
+    guard: spec.guard || 0,
+    charge: 0,
+    ready: 0,          // how many times its ability is charged
+    acts: 0,           // goes taken, which is what `ready` counts towards
+    effects: [],       // poison and the like, each ticking on its own clock
+    brace: 0,          // seconds of extra guard left
+    riposte: 0,        // seconds of hitting back left
+    riposteShare: 0,
+    usedOnce: false,   // for the abilities that only ever happen once
+    dealt: 0,
+    taken: 0,
+    healed: 0,
+  };
+}
+
+function makeTeam(ids, { scale = 1, side = 'a' } = {}) {
+  return ids.map((id, slot) => makeFighter(id, { scale, slot, side }));
+}
+
+/* ------------------------------------------------------------- the fight */
+
+function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random, limit = FIGHT_LIMIT } = {}) {
+  return openBars({
+    random,
+    limit,
+    time: 0,
+    sides: {
+      a: { team: makeTeam(a, { scale: scaleA, side: 'a' }), front: 0 },
+      b: { team: makeTeam(b, { scale: scaleB, side: 'b' }), front: 0 },
+    },
+    log: [],
+    events: [],      // one step's worth of things worth drawing
+    over: null,      // { winner: 'a' | 'b' | 'draw', reason }
+  });
+}
+
+/** Starts the two front fighters part way up their bars, by chance. */
+function openBars(fight) {
+  for (const side of ['a', 'b']) {
+    const who = frontOf(fight, side);
+    if (who) who.charge = fight.random() * CHARGE_FULL * OPENING_CHARGE;
+  }
+  return fight;
+}
+
+const other = (side) => (side === 'a' ? 'b' : 'a');
+const frontOf = (fight, side) => fight.sides[side].team[fight.sides[side].front] || null;
+const standing = (side) => side.team.filter((f) => f.hp > 0);
+const isBeaten = (side) => side.team.every((f) => f.hp <= 0);
+
+const say = (fight, text, extra = {}) => {
+  fight.log.push({ at: fight.time, text, ...extra });
+  if (fight.log.length > 60) fight.log.shift();
+  fight.events.push({ kind: 'say', text, ...extra });
+};
+
+/* -------------------------------------------------------------- damage */
+
+/**
+ * What one hit takes off. Guard is flat rather than a percentage so a heavy
+ * defender shrugs off a flurry of small hits and still feels a big one - which
+ * is the whole reason Flicker and Edge are different fighters rather than two
+ * sets of numbers.
+ */
+function damageOf(attacker, defender, multiplier = 1) {
+  const raw = attacker.attack * multiplier;
+  const soaked = defender.guard + defender.brace;
+  return Math.max(1, Math.round((raw - soaked) * 10) / 10);
+}
+
+/**
+ * The same hit, with the wobble on it. `damageOf` is the average and stays
+ * pure so a test can state exactly what a matchup is worth; this is what the
+ * fight actually uses, and it is the reason the same two fighters do not play
+ * out the same way twice.
+ */
+function rollDamage(fight, attacker, defender, multiplier = 1) {
+  const average = damageOf(attacker, defender, multiplier);
+  const swing = 1 - DAMAGE_SPREAD + fight.random() * DAMAGE_SPREAD * 2;
+  return Math.max(1, Math.round(average * swing * pressureAt(fight.time) * 10) / 10);
+}
+
+/** How much harder everything hits by now. One before the grace runs out. */
+const pressureAt = (time) =>
+  1 + Math.max(0, time - PRESSURE_FROM) * PRESSURE_RATE;
+
+/**
+ * Puts damage on a fighter and settles everything that answers it: the riposte
+ * that sends some back, and the rally that refuses to go down. Everything that
+ * can hurt anyone goes through here, so none of those can be stepped around.
+ */
+function hurt(fight, target, amount, { from = null, kind = 'hit' } = {}) {
+  if (target.hp <= 0 || amount <= 0) return 0;
+  const dealt = Math.round(Math.min(amount, target.hp) * 10) / 10;
+  target.hp = Math.round((target.hp - dealt) * 10) / 10;
+  target.taken += dealt;
+  if (from) from.dealt += dealt;
+  fight.events.push({ kind: 'damage', uid: target.uid, amount: dealt, source: kind });
+
+  // Hitting a Mirror is its own decision.
+  if (from && target.riposte > 0 && kind === 'hit') {
+    const back = Math.round(dealt * target.riposteShare * 10) / 10;
+    if (back > 0 && from.hp > 0) {
+      from.hp = Math.round(Math.max(0, from.hp - back) * 10) / 10;
+      from.taken += back;
+      fight.events.push({ kind: 'damage', uid: from.uid, amount: back, source: 'riposte' });
+      say(fight, `${target.name} turns ${back} of it back`, { uid: from.uid });
+      checkDown(fight, from);
+    }
+  }
+
+  checkDown(fight, target);
+  return dealt;
+}
+
+function heal(fight, target, amount) {
+  if (target.hp <= 0) return 0;
+  const given = Math.round(Math.min(amount, target.maxHp - target.hp) * 10) / 10;
+  if (given <= 0) return 0;
+  target.hp = Math.round((target.hp + given) * 10) / 10;
+  target.healed += given;
+  fight.events.push({ kind: 'heal', uid: target.uid, amount: given });
+  return given;
+}
+
+/** A fighter that has run out, unless it has something to say about that. */
+function checkDown(fight, who) {
+  if (who.hp > 0) return false;
+  const spec = who.spec.ability;
+  if (spec.kind === 'rally' && !who.usedOnce) {
+    who.usedOnce = true;
+    who.hp = Math.round(who.maxHp * spec.share * 10) / 10;
+    who.effects.length = 0;
+    fight.events.push({ kind: 'rally', uid: who.uid });
+    say(fight, `${who.name} gets back up`, { uid: who.uid });
+    return false;
+  }
+  who.hp = 0;
+  who.charge = 0;
+  fight.events.push({ kind: 'down', uid: who.uid });
+  say(fight, `${who.name} is done`, { uid: who.uid });
+  return true;
+}
+
+/* ----------------------------------------------------------- the actions */
+
+/**
+ * Everything a fighter can do with its go. A fighter names one of these and
+ * supplies the numbers; adding a new one is adding a key, which is what makes
+ * the roster replaceable without touching the fight.
+ */
+const ABILITIES = {
+  /** One much bigger hit. */
+  strike(fight, me, foe, spec) {
+    const amount = rollDamage(fight, me, foe, spec.multiplier);
+    hurt(fight, foe, amount, { from: me });
+    return `${me.name} opens ${foe.name} up for ${amount}`;
+  },
+
+  /** Several small ones, which guard eats into far more. */
+  flurry(fight, me, foe, spec) {
+    let total = 0;
+    for (let i = 0; i < spec.hits && foe.hp > 0; i += 1) {
+      total += hurt(fight, foe, rollDamage(fight, me, foe, 0.55), { from: me });
+    }
+    return `${me.name} rattles off ${spec.hits} for ${Math.round(total * 10) / 10}`;
+  },
+
+  /** Hits, and keeps most of it. */
+  drain(fight, me, foe, spec) {
+    const dealt = hurt(fight, foe, rollDamage(fight, me, foe, spec.multiplier), { from: me });
+    const kept = heal(fight, me, dealt * spec.share);
+    return `${me.name} takes ${dealt} and keeps ${Math.round(kept * 10) / 10}`;
+  },
+
+  /** Damage that arrives later, and does not care about guard. */
+  poison(fight, me, foe, spec) {
+    foe.effects.push({ kind: 'poison', damage: spec.damage, left: spec.ticks, interval: spec.interval, next: spec.interval, from: me });
+    return `${me.name} sets ${foe.name} rotting`;
+  },
+
+  /** Heals the worst off, the ones waiting included. */
+  mend(fight, me, foe, spec) {
+    const side = fight.sides[me.side];
+    const pool = spec.bench ? side.team : [me];
+    const hurtOnes = pool.filter((f) => f.hp > 0 && f.hp < f.maxHp);
+    if (hurtOnes.length === 0) return `${me.name} has nobody to patch up`;
+    const worst = hurtOnes.reduce((low, f) => (f.hp / f.maxHp < low.hp / low.maxHp ? f : low));
+    const given = heal(fight, worst, spec.amount);
+    return `${me.name} patches ${worst === me ? 'itself' : worst.name} for ${Math.round(given * 10) / 10}`;
+  },
+
+  /** Takes less for a while. */
+  brace(fight, me, foe, spec) {
+    me.brace = spec.guard;
+    me.braceLeft = spec.duration;
+    return `${me.name} digs in`;
+  },
+
+  /** Sends part of what it takes straight back. */
+  riposte(fight, me, foe, spec) {
+    me.riposte = spec.duration;
+    me.riposteShare = spec.share;
+    return `${me.name} squares up - hitting it will cost you`;
+  },
+
+  /** Empties their bar, so whatever was coming is not coming yet. */
+  stall(fight, me, foe, spec) {
+    const lost = Math.min(foe.charge, spec.drain);
+    foe.charge -= lost;
+    // It hits as well. A go spent purely on tempo loses the damage race, and
+    // the first version of Halt won one fight in eight because of it.
+    const amount = rollDamage(fight, me, foe, spec.multiplier ?? 1);
+    hurt(fight, foe, amount, { from: me });
+    return `${me.name} holds ${foe.name} up and hits for ${amount}`;
+  },
+
+  /**
+   * Never runs. A rally is not something a fighter spends a go on - it happens
+   * in `checkDown`, the first time it would go down. It is listed here so the
+   * roster check still finds a kind it knows, and so nothing has to special
+   * case a fighter whose whole trick is passive.
+   *
+   * Giving it a go of its own was the first version, and it meant the fighter
+   * spent its second life on an attack and then stayed down the one time it
+   * mattered. It won none of its fights.
+   */
+  rally(fight, me, foe) {
+    const amount = rollDamage(fight, me, foe);
+    hurt(fight, foe, amount, { from: me });
+    return `${me.name} hits for ${amount}`;
+  },
+};
+
+/** The plain hit a fighter makes when its ability is not charged. */
+function basicHit(fight, me, foe) {
+  const amount = rollDamage(fight, me, foe);
+  hurt(fight, foe, amount, { from: me });
+  say(fight, `${me.name} hits ${foe.name} for ${amount}`, { uid: foe.uid, side: me.side });
+}
+
+/**
+ * One fighter's go. The ability lands every `charge` acts; the rest are plain
+ * hits, so a fighter with a cheap ability is doing its special thing most of
+ * the time and an expensive one is mostly punching.
+ */
+function takeTurn(fight, me) {
+  const foe = frontOf(fight, other(me.side));
+  if (!foe || me.hp <= 0) return;
+  me.acts += 1;
+  const spec = me.spec.ability;
+  const due = spec.charge > 0 && me.acts % spec.charge === 0;
+  // A `passive` ability is never spent on a go - something else watches for it.
+  const canFire = due && !spec.passive && !(spec.once && me.usedOnce);
+
+  if (!canFire) {
+    basicHit(fight, me, foe);
+    return;
+  }
+  const run = ABILITIES[spec.kind];
+  if (!run) throw new Error(`${me.name} has an unknown ability: ${spec.kind}`);
+  if (spec.once) me.usedOnce = true;
+  const line = run(fight, me, foe, spec);
+  fight.events.push({ kind: 'ability', uid: me.uid, name: spec.name, side: me.side });
+  say(fight, line, { side: me.side, ability: spec.name });
+}
+
+/* ---------------------------------------------------------------- ticking */
+
+function tickEffects(fight, who, dt) {
+  if (who.hp <= 0) return;
+  for (const effect of who.effects) {
+    effect.next -= dt;
+    if (effect.next > 0) continue;
+    effect.next += effect.interval;
+    effect.left -= 1;
+    if (effect.kind === 'poison') {
+      hurt(fight, who, effect.damage * pressureAt(fight.time), { from: effect.from, kind: 'poison' });
+    }
+  }
+  who.effects = who.effects.filter((effect) => effect.left > 0);
+}
+
+function tickWindows(who, dt) {
+  if (who.braceLeft > 0) {
+    who.braceLeft -= dt;
+    if (who.braceLeft <= 0) who.brace = 0;
+  }
+  if (who.riposte > 0) {
+    who.riposte -= dt;
+    if (who.riposte <= 0) who.riposteShare = 0;
+  }
+}
+
+/** Brings the next one in when the front fighter is done. */
+function sendNext(fight, side) {
+  const lane = fight.sides[side];
+  while (lane.front < lane.team.length && lane.team[lane.front].hp <= 0) lane.front += 1;
+  const next = frontOf(fight, side);
+  if (next && !next.entered) {
+    next.entered = true;
+    fight.events.push({ kind: 'enter', uid: next.uid, side });
+    say(fight, `${next.name} steps up`, { side, uid: next.uid });
+  }
+  return next;
+}
+
+function stepFight(fight, dt) {
+  if (fight.over) return fight;
+  fight.events.length = 0;
+
+  let left = dt;
+  while (left > 1e-9 && !fight.over) {
+    const slice = Math.min(left, MAX_SUB_STEP);
+    left -= slice;
+    fight.time += slice;
+
+    for (const side of ['a', 'b']) {
+      for (const who of fight.sides[side].team) {
+        tickWindows(who, slice);
+        tickEffects(fight, who, slice);
+      }
+    }
+
+    for (const side of ['a', 'b']) sendNext(fight, side);
+    if (checkOver(fight)) break;
+
+    // Bars fill, and whoever fills first goes first. Ties are broken by speed
+    // and then by the coin, so no seat is quietly better than the other.
+    const fighters = ['a', 'b'].map((side) => frontOf(fight, side)).filter(Boolean);
+    for (const who of fighters) {
+      if (who.hp <= 0) continue;
+      who.charge += who.speed * BASE_TEMPO * slice;
+    }
+    const acting = fighters
+      .filter((who) => who.hp > 0 && who.charge >= CHARGE_FULL)
+      .sort((x, y) => (y.charge - x.charge) || (y.speed - x.speed) || (fight.random() - 0.5));
+    for (const who of acting) {
+      if (who.hp <= 0 || fight.over) continue;
+      who.charge -= CHARGE_FULL;
+      takeTurn(fight, who);
+      for (const side of ['a', 'b']) sendNext(fight, side);
+      if (checkOver(fight)) break;
+    }
+  }
+  return fight;
+}
+
+/** The share of a side's health still on its feet, bench included. */
+function healthShare(side) {
+  const total = side.team.reduce((sum, f) => sum + f.maxHp, 0);
+  const left = side.team.reduce((sum, f) => sum + Math.max(0, f.hp), 0);
+  return total > 0 ? left / total : 0;
+}
+
+function checkOver(fight) {
+  if (fight.over) return fight.over;
+  const aOut = isBeaten(fight.sides.a);
+  const bOut = isBeaten(fight.sides.b);
+  if (aOut && bOut) fight.over = { winner: 'draw', reason: 'you both ran out together' };
+  else if (bOut) fight.over = { winner: 'a', reason: 'nobody left to send' };
+  else if (aOut) fight.over = { winner: 'b', reason: 'nobody left to send' };
+  else if (fight.time >= fight.limit) {
+    const mine = healthShare(fight.sides.a);
+    const theirs = healthShare(fight.sides.b);
+    if (Math.abs(mine - theirs) < 1e-9) fight.over = { winner: 'draw', reason: 'time, and nothing in it' };
+    else fight.over = { winner: mine > theirs ? 'a' : 'b', reason: 'time - more left standing' };
+  }
+  if (fight.over) fight.events.push({ kind: 'over', ...fight.over });
+  return fight.over;
+}
+
+/** Runs a whole fight with no screen attached. The balance work lives on this. */
+function runFight(fight, step = 1 / 30) {
+  let guard = 0;
+  while (!fight.over && guard < 100000) {
+    stepFight(fight, step);
+    guard += 1;
+  }
+  return fight.over || checkOver(fight);
+}
+
+  return { makeFighter, makeTeam, createFight, other, frontOf, standing, isBeaten, damageOf, rollDamage, pressureAt, hurt, heal, ABILITIES, takeTurn, stepFight, healthShare, checkOver, runFight, clamp };
+})();
+
+// ---- src/games/faceoff/select.js ---------------------------------
+__modules["src/games/faceoff/select.js"] = (function () {
+  const { FIGHTERS, MODES, TEAM_SIZE } = __modules["src/games/faceoff/content.js"];
+
+/**
+ * Picking a mode and three fighters, in order.
+ *
+ * The order matters as much as the picks - the first one you name walks out
+ * first and the third only ever fights if the other two have gone - so the
+ * cards show their place in the line rather than just whether they are chosen.
+ */
+
+const el = (tag, className, text) => {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+};
+
+/** A small drawing of the fighter, so you pick by sight as well as by name. */
+function portrait(spec) {
+  const size = 40;
+  const canvas = el('canvas', 'fo-portrait');
+  const ratio = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = size * ratio;
+  canvas.height = size * ratio;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(ratio, ratio);
+  const body = ctx.createLinearGradient(0, 0, 0, size);
+  body.addColorStop(0, spec.colour);
+  body.addColorStop(1, spec.shade);
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.roundRect ? ctx.roundRect(5, 3, size - 10, size - 6, 9) : ctx.rect(5, 3, size - 10, size - 6);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(8, 12, 20, 0.8)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  return canvas;
+}
+
+const STAT_MAX = { hp: 170, attack: 20, speed: 10 };
+const STAT_LABEL = { hp: 'health', attack: 'attack', speed: 'speed' };
+
+function statRow(spec, key) {
+  const row = el('div', 'fo-stat');
+  row.append(el('span', 'fo-stat-label', STAT_LABEL[key]));
+  const track = el('span', 'fo-stat-track');
+  const fill = el('span', 'fo-stat-fill');
+  fill.style.width = `${Math.min(100, (spec[key] / STAT_MAX[key]) * 100)}%`;
+  track.append(fill);
+  row.append(track);
+  return row;
+}
+
+class SelectPanel {
+  constructor(container, { onStart }) {
+    this.onStart = onStart;
+    this.mode = 'sandbox';
+    this.picked = [];
+
+    this.root = el('div', 'fo-select');
+    container.append(this.root);
+
+    const head = el('div', 'fo-select-head');
+    const title = el('div', 'fo-select-title');
+    title.append(el('h2', null, 'Faceoff'));
+    title.append(el('p', null, 'Pick three. They go out one at a time, in the order you name them, and you watch.'));
+    head.append(title);
+
+    this.modes = el('div', 'fo-modes');
+    for (const mode of MODES) {
+      const button = el('button', 'fo-mode');
+      button.type = 'button';
+      button.dataset.mode = mode.id;
+      button.append(el('strong', null, mode.name));
+      button.append(el('span', null, mode.blurb));
+      button.addEventListener('click', () => { this.mode = mode.id; this.render(); });
+      this.modes.append(button);
+    }
+    head.append(this.modes);
+    this.root.append(head);
+
+    this.lineup = el('div', 'fo-lineup');
+    this.root.append(this.lineup);
+
+    this.grid = el('div', 'fo-grid');
+    for (const spec of FIGHTERS) {
+      const card = el('button', 'fo-card');
+      card.type = 'button';
+      card.dataset.id = spec.id;
+      card.append(portrait(spec));
+      const body = el('div', 'fo-card-body');
+      const name = el('div', 'fo-card-name');
+      name.append(el('strong', null, spec.name));
+      name.append(el('span', 'fo-card-place', ''));
+      body.append(name);
+      body.append(el('p', 'fo-card-blurb', spec.blurb));
+      const stats = el('div', 'fo-stats');
+      for (const key of ['hp', 'attack', 'speed']) stats.append(statRow(spec, key));
+      body.append(stats);
+      body.append(el('p', 'fo-card-ability', `${spec.ability.name}`));
+      card.append(body);
+      card.addEventListener('click', () => this.toggle(spec.id));
+      this.grid.append(card);
+    }
+    this.root.append(this.grid);
+
+    const foot = el('div', 'fo-select-foot');
+    this.hint = el('p', 'fo-hint', '');
+    this.startButton = el('button', 'btn btn--primary', 'Fight');
+    this.startButton.type = 'button';
+    this.startButton.addEventListener('click', () => {
+      if (this.picked.length === TEAM_SIZE) this.onStart({ mode: this.mode, team: [...this.picked] });
+    });
+    foot.append(this.hint, this.startButton);
+    this.root.append(foot);
+
+    this.render();
+  }
+
+  toggle(id) {
+    const at = this.picked.indexOf(id);
+    if (at >= 0) this.picked.splice(at, 1);
+    else if (this.picked.length < TEAM_SIZE) this.picked.push(id);
+    this.render();
+  }
+
+  render() {
+    for (const button of this.modes.children) {
+      button.classList.toggle('is-active', button.dataset.mode === this.mode);
+    }
+
+    this.lineup.replaceChildren();
+    for (let i = 0; i < TEAM_SIZE; i += 1) {
+      const id = this.picked[i];
+      const spec = FIGHTERS.find((f) => f.id === id);
+      const slot = el('div', 'fo-slot');
+      slot.classList.toggle('is-filled', Boolean(spec));
+      slot.append(el('span', 'fo-slot-no', i === 0 ? 'first out' : i === 1 ? 'second' : 'last'));
+      slot.append(el('strong', null, spec ? spec.name : '-'));
+      if (spec) {
+        slot.style.setProperty('--who', spec.colour);
+        slot.addEventListener('click', () => this.toggle(spec.id));
+      }
+      this.lineup.append(slot);
+    }
+
+    for (const card of this.grid.children) {
+      const at = this.picked.indexOf(card.dataset.id);
+      card.classList.toggle('is-picked', at >= 0);
+      card.querySelector('.fo-card-place').textContent = at >= 0 ? `#${at + 1}` : '';
+    }
+
+    const left = TEAM_SIZE - this.picked.length;
+    this.hint.textContent = left > 0
+      ? `Pick ${left} more. The first one you choose walks out first.`
+      : 'Click one of your three to take it back out.';
+    this.startButton.disabled = left > 0;
+  }
+
+  destroy() {
+    this.root.remove();
+  }
+}
+
+  return { SelectPanel };
+})();
+
+// ---- src/games/faceoff/art.js ------------------------------------
+__modules["src/games/faceoff/art.js"] = (function () {
+  const { TAU, clamp, roundedRect } = __modules["src/core/utils.js"];
+  const { CHARGE_FULL } = __modules["src/games/faceoff/content.js"];
+
+/**
+ * Everything Faceoff draws. It reads the fight and changes nothing in it.
+ *
+ * The two fighters in front are drawn big in the middle; the ones waiting sit
+ * small at the edges with their own health showing, because a Mender healing
+ * the bench is only worth watching if you can see the bench.
+ */
+
+const INK = 'rgba(8, 12, 20, 0.85)';
+
+const STAGE = { x: 24, y: 96, w: 912, h: 300 };
+const SPOT = { a: { x: 356, y: 302 }, b: { x: 604, y: 302 } };
+
+/* ------------------------------------------------------------ the figures */
+
+/** One mark per fighter, drawn in a box from -1 to 1 over the body. */
+const MARKS = {
+  bulwark(ctx) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.fillRect(-0.55, -0.1, 1.1, 0.75);
+    ctx.fillStyle = 'rgba(8, 12, 20, 0.45)';
+    for (let i = -0.55; i < 0.55; i += 0.37) ctx.fillRect(i, -0.1, 0.06, 0.75);
+  },
+  edge(ctx) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.beginPath();
+    ctx.moveTo(0, -0.85); ctx.lineTo(0.28, 0.5); ctx.lineTo(0, 0.8); ctx.lineTo(-0.28, 0.5);
+    ctx.closePath(); ctx.fill();
+  },
+  flicker(ctx) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.lineWidth = 0.17; ctx.lineCap = 'round';
+    for (const dx of [-0.42, 0, 0.42]) {
+      ctx.beginPath(); ctx.moveTo(dx - 0.12, -0.6); ctx.lineTo(dx + 0.12, 0.6); ctx.stroke();
+    }
+  },
+  mender(ctx) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.fillRect(-0.18, -0.6, 0.36, 1.2);
+    ctx.fillRect(-0.6, -0.18, 1.2, 0.36);
+  },
+  rot(ctx) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    for (const [x, y, r] of [[-0.3, -0.2, 0.26], [0.28, 0.05, 0.2], [-0.05, 0.45, 0.16]]) {
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    }
+  },
+  mirror(ctx) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.lineWidth = 0.14;
+    ctx.beginPath(); ctx.moveTo(0, -0.8); ctx.lineTo(0, 0.8); ctx.stroke();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.beginPath(); ctx.moveTo(-0.08, -0.7); ctx.lineTo(-0.6, 0); ctx.lineTo(-0.08, 0.7); ctx.closePath(); ctx.fill();
+  },
+  leech(ctx) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.beginPath();
+    ctx.moveTo(-0.5, -0.4); ctx.quadraticCurveTo(0, 0.25, 0.5, -0.4);
+    ctx.lineTo(0.3, 0.6); ctx.quadraticCurveTo(0, 0.15, -0.3, 0.6);
+    ctx.closePath(); ctx.fill();
+  },
+  halt(ctx) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.lineWidth = 0.16;
+    ctx.beginPath(); ctx.arc(0, 0, 0.55, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -0.4); ctx.moveTo(0, 0); ctx.lineTo(0.35, 0.12); ctx.stroke();
+  },
+  encore(ctx) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.lineWidth = 0.16; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(0, 0, 0.5, 0.6, TAU * 0.86); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0.3, -0.52); ctx.lineTo(0.42, -0.1); ctx.lineTo(0.02, -0.2); ctx.closePath();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'; ctx.fill();
+  },
+};
+
+const plainMark = (ctx) => {
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+  ctx.beginPath(); ctx.arc(0, 0, 0.42, 0, TAU); ctx.fill();
+};
+
+/**
+ * One fighter. `scale` is the body radius, so the same drawing does for the
+ * two in front and the small ones waiting their turn.
+ */
+function drawFighter(ctx, who, x, y, scale, { flash = 0, facing = 1, dim = false, bob = 0 } = {}) {
+  const out = who.hp <= 0;
+  ctx.save();
+  ctx.translate(x, y + bob);
+  if (out || dim) ctx.globalAlpha = out ? 0.3 : 0.75;
+
+  // A shadow, so nothing floats.
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(0, scale * 1.05, scale * 0.8, scale * 0.22, 0, 0, TAU);
+  ctx.fill();
+
+  ctx.scale(facing, 1);
+  const body = ctx.createLinearGradient(0, -scale, 0, scale);
+  body.addColorStop(0, who.spec.colour);
+  body.addColorStop(1, who.spec.shade);
+  ctx.fillStyle = body;
+  roundedRect(ctx, -scale * 0.78, -scale, scale * 1.56, scale * 2, scale * 0.42);
+  ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1.5, scale * 0.09);
+  ctx.stroke();
+
+  ctx.save();
+  ctx.scale(scale * 0.62, scale * 0.62);
+  (MARKS[who.id] || plainMark)(ctx);
+  ctx.restore();
+
+  if (flash > 0) {
+    ctx.globalAlpha = clamp(flash, 0, 1) * 0.8;
+    ctx.fillStyle = '#fff';
+    roundedRect(ctx, -scale * 0.78, -scale, scale * 1.56, scale * 2, scale * 0.42);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* --------------------------------------------------------------- the bars */
+
+function bar(ctx, x, y, w, h, share, colour, back = 'rgba(255, 255, 255, 0.12)') {
+  ctx.fillStyle = back;
+  roundedRect(ctx, x, y, w, h, h / 2);
+  ctx.fill();
+  const fill = Math.max(0, w * clamp(share, 0, 1));
+  if (fill > 1) {
+    ctx.fillStyle = colour;
+    roundedRect(ctx, x, y, fill, h, h / 2);
+    ctx.fill();
+  }
+}
+
+const healthColour = (share) => (share > 0.5 ? '#8ef0a8' : share > 0.22 ? '#ffd166' : '#ff8b6b');
+
+/** The front fighter's name, health and charge, under where it stands. */
+function drawFrontPanel(ctx, who, x, y, align) {
+  if (!who) return;
+  const w = 236;
+  const left = align === 'right' ? x - w : x;
+  ctx.save();
+  ctx.textAlign = align === 'right' ? 'right' : 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = who.spec.colour;
+  ctx.font = '700 16px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(who.name, align === 'right' ? left + w : left, y);
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+  ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(who.spec.title, align === 'right' ? left + w : left, y + 14);
+
+  const share = who.hp / who.maxHp;
+  bar(ctx, left, y + 22, w, 13, share, healthColour(share));
+  ctx.fillStyle = 'rgba(12, 18, 30, 0.85)';
+  ctx.font = '700 10px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = align === 'right' ? 'right' : 'left';
+  ctx.fillText(`${Math.ceil(Math.max(0, who.hp))}`, align === 'right' ? left + w - 7 : left + 7, y + 32);
+
+  // The charge bar is the one that says what is about to happen.
+  bar(ctx, left, y + 39, w, 7, who.charge / CHARGE_FULL, '#9be8ff');
+
+  const spec = who.spec.ability;
+  const until = spec.charge > 0 ? spec.charge - (who.acts % spec.charge) : 0;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = align === 'right' ? 'right' : 'left';
+  const label = spec.passive ? spec.name
+    : until === spec.charge ? `${spec.name} ready` : `${spec.name} in ${until}`;
+  ctx.fillText(label, align === 'right' ? left + w : left, y + 60);
+  ctx.restore();
+}
+
+/** The ones waiting, down the outside edge. */
+function drawBench(ctx, lane, x, y, align) {
+  ctx.save();
+  lane.team.forEach((who, i) => {
+    if (i === lane.front) return;
+    const top = y + i * 46;
+    const cx = align === 'right' ? x - 20 : x + 20;
+    drawFighter(ctx, who, cx, top + 16, 15, { dim: true, facing: align === 'right' ? -1 : 1 });
+    const w = 92;
+    const left = align === 'right' ? x - 44 - w : x + 44;
+    ctx.fillStyle = who.hp > 0 ? 'rgba(255, 255, 255, 0.75)' : 'rgba(255, 255, 255, 0.3)';
+    ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
+    ctx.textAlign = align === 'right' ? 'right' : 'left';
+    ctx.fillText(who.name, align === 'right' ? left + w : left, top + 10);
+    bar(ctx, left, top + 16, w, 7, who.hp / who.maxHp, healthColour(who.hp / who.maxHp));
+  });
+  ctx.restore();
+}
+
+/* ------------------------------------------------------------ the extras */
+
+function drawPopup(ctx, popup) {
+  const t = clamp(popup.life / popup.maxLife, 0, 1);
+  ctx.save();
+  ctx.globalAlpha = t;
+  ctx.fillStyle = popup.colour;
+  ctx.font = `800 ${popup.size}px "Trebuchet MS", system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText(popup.text, popup.x, popup.y - (1 - t) * 40);
+  ctx.restore();
+}
+
+function drawStage(ctx, width, height, time, pressure = 1) {
+  ctx.save();
+  const sky = ctx.createLinearGradient(0, 0, 0, height);
+  sky.addColorStop(0, '#141d35');
+  sky.addColorStop(1, '#0b1020');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, width, height);
+
+  // The floor the two of them stand on.
+  const floor = ctx.createLinearGradient(0, STAGE.y, 0, STAGE.y + STAGE.h);
+  floor.addColorStop(0, 'rgba(120, 160, 255, 0.07)');
+  floor.addColorStop(1, 'rgba(120, 160, 255, 0.015)');
+  ctx.fillStyle = floor;
+  roundedRect(ctx, STAGE.x, STAGE.y, STAGE.w, STAGE.h, 20);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Once the pressure is on, the room says so.
+  if (pressure > 1.01) {
+    ctx.globalAlpha = clamp((pressure - 1) * 0.5, 0, 0.35) * (0.6 + 0.4 * Math.sin(time * 4));
+    ctx.strokeStyle = '#ff8b6b';
+    ctx.lineWidth = 3;
+    roundedRect(ctx, STAGE.x, STAGE.y, STAGE.w, STAGE.h, 20);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** The running commentary, newest last. */
+function drawLog(ctx, entries, x, y, width, height) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(8, 12, 22, 0.55)';
+  roundedRect(ctx, x, y, width, height, 10);
+  ctx.fill();
+  const rows = entries.slice(-3);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  rows.forEach((entry, i) => {
+    const fade = 0.35 + (i / Math.max(1, rows.length - 1)) * 0.6;
+    ctx.globalAlpha = rows.length === 1 ? 0.95 : fade;
+    ctx.fillStyle = entry.ability ? '#ffd166' : 'rgba(255, 255, 255, 0.85)';
+    ctx.font = `${entry.ability ? 700 : 400} 13px "Trebuchet MS", system-ui, sans-serif`;
+    ctx.fillText(entry.text.slice(0, 92), x + 14, y + 20 + i * 17);
+  });
+  ctx.restore();
+}
+
+function drawBanner(ctx, width, height, text, sub) {
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(8, 12, 22, 0.62)';
+  ctx.fillRect(0, height / 2 - 62, width, sub ? 118 : 88);
+  ctx.fillStyle = '#ffd166';
+  ctx.font = '800 40px "Trebuchet MS", system-ui, sans-serif';
+  ctx.fillText(text, width / 2, height / 2);
+  if (sub) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.font = '700 16px "Trebuchet MS", system-ui, sans-serif';
+    ctx.fillText(sub, width / 2, height / 2 + 32);
+  }
+  ctx.restore();
+}
+
+  return { STAGE, SPOT, drawFighter, drawFrontPanel, drawBench, drawPopup, drawStage, drawLog, drawBanner };
+})();
+
+// ---- src/games/faceoff/game.js -----------------------------------
+__modules["src/games/faceoff/game.js"] = (function () {
+  const { clamp, seededRandom } = __modules["src/core/utils.js"];
+  const { FIGHTERS, MODE_BY_ID, STORY, STORY_RECOVERY, TEAM_SIZE, TOWER, TOWER_RECOVERY } = __modules["src/games/faceoff/content.js"];
+  const { createFight, frontOf, healthShare, pressureAt, stepFight } = __modules["src/games/faceoff/battle.js"];
+  const { SelectPanel } = __modules["src/games/faceoff/select.js"];
+  const { SPOT, drawBanner, drawBench, drawFighter, drawFrontPanel, drawLog, drawPopup, drawStage } = __modules["src/games/faceoff/art.js"];
+
+const GAME_ID = 'faceoff';
+
+/**
+ * Faceoff on a screen.
+ *
+ * You do nothing once it starts, so the job here is to make what the fight is
+ * doing legible: who is about to act, what just landed, and who is left. The
+ * fight itself is `battle.js` and has never heard of a canvas.
+ */
+
+const COUNTDOWN = 1.6;
+const AFTER = 2.6;          // how long the verdict sits before moving on
+const SPEEDS = [1, 2, 4];   // watching speeds, cycled with a click
+
+class FaceoffGame {
+  constructor(context) {
+    this.context = context;
+    this.width = context.width;
+    this.height = context.height;
+
+    this.stage = 'select';   // select | countdown | fighting | between | over
+    this.fight = null;
+    this.mode = 'sandbox';
+    this.team = [];
+    this.step = 0;           // which floor or chapter
+    this.carry = null;       // health carried between fights
+    this.wins = 0;
+    this.timer = 0;
+    this.verdict = null;
+    this.speed = 1;
+    this.clock = 0;
+    this.popups = [];
+    this.flash = {};
+    this.shake = 0;
+
+    this.panel = new SelectPanel(context.ui, {
+      onStart: ({ mode, team }) => this.begin(mode, team),
+    });
+  }
+
+  /* --------------------------------------------------------------- setup */
+
+  begin(mode, team) {
+    this.mode = mode;
+    this.team = team;
+    this.step = 0;
+    this.wins = 0;
+    this.carry = null;
+    this.panel.destroy();
+    this.panel = null;
+    this.startFight();
+  }
+
+  /** Who you are up against for this fight, and how much stronger they are. */
+  opponent() {
+    if (this.mode === 'tower') {
+      const floor = TOWER[Math.min(this.step, TOWER.length - 1)];
+      return { team: floor.team, scale: floor.scale, name: `Floor ${floor.floor} - ${floor.name}` };
+    }
+    if (this.mode === 'story') {
+      const chapter = STORY[Math.min(this.step, STORY.length - 1)];
+      return { team: chapter.team, scale: chapter.scale, name: chapter.name, before: chapter.before };
+    }
+    // Sandbox picks three at random, so it is worth running more than once.
+    const ids = FIGHTERS.map((f) => f.id);
+    const pick = () => ids[Math.floor(Math.random() * ids.length)];
+    return { team: [pick(), pick(), pick()], scale: 1, name: 'Whoever turns up' };
+  }
+
+  startFight() {
+    const foe = this.opponent();
+    this.foe = foe;
+    this.fight = createFight({
+      a: this.team,
+      b: foe.team,
+      scaleB: foe.scale,
+      random: seededRandom(Math.floor(Math.random() * 1e9)),
+    });
+    // Tower and story are one long run: your three carry their wounds forward.
+    if (this.carry) {
+      this.fight.sides.a.team.forEach((who, i) => {
+        const left = this.carry[i];
+        if (left != null) who.hp = clamp(left, 0, who.maxHp);
+      });
+      this.fight.sides.a.front = 0;
+      while (
+        this.fight.sides.a.front < TEAM_SIZE - 1 &&
+        this.fight.sides.a.team[this.fight.sides.a.front].hp <= 0
+      ) this.fight.sides.a.front += 1;
+    }
+    this.popups = [];
+    this.flash = {};
+    this.stage = 'countdown';
+    this.timer = COUNTDOWN;
+    this.verdict = null;
+  }
+
+  /* --------------------------------------------------------------- update */
+
+  update(dt, input) {
+    this.clock += dt;
+    this.shake = Math.max(0, this.shake - dt * 3);
+    this.decay(dt);
+    if (this.stage === 'select') return;
+
+    // One click anywhere cycles how fast you are watching.
+    if (input?.justPressed || input?.wasKeyPressed('Space')) {
+      this.speed = SPEEDS[(SPEEDS.indexOf(this.speed) + 1) % SPEEDS.length];
+    }
+
+    if (this.stage === 'countdown') {
+      this.timer -= dt;
+      if (this.timer <= 0) this.stage = 'fighting';
+      return;
+    }
+    if (this.stage === 'between') {
+      this.timer -= dt;
+      if (this.timer <= 0) this.advance();
+      return;
+    }
+    if (this.stage !== 'fighting') return;
+
+    stepFight(this.fight, dt * this.speed);
+    this.absorb();
+
+    if (this.fight.over) {
+      this.verdict = this.fight.over;
+      if (this.verdict.winner === 'a') this.wins += 1;
+      this.stage = 'between';
+      this.timer = AFTER;
+    }
+  }
+
+  /** Turns the fight's events into things that move on screen. */
+  absorb() {
+    for (const event of this.fight.events) {
+      if (event.kind === 'damage') {
+        this.flash[event.uid] = 1;
+        this.shake = Math.min(1, Math.max(this.shake, event.amount / 40));
+        this.popups.push({
+          ...this.spotOf(event.uid),
+          text: `-${Math.round(event.amount)}`,
+          colour: event.source === 'poison' ? '#b7e06a' : event.source === 'riposte' ? '#c8a4ff' : '#ff9f8b',
+          size: event.amount > 25 ? 22 : 17,
+          life: 0.8, maxLife: 0.8,
+        });
+      } else if (event.kind === 'heal') {
+        this.popups.push({
+          ...this.spotOf(event.uid),
+          text: `+${Math.round(event.amount)}`,
+          colour: '#8ef0a8', size: 17, life: 0.8, maxLife: 0.8,
+        });
+      } else if (event.kind === 'rally') {
+        this.popups.push({ ...this.spotOf(event.uid), text: 'BACK UP', colour: '#ffd166', size: 20, life: 1.1, maxLife: 1.1 });
+      } else if (event.kind === 'ability') {
+        const spot = this.spotOf(event.uid);
+        this.popups.push({ x: spot.x, y: spot.y - 34, text: event.name, colour: '#ffd166', size: 16, life: 1, maxLife: 1 });
+      }
+    }
+  }
+
+  /** Where on screen a fighter is, for a number to float off. */
+  spotOf(uid) {
+    for (const side of ['a', 'b']) {
+      const front = frontOf(this.fight, side);
+      if (front && front.uid === uid) return { x: SPOT[side].x, y: SPOT[side].y - 70 };
+    }
+    return { x: this.width / 2, y: 220 };
+  }
+
+  decay(dt) {
+    for (const uid of Object.keys(this.flash)) {
+      this.flash[uid] = Math.max(0, this.flash[uid] - dt * 4);
+      if (this.flash[uid] === 0) delete this.flash[uid];
+    }
+    for (const popup of this.popups) popup.life -= dt;
+    this.popups = this.popups.filter((popup) => popup.life > 0);
+  }
+
+  /* ---------------------------------------------------- what happens next */
+
+  advance() {
+    const won = this.verdict.winner === 'a';
+    if (this.mode === 'sandbox') return this.finish(won);
+    if (!won) return this.finish(false);
+
+    this.step += 1;
+    const runs = this.mode === 'tower' ? TOWER.length : STORY.length;
+    if (this.step >= runs) return this.finish(true);
+
+    // A breather between fights, never a full heal - the run is the point.
+    const back = this.mode === 'tower' ? TOWER_RECOVERY : STORY_RECOVERY;
+    this.carry = this.fight.sides.a.team.map((who) =>
+      (who.hp <= 0 ? 0 : Math.min(who.maxHp, who.hp + (who.maxHp - who.hp) * back)));
+    this.startFight();
+  }
+
+  finish(cleared) {
+    const mine = this.fight.sides.a;
+    const left = Math.round(healthShare(mine) * 100);
+    const runs = this.mode === 'tower' ? TOWER.length : this.mode === 'story' ? STORY.length : 1;
+    const score = this.mode === 'sandbox'
+      ? (cleared ? 1000 + left * 10 : left * 5)
+      : this.wins * 1000 + (cleared ? 750 : 0) + left * 8;
+
+    this.context.finish({
+      score,
+      survived: cleared,
+      title: this.titleFor(cleared),
+      detailTitle: this.mode === 'sandbox'
+        ? `${this.fight.time.toFixed(0)} seconds - ${this.verdict.reason}`
+        : `${this.wins} of ${runs} - ${this.verdict.reason}`,
+      collected: mine.team.map((who) => ({
+        name: who.name,
+        color: who.hp > 0 ? who.spec.colour : 'rgba(255, 255, 255, 0.2)',
+        label: who.hp > 0 ? `${Math.ceil(who.hp)} left` : 'out',
+      })),
+    });
+    this.stage = 'over';
+  }
+
+  titleFor(cleared) {
+    if (this.mode === 'sandbox') return cleared ? 'Your three won' : 'Your three lost';
+    if (cleared) return this.mode === 'tower' ? 'You reached the top' : 'Nothing left to argue with';
+    return this.mode === 'tower' ? `Stopped on floor ${this.step + 1}` : `Stopped at ${STORY[Math.min(this.step, STORY.length - 1)].name}`;
+  }
+
+  /* -------------------------------------------------------------- drawing */
+
+  render(ctx) {
+    const pressure = this.fight ? pressureAt(this.fight.time) : 1;
+    ctx.save();
+    if (this.shake > 0.02) {
+      ctx.translate((Math.random() - 0.5) * this.shake * 6, (Math.random() - 0.5) * this.shake * 6);
+    }
+    drawStage(ctx, this.width, this.height, this.clock, pressure);
+
+    if (this.stage === 'select' || !this.fight) {
+      ctx.restore();
+      return;
+    }
+
+    for (const side of ['a', 'b']) {
+      const lane = this.fight.sides[side];
+      const who = frontOf(this.fight, side);
+      if (!who) continue;
+      const spot = SPOT[side];
+      // A fighter with a full bar rises slightly: you can see a go coming.
+      const bob = -Math.max(0, who.charge / 100 - 0.75) * 18;
+      drawFighter(ctx, who, spot.x, spot.y, 52, {
+        flash: this.flash[who.uid] || 0,
+        facing: side === 'a' ? 1 : -1,
+        bob,
+      });
+      drawBench(ctx, lane, side === 'a' ? 30 : this.width - 30, 112, side === 'a' ? 'left' : 'right');
+    }
+
+    // Once a side is wiped out it has no front fighter, and the fight keeps
+    // being drawn through the verdict - so both of these can be nothing.
+    const mine = frontOf(this.fight, 'a');
+    const theirs = frontOf(this.fight, 'b');
+    if (mine) drawFrontPanel(ctx, mine, 30, 406, 'left');
+    if (theirs) drawFrontPanel(ctx, theirs, this.width - 30, 406, 'right');
+    for (const popup of this.popups) drawPopup(ctx, popup);
+    ctx.restore();
+
+    this.drawHeader(ctx);
+    drawLog(ctx, this.fight.log, 296, 470, 368, 52);
+
+    if (this.stage === 'countdown') {
+      drawBanner(ctx, this.width, this.height, 'Faceoff', this.foe.before || this.foe.name);
+    } else if (this.stage === 'between' && this.verdict) {
+      const won = this.verdict.winner === 'a';
+      drawBanner(
+        ctx, this.width, this.height,
+        this.verdict.winner === 'draw' ? 'A draw' : won ? 'Your three win' : 'Your three are out',
+        this.verdict.reason,
+      );
+    }
+  }
+
+  drawHeader(ctx) {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.font = '700 13px "Trebuchet MS", system-ui, sans-serif';
+    ctx.fillText(this.headline(), this.width / 2, 34);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.font = '700 11px "Trebuchet MS", system-ui, sans-serif';
+    ctx.fillText(
+      this.stage === 'fighting' ? `${this.speed}x  -  click to speed it up` : '',
+      this.width / 2, 54,
+    );
+
+    if (this.fight && pressureAt(this.fight.time) > 1.01) {
+      ctx.fillStyle = '#ff8b6b';
+      ctx.font = '700 12px "Trebuchet MS", system-ui, sans-serif';
+      ctx.fillText('everything is hitting harder now', this.width / 2, 74);
+    }
+    ctx.restore();
+  }
+
+  headline() {
+    const mode = MODE_BY_ID.get(this.mode);
+    if (this.mode === 'tower') return `${mode.name}  -  floor ${this.step + 1} of ${TOWER.length}`;
+    if (this.mode === 'story') return `${mode.name}  -  ${STORY[Math.min(this.step, STORY.length - 1)].name}`;
+    return `${mode.name}  -  ${this.foe ? this.foe.name : ''}`;
+  }
+
+  destroy() {
+    this.panel?.destroy();
+    this.panel = null;
+  }
+}
+
+const createFaceoff = (context) => new FaceoffGame(context);
+
+  return { GAME_ID, createFaceoff };
+})();
+
+// ---- src/games/faceoff/index.js ----------------------------------
+__modules["src/games/faceoff/index.js"] = (function () {
+  const { registerGame } = __modules["src/core/registry.js"];
+  const { createFaceoff, GAME_ID } = __modules["src/games/faceoff/game.js"];
+
+registerGame({
+  id: GAME_ID,
+  name: 'Faceoff',
+  tagline: 'Pick three, send them out one at a time, and watch whether you were right.',
+  description: 'Nine fighters, three of them yours. You choose who and in what order, then it plays itself out.',
+  howTo: [
+    'Pick <strong>three of the nine</strong>. The order matters - the first one you choose walks out first.',
+    'Only <strong>one from each side fights at a time</strong>. When yours falls, the next one in your three steps up.',
+    'Nobody takes turns. Each fighter <strong>fills a bar at its own speed</strong> and acts the moment it is full, so a quick one simply gets more goes.',
+    'Every few goes a fighter does <strong>its own thing</strong> instead of hitting - healing the bench, setting a poison, stealing the other one&apos;s go.',
+    'You do not steer any of it. <strong>The picks and the order are the whole decision.</strong> Click to watch it faster.',
+    'If a fight drags, <strong>everything starts hitting harder</strong> until somebody goes down.',
+    '<strong>Sandbox</strong> is one fight against whoever turns up. <strong>Tower</strong> is ten floors, carrying your wounds up. <strong>Story</strong> is six fights that each answer the last.',
+  ],
+  create: createFaceoff,
 });
 
   return {  };
