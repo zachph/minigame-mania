@@ -141,6 +141,20 @@ function setSpeed(b, speed) {
   b.vy = (b.vy / now) * speed;
 }
 
+/**
+ * How fast a ball may move right now. Normally the cruise speed; inside
+ * Gojo's Infinity, a share of it. Gojo is never slowed by his own.
+ */
+export function speedFor(who, foe) {
+  const aura = foe?.spec.ability;
+  if (!aura || aura.kind !== 'infinity' || foe.hp <= 0) return CRUISE;
+  const dist = Math.hypot(foe.x - who.x, foe.y - who.y);
+  return dist <= aura.range ? CRUISE * aura.slow : CRUISE;
+}
+
+/** True while `who` is inside the other fighter's Infinity. */
+export const inInfinity = (who, foe) => speedFor(who, foe) < CRUISE;
+
 /** Moves one ball: lean towards the other, keep cruising, stay in the box. */
 export function move(who, foe, dt) {
   if (foe) {
@@ -150,7 +164,7 @@ export function move(who, foe, dt) {
     who.vx += (dx / dist) * CRUISE * HOMING * dt;
     who.vy += (dy / dist) * CRUISE * HOMING * dt;
   }
-  setSpeed(who, CRUISE);
+  setSpeed(who, speedFor(who, foe));
   who.x += who.vx * dt;
   who.y += who.vy * dt;
 

@@ -162,3 +162,33 @@ export function drawBanner(ctx, text, sub) {
   if (sub) drawText(ctx, sub, BOX.x + BOX.w / 2, BOX.y + BOX.h / 2 + 24, { size: 15, colour: '#ccc' });
   ctx.restore();
 }
+
+/**
+ * Gojo's Infinity: a faint ring at its range, brighter while someone is
+ * inside it and being slowed.
+ */
+export function drawInfinity(ctx, who, active, time = 0) {
+  const aura = who.spec.ability;
+  if (!aura || aura.kind !== 'infinity' || who.hp <= 0) return;
+  ctx.save();
+  ctx.strokeStyle = '#9fd8ff';
+  ctx.globalAlpha = active ? 0.55 + 0.25 * Math.sin(time * 10) : 0.18;
+  ctx.lineWidth = active ? 3 : 1.5;
+  ctx.setLineDash(active ? [] : [6, 6]);
+  ctx.beginPath();
+  ctx.arc(who.x, who.y, aura.range, 0, TAU);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** A slowed ball gets a blue rim, so you can see Infinity doing its job. */
+export function drawSlowed(ctx, who) {
+  ctx.save();
+  ctx.strokeStyle = '#9fd8ff';
+  ctx.lineWidth = 4;
+  ctx.globalAlpha = 0.8;
+  ctx.beginPath();
+  ctx.arc(who.x, who.y, who.radius + 4, 0, TAU);
+  ctx.stroke();
+  ctx.restore();
+}
