@@ -13,7 +13,7 @@
 /** The Undertale battle box, made bigger. Everything happens inside it. */
 export const BOX = { x: 96, y: 92, w: 768, h: 300 };
 
-export const BALL_RADIUS = 22;
+export const BALL_RADIUS = 30;   // big enough for a face to read
 export const CRUISE = 270;        // px/s every fighter keeps up
 export const HOMING = 8;        // how hard they lean in - lower and they orbit instead of meeting
 /**

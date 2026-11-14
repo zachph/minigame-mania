@@ -1,5 +1,6 @@
 import { TAU, clamp } from '../../core/utils.js';
 import { BOX } from './content.js';
+import { drawHead } from './heads.js';
 
 /**
  * The Undertale battle box, made bigger: black, a thick white border, and
@@ -39,15 +40,17 @@ export function drawBall(ctx, who, { flash = 0, trail = [] } = {}) {
   }
   ctx.globalAlpha = 1;
 
-  const grad = ctx.createRadialGradient(who.x - who.radius * 0.35, who.y - who.radius * 0.4, 2, who.x, who.y, who.radius);
-  grad.addColorStop(0, who.spec.colour);
-  grad.addColorStop(1, who.spec.shade);
-  ctx.fillStyle = grad;
+  // The head is the fighter. A dark disc behind it and a white ring around it
+  // keep the edge you are watching for collisions easy to see.
+  ctx.fillStyle = '#1a1a22';
   ctx.beginPath();
   ctx.arc(who.x, who.y, who.radius, 0, TAU);
   ctx.fill();
+  drawHead(ctx, who.id, who.x, who.y, who.radius * 0.95);
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(who.x, who.y, who.radius, 0, TAU);
   ctx.stroke();
 
   if (flash > 0) {
@@ -111,13 +114,10 @@ export function drawBench(ctx, lane, x, y, align = 'left') {
     if (i === lane.front) return;
     const cx = align === 'right' ? x - at * 110 - 8 : x + at * 110 + 8;
     ctx.globalAlpha = who.hp > 0 ? 1 : 0.3;
-    ctx.fillStyle = who.spec.colour;
-    ctx.beginPath();
-    ctx.arc(cx, y, 7, 0, TAU);
-    ctx.fill();
+    drawHead(ctx, who.id, cx, y, 11);
     ctx.fillStyle = '#fff';
     ctx.textAlign = align === 'right' ? 'right' : 'left';
-    ctx.fillText(who.hp > 0 ? who.name.toUpperCase() : `${who.name.toUpperCase()} X`, align === 'right' ? cx - 12 : cx + 12, y);
+    ctx.fillText(who.hp > 0 ? who.name.toUpperCase() : `${who.name.toUpperCase()} X`, align === 'right' ? cx - 16 : cx + 16, y);
     at += 1;
   });
   ctx.restore();
