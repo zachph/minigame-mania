@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seededRandom } from '../src/core/utils.js';
 import { BASE_HP, BOX, FIGHTERS, FIGHT_LIMIT, STORY, TEAM_SIZE, TOWER, getFighter } from '../src/games/faceoff/content.js';
-import { bump, createFight, frontOf, heal, hurt, isBeaten, pressureAt, runFight, stepFight } from '../src/games/faceoff/battle.js';
+import { bump, createFight, frontOf, heal, hurt, isBeaten, pressureAt, runFight, stepFight, strike } from '../src/games/faceoff/battle.js';
 import { drawBall, drawBanner, drawBench, drawBox, drawPopup, drawScreen, drawStatus } from '../src/games/faceoff/art.js';
 import { createFakeContext } from './helpers.js';
 
@@ -277,7 +277,7 @@ test('the heal never goes over his maximum', () => {
   const f = fight(['sukuna'], ['goku']);
   const sukuna = frontOf(f, 'a');
   sukuna.hp = 240;
-  sukuna.regenTimer = 14.99;
+  sukuna.abilityTimer = 14.99;
   frontOf(f, 'b').hitLock = sukuna.hitLock = 99;
   stepFight(f, 1 / 30);
   assert.equal(sukuna.hp, 250);
@@ -286,7 +286,7 @@ test('the heal never goes over his maximum', () => {
 test('waiting on the bench does not count towards the heal', () => {
   const f = fight(['goku', 'sukuna'], ['garou']);
   for (let i = 0; i < 30 * 5 && !f.over; i += 1) stepFight(f, 1 / 30);
-  assert.equal(f.sides.a.team[1].regenTimer, 0);
+  assert.equal(f.sides.a.team[1].abilityTimer, 0);
 });
 
 test('the heal timer shows on his status line', async () => {
@@ -321,4 +321,132 @@ test('two even fighters almost never knock each other out together', () => {
     if (f.over.winner === 'draw') draws += 1;
   }
   assert.ok(draws <= 2, `${draws} of 60 were draws`);
+});
+
+/* ------------------------------------------------- the other abilities */
+
+const quiet = (f) => { for (const s of ['a', 'b']) for (const w of f.sides[s].team) { w.hp = w.maxHp = 100000; } };
+
+test('Sans throws the enemy at a wall every 10 seconds, and the wall does 5', async () => {
+  const f = fight(['sans'], ['goku']);
+  const goku = frontOf(f, 'b');
+  frontOf(f, 'a').abilityTimer = 9.99;
+  goku.hp = goku.maxHp = 1000;
+  stepFight(f, 1 / 30);
+  assert.ok(goku.launched, 'he was thrown');
+  for (let i = 0; i < 60 && goku.launched; i += 1) stepFight(f, 1 / 60);
+  assert.equal(goku.launched, null, 'and landed');
+  assert.equal(goku.taken, 5);
+});
+
+test('Ralsei sets a burn that does 1 a second for 15 seconds', () => {
+  const f = fight(['ralsei'], ['goku']);
+  const [ralsei, goku] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  let burned = false;
+  for (let seed = 0; seed < 50 && !burned; seed += 1) {
+    f.random = seededRandom(seed);
+    strike(f, ralsei, goku, 1);
+    burned = Boolean(goku.burn);
+  }
+  assert.ok(burned, 'a quarter of hits should burn');
+  quiet(f);
+  goku.burn.from = ralsei;
+  const before = goku.taken;
+  for (let i = 0; i < 30 * 16; i += 1) { goku.hitLock = ralsei.hitLock = 99; f.sinceBump = 0; goku.x = ralsei.x + 400; stepFight(f, 1 / 30); }
+  assert.equal(Math.round(goku.taken - before), 15);
+  assert.equal(goku.burn, null, 'and it ran out');
+});
+
+test('a quarter of Ralsei\'s hits burn, near enough', () => {
+  let burns = 0;
+  for (let seed = 1; seed <= 400; seed += 1) {
+    const f = fight(['ralsei'], ['goku'], seed);
+    strike(f, frontOf(f, 'a'), frontOf(f, 'b'), 1);
+    if (frontOf(f, 'b').burn) burns += 1;
+  }
+  assert.ok(burns > 70 && burns < 130, `${burns} of 400`);
+});
+
+test('Undyne comes back as Undyne the Undying with 355 health, one time in five', () => {
+  let back = 0;
+  for (let seed = 1; seed <= 500; seed += 1) {
+    const f = fight(['undyne'], ['goku'], seed);
+    const undyne = frontOf(f, 'a');
+    hurt(f, undyne, 10000);
+    if (undyne.hp > 0) {
+      back += 1;
+      assert.equal(undyne.hp, 355);
+      assert.equal(undyne.maxHp, 355);
+      assert.equal(undyne.name, 'Undyne the Undying');
+      hurt(f, undyne, 10000);
+      assert.equal(undyne.hp, 0, 'and only once');
+    }
+  }
+  assert.ok(back > 70 && back < 130, `${back} of 500`);
+});
+
+test('40% of Garou\'s hits land twice', () => {
+  let doubles = 0;
+  for (let seed = 1; seed <= 500; seed += 1) {
+    const f = fight(['garou'], ['goku'], seed);
+    strike(f, frontOf(f, 'a'), frontOf(f, 'b'), 10);
+    if (frontOf(f, 'b').taken === 20) doubles += 1;
+  }
+  assert.ok(doubles > 160 && doubles < 240, `${doubles} of 500`);
+});
+
+test('5% of Saitama\'s hits kill outright', () => {
+  let kills = 0;
+  for (let seed = 1; seed <= 1000; seed += 1) {
+    const f = fight(['saitama'], ['goku'], seed);
+    strike(f, frontOf(f, 'a'), frontOf(f, 'b'), 1);
+    if (frontOf(f, 'b').hp === 0) kills += 1;
+  }
+  assert.ok(kills > 30 && kills < 75, `${kills} of 1000`);
+});
+
+test('a Serious Punch on Sans is still just one dodge', () => {
+  for (let seed = 1; seed <= 200; seed += 1) {
+    const f = fight(['saitama'], ['sans'], seed);
+    strike(f, frontOf(f, 'a'), frontOf(f, 'b'), 1);
+    assert.equal(frontOf(f, 'b').hp, 1);
+  }
+});
+
+test('Goku teleports every 20 seconds, never on top of the enemy', () => {
+  const f = fight(['goku'], ['garou']);
+  const goku = frontOf(f, 'a');
+  goku.abilityTimer = 19.99;
+  stepFight(f, 1 / 30);
+  assert.ok(f.events.some((e) => e.kind === 'teleport'));
+  const garou = frontOf(f, 'b');
+  assert.ok(Math.hypot(garou.x - goku.x, garou.y - goku.y) > 100);
+});
+
+test('Beerus brings Whis in for 5 seconds, and Whis hurts the enemy', () => {
+  const f = fight(['beerus'], ['goku']);
+  quiet(f);
+  frontOf(f, 'a').abilityTimer = 14.99;
+  stepFight(f, 1 / 30);
+  assert.equal(f.summons.length, 1);
+  const before = frontOf(f, 'b').taken;
+  for (let i = 0; i < 30 * 4.5; i += 1) stepFight(f, 1 / 30);
+  assert.equal(f.summons.length, 1, 'still here at four and a half seconds');
+  for (let i = 0; i < 30 * 1; i += 1) stepFight(f, 1 / 30);
+  assert.equal(f.summons.length, 0, 'gone after five');
+  assert.ok(frontOf(f, 'b').taken > before);
+});
+
+test('full fights with every ability still finish, without draws piling up', () => {
+  const ids = FIGHTERS.map((x) => x.id);
+  let draws = 0;
+  for (let seed = 1; seed <= 80; seed += 1) {
+    const r = seededRandom(seed * 7919 + 3);
+    const pick = () => [0, 1, 2].map(() => ids[Math.floor(r() * ids.length)]);
+    const f = createFight({ a: pick(), b: pick(), random: r });
+    runFight(f);
+    assert.ok(f.over && f.time <= FIGHT_LIMIT + 1);
+    if (f.over.winner === 'draw') draws += 1;
+  }
+  assert.ok(draws <= 3, `${draws} draws`);
 });

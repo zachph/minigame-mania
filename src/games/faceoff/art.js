@@ -46,9 +46,11 @@ export function drawBall(ctx, who, { flash = 0, trail = [] } = {}) {
   ctx.beginPath();
   ctx.arc(who.x, who.y, who.radius, 0, TAU);
   ctx.fill();
-  drawHead(ctx, who.id, who.x, who.y, who.radius * 0.95);
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 2;
+  drawHead(ctx, who.undying ? 'undying' : who.kind === 'whis' ? 'whis' : who.id, who.x, who.y, who.radius * 0.95);
+  // The ring says what is happening to it: blue when Sans has thrown it,
+  // orange while it burns.
+  ctx.strokeStyle = who.launched ? '#4aa8ff' : who.burn ? '#f93' : '#fff';
+  ctx.lineWidth = who.launched || who.burn ? 3.5 : 2;
   ctx.beginPath();
   ctx.arc(who.x, who.y, who.radius, 0, TAU);
   ctx.stroke();
@@ -65,7 +67,7 @@ export function drawBall(ctx, who, { flash = 0, trail = [] } = {}) {
   ctx.fillStyle = '#fff';
   ctx.font = `bold 12px ${FONT}`;
   ctx.textAlign = 'center';
-  ctx.fillText(who.name.toUpperCase(), who.x, who.y - who.radius - 8);
+  ctx.fillText((who.name || '').toUpperCase(), who.x, who.y - who.radius - 8);
   ctx.restore();
 }
 
@@ -102,11 +104,17 @@ export function drawStatus(ctx, who, x, y, align = 'left') {
     ctx.fillText(`dodges left ${who.dodgesLeft}`, left, y + 20);
   }
   const ability = who.spec.ability;
-  if (ability?.kind === 'regen') {
-    ctx.font = `bold 12px ${FONT}`;
-    ctx.fillStyle = '#8f8';
-    ctx.fillText(`heals in ${Math.ceil(Math.max(0, ability.every - who.regenTimer))}s`, left, y + 20);
+  ctx.font = `bold 12px ${FONT}`;
+  const notes = [];
+  if (ability?.every && ability.kind !== 'burn') {
+    const left = Math.ceil(Math.max(0, ability.every - who.abilityTimer));
+    notes.push({ text: `${ability.name} in ${left}s`, colour: '#8f8' });
   }
+  if (who.burn) notes.push({ text: `burning ${Math.ceil(who.burn.left)}s`, colour: '#f93' });
+  notes.forEach((note, i) => {
+    ctx.fillStyle = note.colour;
+    ctx.fillText(note.text, left + (who.dodgesLeft > 0 ? 190 : 0) + i * 190, y + 20);
+  });
   ctx.restore();
 }
 

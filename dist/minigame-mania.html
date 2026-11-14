@@ -15298,6 +15298,11 @@ const HIT_LOCK = 0.45;     // seconds before the same pair can trade again
 const BUMP_DAMAGE = 20;
 const BUMP_SPREAD = 0.25;  // how much one bump wanders either side
 
+/** How fast Sans throws someone at a wall. */
+const LAUNCH_SPEED = 900;
+/** Goku never teleports closer than this to the enemy. */
+const TELEPORT_CLEAR = 170;
+
 /* ---------------------------------------------------------- the fighters */
 
 const BASE_HP = 250;
@@ -15318,13 +15323,43 @@ const FIGHTERS = [
     ability: { kind: 'regen', name: 'Reverse Cursed Technique', share: 0.25, every: 15 },
   }),
   // 1 health, but the first 24 attacks that reach him miss. The 25th does not.
-  fighter({ id: 'sans', name: 'Sans', hp: 1, dodges: 24, colour: '#e8eef8', shade: '#5a6a8a' }),
-  fighter({ id: 'ralsei', name: 'Ralsei', colour: '#7ee08a', shade: '#2a6a3a' }),
-  fighter({ id: 'undyne', name: 'Undyne', colour: '#6ab4ff', shade: '#1f3f7a' }),
-  fighter({ id: 'garou', name: 'Garou', colour: '#d8d8e0', shade: '#4a4a5a' }),
-  fighter({ id: 'saitama', name: 'Saitama', colour: '#ffe07a', shade: '#a07a10' }),
-  fighter({ id: 'goku', name: 'Goku', colour: '#ffb15a', shade: '#9a4a10' }),
-  fighter({ id: 'beerus', name: 'Beerus', colour: '#c89aff', shade: '#4b2a86' }),
+  // Every 10 seconds he throws the enemy at a wall, and the wall does 5.
+  fighter({
+    id: 'sans', name: 'Sans', hp: 1, dodges: 24, colour: '#e8eef8', shade: '#5a6a8a',
+    ability: { kind: 'launch', name: 'Blue Magic', every: 10, damage: 5 },
+  }),
+  // A quarter of his hits set the enemy burning: 1 a second for 15 seconds.
+  fighter({
+    id: 'ralsei', name: 'Ralsei', colour: '#7ee08a', shade: '#2a6a3a',
+    ability: { kind: 'burn', name: 'Burn', chance: 0.25, damage: 1, every: 1, lasts: 15 },
+  }),
+  // The first time she goes down, a 1 in 5 chance she gets back up as Undyne
+  // the Undying, with 355 health instead of 250.
+  fighter({
+    id: 'undyne', name: 'Undyne', colour: '#6ab4ff', shade: '#1f3f7a',
+    ability: { kind: 'undying', name: 'Undyne the Undying', chance: 0.2, hp: 355 },
+  }),
+  // 40% of his hits land twice.
+  fighter({
+    id: 'garou', name: 'Garou', colour: '#d8d8e0', shade: '#4a4a5a',
+    ability: { kind: 'double', name: 'Double Hit', chance: 0.4 },
+  }),
+  // One hit in twenty ends it.
+  fighter({
+    id: 'saitama', name: 'Saitama', colour: '#ffe07a', shade: '#a07a10',
+    ability: { kind: 'instakill', name: 'Serious Punch', chance: 0.05 },
+  }),
+  // Every 20 seconds he vanishes and reappears somewhere else in the box.
+  fighter({
+    id: 'goku', name: 'Goku', colour: '#ffb15a', shade: '#9a4a10',
+    ability: { kind: 'teleport', name: 'Instant Transmission', every: 20 },
+  }),
+  // Every 15 seconds Whis joins in for 5: a second ball on Beerus's side that
+  // bumps the enemy and cannot be hurt.
+  fighter({
+    id: 'beerus', name: 'Beerus', colour: '#c89aff', shade: '#4b2a86',
+    ability: { kind: 'summon', name: 'Summon Whis', every: 15, lasts: 5 },
+  }),
 ];
 
 const FIGHTER_BY_ID = new Map(FIGHTERS.map((f) => [f.id, f]));
@@ -15382,24 +15417,30 @@ const PRESSURE_FROM = 25;
 const PRESSURE_RATE = 0.06;
 const FIGHT_LIMIT = 90;
 
-  return { BOX, BALL_RADIUS, CRUISE, HOMING, STALL_AFTER, HIT_LOCK, BUMP_DAMAGE, BUMP_SPREAD, BASE_HP, FIGHTERS, FIGHTER_BY_ID, getFighter, TEAM_SIZE, MODES, MODE_BY_ID, TOWER, TOWER_RECOVERY, STORY, STORY_RECOVERY, PRESSURE_FROM, PRESSURE_RATE, FIGHT_LIMIT };
+  return { BOX, BALL_RADIUS, CRUISE, HOMING, STALL_AFTER, HIT_LOCK, BUMP_DAMAGE, BUMP_SPREAD, LAUNCH_SPEED, TELEPORT_CLEAR, BASE_HP, FIGHTERS, FIGHTER_BY_ID, getFighter, TEAM_SIZE, MODES, MODE_BY_ID, TOWER, TOWER_RECOVERY, STORY, STORY_RECOVERY, PRESSURE_FROM, PRESSURE_RATE, FIGHT_LIMIT };
 })();
 
 // ---- src/games/faceoff/battle.js ---------------------------------
 __modules["src/games/faceoff/battle.js"] = (function () {
   const { clamp } = __modules["src/core/utils.js"];
-  const { BALL_RADIUS, BOX, BUMP_DAMAGE, BUMP_SPREAD, CRUISE, FIGHT_LIMIT, HIT_LOCK, HOMING, STALL_AFTER, PRESSURE_FROM, PRESSURE_RATE, getFighter } = __modules["src/games/faceoff/content.js"];
+  const { BALL_RADIUS, BOX, BUMP_DAMAGE, BUMP_SPREAD, CRUISE, FIGHT_LIMIT, HIT_LOCK, HOMING, LAUNCH_SPEED, PRESSURE_FROM, PRESSURE_RATE, STALL_AFTER, TELEPORT_CLEAR, getFighter } = __modules["src/games/faceoff/content.js"];
 
 /**
  * A Faceoff fight with no screen attached.
  *
  * The front fighter of each side is a ball in the box. Both keep moving at the
  * same speed, bounce off the walls, and lean towards each other so they keep
- * meeting. Every collision costs both of them health. When one runs out, the
- * next of that three is dropped into the box.
+ * meeting. Every collision costs health. When one runs out, the next of that
+ * three is dropped in.
  *
- * Everything that hurts anyone goes through `hurt`, so Sans's dodges and any
- * ability added later answer every source of damage the same way.
+ * Abilities come in three kinds, and each has one home here:
+ *   - on a clock (Sukuna, Sans, Goku, Beerus): `tickAbilities`
+ *   - on a hit they land (Ralsei, Garou, Saitama): `strike`
+ *   - on going down (Undyne): `hurt`
+ * plus Gojo's Infinity, which is always on and lives in `speedFor`.
+ *
+ * Every point of damage goes through `hurt`, so Sans's dodges answer all of
+ * them the same way: a bump, a burn tick, a wall, a Serious Punch.
  */
 
 const MAX_SUB_STEP = 1 / 120;
@@ -15420,7 +15461,11 @@ function makeFighter(id, { slot = 0, side = 'a' } = {}) {
     mass: 1,
     x: 0, y: 0, vx: 0, vy: 0,
     hitLock: 0,
-    regenTimer: 0,     // seconds towards the next heal, for a fighter that has one
+    abilityTimer: 0,   // seconds towards the next go, for abilities on a clock
+    burn: null,        // { left, next, damage, every, from } while burning
+    launched: null,    // { from, damage } while flying at a wall
+    undying: false,    // Undyne after she has come back
+    undyingRolled: false,
     dealt: 0,
     taken: 0,
     dodged: 0,
@@ -15453,6 +15498,7 @@ function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random, limit
       a: { team: makeTeam(a, 'a'), front: 0, scale: scaleA },
       b: { team: makeTeam(b, 'b'), front: 0, scale: scaleB },
     },
+    summons: [],       // Whis, while he is here
     log: [],
     events: [],
     over: null,
@@ -15471,12 +15517,31 @@ const say = (fight, text, extra = {}) => {
   if (fight.log.length > 60) fight.log.shift();
 };
 
+const announce = (fight, who, name) => {
+  fight.events.push({ kind: 'ability', uid: who.uid, name });
+  say(fight, `${who.name}: ${name}`, { side: who.side });
+};
+
 const pressureAt = (time) => 1 + Math.max(0, time - PRESSURE_FROM) * PRESSURE_RATE;
+
+/* ---------------------------------------------------------------- damage */
+
+/** Undyne coming back as Undyne the Undying. */
+function becomeUndying(who) {
+  const ability = who.spec.ability;
+  who.undying = true;
+  who.undyingRolled = true;
+  who.name = ability.name;
+  who.maxHp = ability.hp;
+  who.hp = ability.hp;
+  who.burn = null;
+}
 
 /**
  * Puts damage on a fighter. An attack that reaches a fighter with dodges left
- * misses instead and uses one up - that is Sans: one health, and the first
- * twenty-four things that come at him go nowhere.
+ * misses and uses one up - Sans: one health, and the first twenty-four things
+ * that come at him go nowhere. A fighter that runs out may get one more go:
+ * Undyne rolls, once, to come back undying.
  */
 function hurt(fight, target, amount, { from = null, kind = 'bump' } = {}) {
   if (target.hp <= 0 || amount <= 0) return 0;
@@ -15491,8 +15556,21 @@ function hurt(fight, target, amount, { from = null, kind = 'bump' } = {}) {
   target.taken += dealt;
   if (from) from.dealt += dealt;
   fight.events.push({ kind: 'damage', uid: target.uid, amount: dealt, source: kind });
+
   if (target.hp <= 0) {
+    const ability = target.spec.ability;
+    if (ability?.kind === 'undying' && !target.undyingRolled) {
+      target.undyingRolled = true;
+      if (fight.random() < ability.chance) {
+        becomeUndying(target);
+        fight.events.push({ kind: 'undying', uid: target.uid });
+        say(fight, 'Undyne refuses to die', { side: target.side });
+        return dealt;
+      }
+    }
     target.hp = 0;
+    target.burn = null;
+    target.launched = null;
     fight.events.push({ kind: 'down', uid: target.uid });
     say(fight, `${target.name} is out`, { side: target.side });
   }
@@ -15506,6 +15584,30 @@ function heal(fight, target, amount) {
   target.hp = Math.round((target.hp + given) * 10) / 10;
   fight.events.push({ kind: 'heal', uid: target.uid, amount: given });
   return given;
+}
+
+/**
+ * One hit landed by `from` on `to`, with whatever `from` adds on a hit:
+ * Saitama's Serious Punch, Garou's second hit, Ralsei's burn.
+ */
+function strike(fight, from, to, amount) {
+  const ability = from.spec.ability;
+  if (ability?.kind === 'instakill' && fight.random() < ability.chance) {
+    announce(fight, from, ability.name);
+    // Everything it has. A dodge still eats it, and Undyne still gets her roll.
+    return hurt(fight, to, to.hp + 100000, { from, kind: 'instakill' });
+  }
+  let dealt = hurt(fight, to, amount, { from });
+  if (ability?.kind === 'double' && to.hp > 0 && fight.random() < ability.chance) {
+    announce(fight, from, ability.name);
+    dealt += hurt(fight, to, amount, { from });
+  }
+  if (ability?.kind === 'burn' && to.hp > 0 && fight.random() < ability.chance) {
+    // A fresh burn replaces one already going, back to the full fifteen.
+    to.burn = { left: ability.lasts, next: ability.every, every: ability.every, damage: ability.damage, from };
+    announce(fight, from, ability.name);
+  }
+  return dealt;
 }
 
 /* ---------------------------------------------------------------- motion */
@@ -15523,52 +15625,53 @@ function setSpeed(b, speed) {
  * Gojo's Infinity, a share of it. Gojo is never slowed by his own.
  */
 function speedFor(who, foe) {
-  const aura = foe?.spec.ability;
+  const aura = foe?.spec?.ability;
   if (!aura || aura.kind !== 'infinity' || foe.hp <= 0) return CRUISE;
   const dist = Math.hypot(foe.x - who.x, foe.y - who.y);
   return dist <= aura.range ? CRUISE * aura.slow : CRUISE;
 }
 
-/** True while `who` is inside the other fighter's Infinity. */
 const inInfinity = (who, foe) => speedFor(who, foe) < CRUISE;
 
-/** Moves one ball: lean towards the other, keep cruising, stay in the box. */
+/**
+ * Moves one ball: lean towards the other, keep cruising, stay in the box.
+ * Returns true if it hit a wall. A ball Sans has thrown flies straight and
+ * fast, ignoring everything, until it does.
+ */
 function move(who, foe, dt) {
-  if (foe) {
-    const dx = foe.x - who.x;
-    const dy = foe.y - who.y;
-    const dist = Math.hypot(dx, dy) || 1;
-    who.vx += (dx / dist) * CRUISE * HOMING * dt;
-    who.vy += (dy / dist) * CRUISE * HOMING * dt;
+  const flying = Boolean(who.launched);
+  if (!flying) {
+    if (foe) {
+      const dx = foe.x - who.x;
+      const dy = foe.y - who.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      who.vx += (dx / dist) * CRUISE * HOMING * dt;
+      who.vy += (dy / dist) * CRUISE * HOMING * dt;
+    }
+    setSpeed(who, speedFor(who, foe));
   }
-  setSpeed(who, speedFor(who, foe));
   who.x += who.vx * dt;
   who.y += who.vy * dt;
 
   const r = who.radius;
-  if (who.x < BOX.x + r) { who.x = BOX.x + r; who.vx = Math.abs(who.vx); }
-  if (who.x > BOX.x + BOX.w - r) { who.x = BOX.x + BOX.w - r; who.vx = -Math.abs(who.vx); }
-  if (who.y < BOX.y + r) { who.y = BOX.y + r; who.vy = Math.abs(who.vy); }
-  if (who.y > BOX.y + BOX.h - r) { who.y = BOX.y + BOX.h - r; who.vy = -Math.abs(who.vy); }
+  let wall = false;
+  if (who.x < BOX.x + r) { who.x = BOX.x + r; who.vx = Math.abs(who.vx); wall = true; }
+  if (who.x > BOX.x + BOX.w - r) { who.x = BOX.x + BOX.w - r; who.vx = -Math.abs(who.vx); wall = true; }
+  if (who.y < BOX.y + r) { who.y = BOX.y + r; who.vy = Math.abs(who.vy); wall = true; }
+  if (who.y > BOX.y + BOX.h - r) { who.y = BOX.y + BOX.h - r; who.vy = -Math.abs(who.vy); wall = true; }
+  return wall;
 }
 
-/**
- * Two balls meeting: they bounce apart, and each takes damage. The one that
- * was moving into the other more takes less, so a clean hit beats being hit,
- * but every bump costs both of them something.
- */
-function bump(fight, a, b) {
+/** The shared part of any collision: push apart, swap motion along the line. */
+function separate(a, b) {
   let dx = b.x - a.x;
   let dy = b.y - a.y;
   let dist = Math.hypot(dx, dy);
   if (dist < 1e-6) { dx = 1; dy = 0; dist = 1; }
   const nx = dx / dist;
   const ny = dy / dist;
-
   const approachA = Math.max(0, a.vx * nx + a.vy * ny);
   const approachB = Math.max(0, -(b.vx * nx + b.vy * ny));
-
-  // Push apart and reflect both along the line between them.
   const gap = a.radius + b.radius - dist;
   if (gap > 0) {
     a.x -= nx * gap / 2; a.y -= ny * gap / 2;
@@ -15580,59 +15683,129 @@ function bump(fight, a, b) {
   b.vx += (va - vb) * nx; b.vy += (va - vb) * ny;
   setSpeed(a, CRUISE);
   setSpeed(b, CRUISE);
+  return { approachA, approachB };
+}
 
+const roll = (fight) => 1 - BUMP_SPREAD + fight.random() * BUMP_SPREAD * 2;
+
+/**
+ * Two fighters meeting. Each takes damage; the one moving into the other more
+ * takes less, lands first, and a fighter knocked out by that hit never gets
+ * its own in.
+ */
+function bump(fight, a, b) {
+  const { approachA, approachB } = separate(a, b);
   if (a.hitLock > 0 || b.hitLock > 0) return null;
   a.hitLock = HIT_LOCK;
   b.hitLock = HIT_LOCK;
 
   const total = approachA + approachB || 1;
   const pressure = pressureAt(fight.time);
-  const roll = () => 1 - BUMP_SPREAD + fight.random() * BUMP_SPREAD * 2;
   const share = (approach) => clamp(approach / total, 0.25, 0.75) * 2;
-  const toB = BUMP_DAMAGE * share(approachA) * roll() * pressure * fight.sides[a.side].scale;
-  const toA = BUMP_DAMAGE * share(approachB) * roll() * pressure * fight.sides[b.side].scale;
+  const toB = BUMP_DAMAGE * share(approachA) * roll(fight) * pressure * fight.sides[a.side].scale;
+  const toA = BUMP_DAMAGE * share(approachB) * roll(fight) * pressure * fight.sides[b.side].scale;
 
-  const x = (a.x + b.x) / 2;
-  const y = (a.y + b.y) / 2;
   fight.sinceBump = 0;
-  fight.events.push({ kind: 'bump', x, y });
+  fight.events.push({ kind: 'bump', x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
 
-  // Whoever was moving in harder lands first, and a fighter knocked out by
-  // that never gets its hit in. Landing both at once let two even fighters
-  // knock each other out on the same bump, and nearly half of even fights
-  // ended in a draw that way.
   const aFirst = approachA > approachB || (approachA === approachB && fight.random() < 0.5);
   const [first, second, toSecond, toFirst] = aFirst ? [a, b, toB, toA] : [b, a, toA, toB];
-  hurt(fight, second, toSecond, { from: first });
-  if (second.hp > 0) hurt(fight, first, toFirst, { from: second });
+  strike(fight, first, second, toSecond);
+  if (second.hp > 0) strike(fight, second, first, toFirst);
   return { toA, toB };
 }
 
+/** Whis meeting the enemy: he deals a bump's worth and takes nothing. */
+function summonBump(fight, summon, foe) {
+  separate(summon, foe);
+  if (summon.hitLock > 0 || foe.launched) return 0;
+  summon.hitLock = HIT_LOCK;
+  const amount = BUMP_DAMAGE * roll(fight) * pressureAt(fight.time) * fight.sides[summon.side].scale;
+  fight.events.push({ kind: 'bump', x: (summon.x + foe.x) / 2, y: (summon.y + foe.y) / 2 });
+  return hurt(fight, foe, amount, { from: summon.owner, kind: 'whis' });
+}
+
+/* -------------------------------------------------------------- abilities */
+
+/** Picks a spot in the box at least TELEPORT_CLEAR from the enemy. */
+function clearSpot(fight, who, foe) {
+  const r = who.radius;
+  for (let tries = 0; tries < 30; tries += 1) {
+    const x = BOX.x + r + fight.random() * (BOX.w - r * 2);
+    const y = BOX.y + r + fight.random() * (BOX.h - r * 2);
+    if (!foe || Math.hypot(foe.x - x, foe.y - y) >= TELEPORT_CLEAR) return { x, y };
+  }
+  return { x: BOX.x + BOX.w / 2, y: BOX.y + BOX.h / 2 };
+}
+
 /**
- * Abilities that run on their own clock. Only the two in the box tick - a
- * fighter waiting on the bench is not doing anything yet.
+ * Abilities on a clock. Only the two in the box tick - a fighter waiting on
+ * the bench is not doing anything yet.
  */
-function tickAbilities(fight, who, dt) {
+function tickAbilities(fight, who, foe, dt) {
   const ability = who.spec.ability;
-  if (!ability || who.hp <= 0) return;
+  if (!ability || who.hp <= 0 || !ability.every || ability.kind === 'burn') return;
+  who.abilityTimer += dt;
+  if (who.abilityTimer < ability.every) return;
+  who.abilityTimer -= ability.every;
+
   if (ability.kind === 'regen') {
-    who.regenTimer += dt;
-    if (who.regenTimer >= ability.every) {
-      who.regenTimer -= ability.every;
-      const given = heal(fight, who, who.maxHp * ability.share);
-      if (given > 0) say(fight, `${who.name} heals ${Math.round(given)}`, { side: who.side });
-    }
+    const given = heal(fight, who, who.maxHp * ability.share);
+    if (given > 0) say(fight, `${who.name} heals ${Math.round(given)}`, { side: who.side });
+  } else if (ability.kind === 'launch' && foe && foe.hp > 0 && !foe.launched) {
+    const angle = fight.random() * Math.PI * 2;
+    foe.vx = Math.cos(angle) * LAUNCH_SPEED;
+    foe.vy = Math.sin(angle) * LAUNCH_SPEED;
+    foe.launched = { from: who, damage: ability.damage };
+    announce(fight, who, ability.name);
+  } else if (ability.kind === 'teleport') {
+    const from = { x: who.x, y: who.y };
+    Object.assign(who, clearSpot(fight, who, foe));
+    fight.sinceBump = 0;
+    fight.events.push({ kind: 'teleport', uid: who.uid, from, to: { x: who.x, y: who.y } });
+    announce(fight, who, ability.name);
+  } else if (ability.kind === 'summon' && foe) {
+    const spot = clearSpot(fight, who, foe);
+    fight.summons.push({
+      kind: 'whis',
+      name: 'Whis',
+      side: who.side,
+      owner: who,
+      x: spot.x, y: spot.y,
+      vx: (foe.x - spot.x), vy: (foe.y - spot.y),
+      radius: BALL_RADIUS * 0.85,
+      hitLock: 0.3,
+      left: ability.lasts,
+    });
+    setSpeed(fight.summons.at(-1), CRUISE);
+    announce(fight, who, ability.name);
   }
 }
 
-/** Seconds until a regen fighter heals next, or null for anyone else. */
-function nextHealIn(who) {
-  const ability = who?.spec.ability;
-  if (!ability || ability.kind !== 'regen') return null;
-  return Math.max(0, ability.every - who.regenTimer);
+function tickBurn(fight, who, dt) {
+  const burn = who.burn;
+  if (!burn || who.hp <= 0) return;
+  burn.next -= dt;
+  while (burn.next <= 0 && who.burn) {
+    burn.next += burn.every;
+    burn.left -= burn.every;
+    hurt(fight, who, burn.damage, { from: burn.from, kind: 'burn' });
+    if (who.burn && burn.left <= 1e-9) who.burn = null;
+  }
 }
 
-/** Brings the next of a three into the box once the one in it is out. */
+/** Seconds until a fighter's clock ability goes next, or null if it has none. */
+function nextAbilityIn(who) {
+  const ability = who?.spec.ability;
+  if (!ability || !ability.every || ability.kind === 'burn') return null;
+  return Math.max(0, ability.every - who.abilityTimer);
+}
+
+/** Kept for Sukuna: seconds until he heals next. */
+const nextHealIn = (who) => (who?.spec.ability?.kind === 'regen' ? nextAbilityIn(who) : null);
+
+/* -------------------------------------------------------------- the clock */
+
 function sendNext(fight, side) {
   const lane = fight.sides[side];
   while (lane.front < lane.team.length && lane.team[lane.front].hp <= 0) lane.front += 1;
@@ -15643,6 +15816,8 @@ function sendNext(fight, side) {
     fight.events.push({ kind: 'enter', uid: next.uid, side });
     say(fight, `${next.name} steps in`, { side });
   }
+  // Whis leaves with Beerus.
+  fight.summons = fight.summons.filter((s) => s.owner.hp > 0);
 }
 
 function stepFight(fight, dt) {
@@ -15659,24 +15834,52 @@ function stepFight(fight, dt) {
 
     const a = frontOf(fight, 'a');
     const b = frontOf(fight, 'b');
-    for (const who of [a, b]) {
+    for (const [who, foe] of [[a, b], [b, a]]) {
       who.hitLock = Math.max(0, who.hitLock - slice);
-      tickAbilities(fight, who, slice);
+      tickAbilities(fight, who, foe, slice);
+      tickBurn(fight, who, slice);
     }
+    for (const side of ['a', 'b']) sendNext(fight, side);
+    if (checkOver(fight)) break;
+    const fa = frontOf(fight, 'a');
+    const fb = frontOf(fight, 'b');
 
     // Break an orbit: point both straight at each other.
     fight.sinceBump += slice;
     if (fight.sinceBump > STALL_AFTER) {
-      for (const [who, foe] of [[a, b], [b, a]]) {
+      for (const [who, foe] of [[fa, fb], [fb, fa]]) {
+        if (who.launched) continue;
         const d = Math.hypot(foe.x - who.x, foe.y - who.y) || 1;
         who.vx = ((foe.x - who.x) / d) * CRUISE;
         who.vy = ((foe.y - who.y) / d) * CRUISE;
       }
       fight.sinceBump = 0;
     }
-    move(a, b, slice);
-    move(b, a, slice);
-    if (Math.hypot(b.x - a.x, b.y - a.y) <= a.radius + b.radius) bump(fight, a, b);
+
+    for (const [who, foe] of [[fa, fb], [fb, fa]]) {
+      const wall = move(who, foe, slice);
+      if (wall && who.launched) {
+        const { from, damage } = who.launched;
+        who.launched = null;
+        setSpeed(who, CRUISE);
+        fight.events.push({ kind: 'slam', uid: who.uid, x: who.x, y: who.y });
+        hurt(fight, who, damage * pressureAt(fight.time), { from, kind: 'slam' });
+      }
+    }
+    // A thrown ball is out of the fight until it lands.
+    if (!fa.launched && !fb.launched && Math.hypot(fb.x - fa.x, fb.y - fa.y) <= fa.radius + fb.radius) {
+      bump(fight, fa, fb);
+    }
+
+    for (const summon of fight.summons) {
+      summon.left -= slice;
+      summon.hitLock = Math.max(0, summon.hitLock - slice);
+      const foe = frontOf(fight, other(summon.side));
+      if (!foe) continue;
+      move(summon, foe, slice);
+      if (Math.hypot(foe.x - summon.x, foe.y - summon.y) <= summon.radius + foe.radius) summonBump(fight, summon, foe);
+    }
+    fight.summons = fight.summons.filter((s) => s.left > 0);
     if (checkOver(fight)) break;
   }
   return fight;
@@ -15688,7 +15891,6 @@ function healthShare(side) {
   return total > 0 ? left / total : 0;
 }
 
-/** Fighters still standing, counted - used to settle a fight on the clock. */
 const alive = (side) => side.team.filter((f) => f.hp > 0).length;
 
 function checkOver(fight) {
@@ -15699,7 +15901,6 @@ function checkOver(fight) {
   else if (bOut) fight.over = { winner: 'a', reason: 'nobody left to send' };
   else if (aOut) fight.over = { winner: 'b', reason: 'nobody left to send' };
   else if (fight.time >= fight.limit) {
-    // Counted fighters first, so Sans on his one health is not a free loss.
     const diff = alive(fight.sides.a) - alive(fight.sides.b)
       || healthShare(fight.sides.a) - healthShare(fight.sides.b);
     fight.over = Math.abs(diff) < 1e-9
@@ -15716,7 +15917,7 @@ function runFight(fight, step = 1 / 30) {
   return fight.over || checkOver(fight);
 }
 
-  return { makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, hurt, heal, speedFor, inInfinity, move, bump, nextHealIn, stepFight, healthShare, checkOver, runFight };
+  return { makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
 })();
 
 // ---- src/games/faceoff/heads.js ----------------------------------
@@ -16010,6 +16211,31 @@ const HEADS = {
   },
 };
 
+HEADS.whis = (ctx) => {
+  // A tall white crest of hair and a halo ring around the neck.
+  poly(ctx, [[-0.35, -0.2], [-0.2, -1.05], [0.0, -0.4], [0.2, -1.05], [0.35, -0.2]], '#f4f6ff');
+  circle(ctx, 0, 0.18, 0.66, '#9cc4e8');
+  eyes(ctx, 0.12, 0.25, 0.07);
+  mouth(ctx, 0.5, 0.14);
+  ctx.strokeStyle = '#7ab8ff';
+  ctx.lineWidth = 0.1;
+  ctx.beginPath();
+  ctx.ellipse(0, 0.86, 0.6, 0.14, 0, 0, TAU);
+  ctx.stroke();
+};
+
+/** Undyne after she refuses to die: armour, and the eye burning. */
+HEADS.undying = (ctx) => {
+  HEADS.undyne(ctx);
+  ctx.fillStyle = '#e8eef8';
+  ctx.fillRect(-0.85, 0.32, 0.3, 0.42);
+  ctx.fillRect(0.55, 0.32, 0.3, 0.42);
+  ctx.fillStyle = 'rgba(255, 220, 60, 0.5)';
+  ctx.beginPath();
+  ctx.arc(0.28, 0.1, 0.26, 0, TAU);
+  ctx.fill();
+};
+
 /** Draws `id`'s head centred on x, y with radius r. */
 function drawHead(ctx, id, x, y, r) {
   ctx.save();
@@ -16229,9 +16455,11 @@ function drawBall(ctx, who, { flash = 0, trail = [] } = {}) {
   ctx.beginPath();
   ctx.arc(who.x, who.y, who.radius, 0, TAU);
   ctx.fill();
-  drawHead(ctx, who.id, who.x, who.y, who.radius * 0.95);
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 2;
+  drawHead(ctx, who.undying ? 'undying' : who.kind === 'whis' ? 'whis' : who.id, who.x, who.y, who.radius * 0.95);
+  // The ring says what is happening to it: blue when Sans has thrown it,
+  // orange while it burns.
+  ctx.strokeStyle = who.launched ? '#4aa8ff' : who.burn ? '#f93' : '#fff';
+  ctx.lineWidth = who.launched || who.burn ? 3.5 : 2;
   ctx.beginPath();
   ctx.arc(who.x, who.y, who.radius, 0, TAU);
   ctx.stroke();
@@ -16248,7 +16476,7 @@ function drawBall(ctx, who, { flash = 0, trail = [] } = {}) {
   ctx.fillStyle = '#fff';
   ctx.font = `bold 12px ${FONT}`;
   ctx.textAlign = 'center';
-  ctx.fillText(who.name.toUpperCase(), who.x, who.y - who.radius - 8);
+  ctx.fillText((who.name || '').toUpperCase(), who.x, who.y - who.radius - 8);
   ctx.restore();
 }
 
@@ -16285,11 +16513,17 @@ function drawStatus(ctx, who, x, y, align = 'left') {
     ctx.fillText(`dodges left ${who.dodgesLeft}`, left, y + 20);
   }
   const ability = who.spec.ability;
-  if (ability?.kind === 'regen') {
-    ctx.font = `bold 12px ${FONT}`;
-    ctx.fillStyle = '#8f8';
-    ctx.fillText(`heals in ${Math.ceil(Math.max(0, ability.every - who.regenTimer))}s`, left, y + 20);
+  ctx.font = `bold 12px ${FONT}`;
+  const notes = [];
+  if (ability?.every && ability.kind !== 'burn') {
+    const left = Math.ceil(Math.max(0, ability.every - who.abilityTimer));
+    notes.push({ text: `${ability.name} in ${left}s`, colour: '#8f8' });
   }
+  if (who.burn) notes.push({ text: `burning ${Math.ceil(who.burn.left)}s`, colour: '#f93' });
+  notes.forEach((note, i) => {
+    ctx.fillStyle = note.colour;
+    ctx.fillText(note.text, left + (who.dodgesLeft > 0 ? 190 : 0) + i * 190, y + 20);
+  });
   ctx.restore();
 }
 
@@ -16527,7 +16761,16 @@ class FaceoffGame {
     for (const event of this.fight.events) {
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
-        this.popups.push({ ...this.whereIs(event.uid), text: `${Math.round(event.amount)}`, colour: '#f44', size: 20, life: 0.8, maxLife: 0.8 });
+        const colour = { burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8' }[event.source] || '#f44';
+        const big = event.source === 'instakill';
+        this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
+      } else if (event.kind === 'ability') {
+        const at = this.whereIs(event.uid);
+        this.popups.push({ x: at.x, y: at.y - 22, text: event.name.toUpperCase(), colour: '#ff0', size: 14, life: 1.1, maxLife: 1.1 });
+      } else if (event.kind === 'undying') {
+        this.popups.push({ ...this.whereIs(event.uid), text: 'UNDYNE THE UNDYING', colour: '#ffd84a', size: 22, life: 1.6, maxLife: 1.6 });
+      } else if (event.kind === 'teleport') {
+        this.trails[event.uid] = [];
       } else if (event.kind === 'miss') {
         this.popups.push({ ...this.whereIs(event.uid), text: 'MISS', colour: '#ccc', size: 18, life: 0.8, maxLife: 0.8 });
       } else if (event.kind === 'heal') {
@@ -16605,6 +16848,7 @@ class FaceoffGame {
     for (const [who, foe] of [[a, b], [b, a]]) {
       if (who && foe) drawInfinity(ctx, who, inInfinity(foe, who), this.clock);
     }
+    for (const summon of this.fight.summons) drawBall(ctx, { ...summon, spec: { colour: '#9cc4e8' } });
     for (const [who, foe] of [[a, b], [b, a]]) {
       if (!who) continue;
       drawBall(ctx, who, { flash: this.flash[who.uid] || 0, trail: this.trails[who.uid] || [] });
