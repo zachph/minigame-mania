@@ -57,33 +57,83 @@ function mouth(ctx, y, w, colour = INK) {
   ctx.stroke();
 }
 
+/**
+ * A full head of hair: spikes all the way round the top of the skull, and a
+ * fringe falling over the forehead. Points are laid out around the head rather
+ * than along a flat line, so the hair follows the shape of it instead of
+ * sitting on top like a crown.
+ */
+function hair(ctx, { fill, outline, outer, inner, count, fringe, cy = 0.1 }) {
+  ctx.beginPath();
+  const from = Math.PI * 0.97;
+  const to = Math.PI * 2.03;
+  for (let i = 0; i <= count; i += 1) {
+    const angle = from + ((to - from) * i) / count;
+    const edge = i === 0 || i === count;
+    const r = edge ? 0.76 : i % 2 ? outer : inner;
+    const x = Math.cos(angle) * r;
+    const y = cy + Math.sin(angle) * r;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  for (const [x, y] of fringe) ctx.lineTo(x, y);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 0.05;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+}
+
 export const HEADS = {
   gojo(ctx) {
     circle(ctx, 0, 0.12, 0.72, SKIN);
-    spikes(ctx, '#f4f6ff', [[-0.8, -0.85], [-0.45, -1.05], [-0.1, -0.95], [0.25, -1.08], [0.6, -0.9], [0.85, -0.7]], { base: -0.05 });
-    // The blindfold.
+    // The blindfold first, so his fringe can fall over the top of it.
     ctx.fillStyle = INK;
-    ctx.fillRect(-0.74, -0.08, 1.48, 0.3);
-    mouth(ctx, 0.5, 0.18);
+    ctx.fillRect(-0.74, 0.06, 1.48, 0.38);
+    hair(ctx, {
+      fill: '#f4f6ff',
+      outline: '#9aa3b8',
+      outer: 1.02,
+      inner: 0.8,
+      count: 13,
+      // Tips only just over the top of the blindfold - it is the thing you
+      // know him by, so most of it has to show.
+      fringe: [[0.66, 0.0], [0.48, 0.12], [0.32, -0.04], [0.14, 0.13], [-0.04, -0.04],
+        [-0.22, 0.12], [-0.4, -0.04], [-0.56, 0.1], [-0.7, -0.02]],
+    });
+    mouth(ctx, 0.64, 0.16);
   },
 
   sukuna(ctx) {
     circle(ctx, 0, 0.12, 0.72, SKIN);
-    spikes(ctx, '#f39aa6', [[-0.75, -0.75], [-0.4, -0.95], [0, -0.85], [0.4, -0.97], [0.75, -0.72]], { base: -0.12 });
-    eyes(ctx, 0.05, 0.28, 0.08, '#c0102a');
+    // Shorter and swept up, with the forehead showing.
+    hair(ctx, {
+      fill: '#f39aa6',
+      outline: '#b85a6a',
+      outer: 0.98,
+      inner: 0.8,
+      count: 11,
+      fringe: [[0.62, -0.16], [0.44, -0.05], [0.26, -0.2], [0.06, -0.07], [-0.14, -0.21],
+        [-0.34, -0.06], [-0.52, -0.18], [-0.68, -0.08]],
+    });
+    eyes(ctx, 0.08, 0.28, 0.08, '#c0102a');
     // The second pair, under the first.
-    eyes(ctx, 0.28, 0.33, 0.055, '#c0102a');
+    eyes(ctx, 0.3, 0.33, 0.055, '#c0102a');
+    // Black markings under the eyes and down the cheeks.
     ctx.strokeStyle = INK;
-    ctx.lineWidth = 0.07;
+    ctx.lineWidth = 0.06;
+    ctx.lineCap = 'round';
     for (const side of [-1, 1]) {
       ctx.beginPath();
-      ctx.moveTo(side * 0.5, 0.42);
-      ctx.lineTo(side * 0.62, 0.62);
-      ctx.moveTo(side * 0.12, -0.06);
-      ctx.lineTo(side * 0.38, -0.12);
+      ctx.moveTo(side * 0.14, 0.18);
+      ctx.lineTo(side * 0.42, 0.18);
+      ctx.moveTo(side * 0.5, 0.4);
+      ctx.lineTo(side * 0.6, 0.6);
       ctx.stroke();
     }
-    mouth(ctx, 0.56, 0.2, '#600');
+    mouth(ctx, 0.58, 0.2, '#600');
   },
 
   sans(ctx) {
