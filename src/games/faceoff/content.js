@@ -41,15 +41,27 @@ export const TELEPORT_CLEAR = 170;
 
 export const BASE_HP = 250;
 
-const fighter = (spec) => ({ hp: BASE_HP, dodges: 0, ability: null, ...spec });
+/**
+ * A fighter can have any number of abilities. `ability` is kept as the first
+ * of them for anything that only wants one to show.
+ */
+const fighter = ({ ability, abilities, ...spec }) => {
+  const list = abilities || (ability ? [ability] : []);
+  return { hp: BASE_HP, dodges: 0, ...spec, abilities: list, ability: list[0] || null };
+};
 
 export const FIGHTERS = [
   // Infinity: anything that comes within `range` of him moves at half speed.
   // A bump hits as hard as you were moving into it, so a slowed attacker also
   // hits him for less.
+  // Reversal Red: every 12 seconds, a long red shot at wherever the enemy is.
+  // It flies straight, so an enemy that moves can be missed.
   fighter({
     id: 'gojo', name: 'Gojo', colour: '#9fd8ff', shade: '#2a5d8a',
-    ability: { kind: 'infinity', name: 'Infinity', range: 110, slow: 0.5 },
+    abilities: [
+      { kind: 'infinity', name: 'Infinity', range: 110, slow: 0.5 },
+      { kind: 'shot', name: 'Reversal Red', every: 12, damage: 25, speed: 620, length: 90, colour: '#ff2a2a' },
+    ],
   }),
   // Heals a quarter of his health every 15 seconds he spends in the box.
   fighter({

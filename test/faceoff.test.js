@@ -280,7 +280,7 @@ test('the heal never goes over his maximum', () => {
   const f = fight(['sukuna'], ['goku']);
   const sukuna = frontOf(f, 'a');
   sukuna.hp = 240;
-  sukuna.abilityTimer = 14.99;
+  sukuna.timers.regen = 14.99;
   frontOf(f, 'b').hitLock = sukuna.hitLock = 99;
   stepFight(f, 1 / 30);
   assert.equal(sukuna.hp, 250);
@@ -289,7 +289,7 @@ test('the heal never goes over his maximum', () => {
 test('waiting on the bench does not count towards the heal', () => {
   const f = fight(['goku', 'sukuna'], ['garou']);
   for (let i = 0; i < 30 * 5 && !f.over; i += 1) stepFight(f, 1 / 30);
-  assert.equal(f.sides.a.team[1].abilityTimer, 0);
+  assert.equal(f.sides.a.team[1].timers.regen, 0);
 });
 
 test('the heal timer shows on his status line', async () => {
@@ -333,7 +333,7 @@ const quiet = (f) => { for (const s of ['a', 'b']) for (const w of f.sides[s].te
 test('Sans throws the enemy at a wall every 10 seconds, and the wall does 5', async () => {
   const f = fight(['sans'], ['goku']);
   const goku = frontOf(f, 'b');
-  frontOf(f, 'a').abilityTimer = 9.99;
+  frontOf(f, 'a').timers.launch = 9.99;
   goku.hp = goku.maxHp = 1000;
   stepFight(f, 1 / 30);
   assert.ok(goku.launched, 'he was thrown');
@@ -419,7 +419,7 @@ test('a Serious Punch on Sans is still just one dodge', () => {
 test('Goku teleports every 20 seconds, never on top of the enemy', () => {
   const f = fight(['goku'], ['garou']);
   const goku = frontOf(f, 'a');
-  goku.abilityTimer = 19.99;
+  goku.timers.teleport = 19.99;
   stepFight(f, 1 / 30);
   assert.ok(f.events.some((e) => e.kind === 'teleport'));
   const garou = frontOf(f, 'b');
@@ -429,7 +429,7 @@ test('Goku teleports every 20 seconds, never on top of the enemy', () => {
 test('Beerus brings Whis in for 5 seconds, and Whis hurts the enemy', () => {
   const f = fight(['beerus'], ['goku']);
   quiet(f);
-  frontOf(f, 'a').abilityTimer = 14.99;
+  frontOf(f, 'a').timers.summon = 14.99;
   stepFight(f, 1 / 30);
   assert.equal(f.summons.length, 1);
   const before = frontOf(f, 'b').taken;
@@ -452,4 +452,65 @@ test('full fights with every ability still finish, without draws piling up', () 
     if (f.over.winner === 'draw') draws += 1;
   }
   assert.ok(draws <= 3, `${draws} draws`);
+});
+
+/* ------------------------------------------------------- Reversal Red */
+
+test('Gojo has both of his abilities', () => {
+  assert.deepEqual(getFighter('gojo').abilities.map((a) => a.name), ['Infinity', 'Reversal Red']);
+});
+
+test('a fighter with one ability still has it listed, and one with none has an empty list', () => {
+  assert.deepEqual(getFighter('goku').abilities.map((a) => a.kind), ['teleport']);
+  for (const spec of FIGHTERS) assert.ok(Array.isArray(spec.abilities));
+});
+
+test('Reversal Red fires every 12 seconds, at the enemy', () => {
+  const f = fight(['gojo'], ['goku']);
+  frontOf(f, 'a').timers.shot = 11.99;
+  stepFight(f, 1 / 30);
+  assert.equal(f.shots.length, 1);
+  const shot = f.shots[0];
+  const goku = frontOf(f, 'b');
+  const towards = shot.dx * (goku.x - shot.x) + shot.dy * (goku.y - shot.y);
+  assert.ok(towards > 0, 'it was fired towards Goku');
+});
+
+test('a shot that reaches the enemy does 25', () => {
+  const f = fight(['gojo'], ['garou']);
+  const [gojo, garou] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  garou.x = gojo.x + 200; garou.y = gojo.y; garou.vx = 0; garou.vy = 0;
+  f.shots.push({ side: 'a', owner: gojo, x: gojo.x + 40, y: gojo.y, dx: 1, dy: 0, speed: 620, length: 90, damage: 25, colour: '#f00' });
+  const before = garou.hp;
+  // Keep Garou where he is long enough for it to land.
+  for (let i = 0; i < 40 && f.shots.length; i += 1) { garou.x = gojo.x + 200; garou.y = gojo.y; garou.hitLock = gojo.hitLock = 99; stepFight(f, 1 / 120); }
+  assert.equal(before - garou.hp, 25);
+  assert.equal(f.shots.length, 0, 'and it is used up');
+});
+
+test('a shot that misses is gone once it leaves the box', () => {
+  const f = fight(['gojo'], ['garou']);
+  const gojo = frontOf(f, 'a');
+  f.shots.push({ side: 'a', owner: gojo, x: BOX.x + 5, y: BOX.y + 5, dx: -1, dy: 0, speed: 620, length: 90, damage: 25, colour: '#f00' });
+  stepFight(f, 1 / 30);
+  assert.equal(f.shots.length, 0);
+});
+
+test('Sans dodges Reversal Red like anything else', () => {
+  const f = fight(['gojo'], ['sans']);
+  const [gojo, sans] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  sans.x = gojo.x + 150; sans.y = gojo.y;
+  f.shots.push({ side: 'a', owner: gojo, x: gojo.x + 40, y: gojo.y, dx: 1, dy: 0, speed: 620, length: 90, damage: 25, colour: '#f00' });
+  for (let i = 0; i < 40 && f.shots.length; i += 1) { sans.x = gojo.x + 150; sans.y = gojo.y; sans.hitLock = gojo.hitLock = 99; stepFight(f, 1 / 120); }
+  assert.equal(sans.hp, 1);
+  assert.equal(sans.dodgesLeft, 23);
+});
+
+test('both of Gojo\'s timers run, and his status draws them', async () => {
+  const { drawShot } = await import('../src/games/faceoff/art.js');
+  const f = fight(['gojo'], ['sukuna']);
+  const ctx = createFakeContext();
+  assert.doesNotThrow(() => drawStatus(ctx, frontOf(f, 'a'), 96, 430));
+  drawShot(ctx, { x: 300, y: 200, dx: 1, dy: 0, length: 90, colour: '#ff2a2a' });
+  assert.ok(ctx.calls > 5);
 });

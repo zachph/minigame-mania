@@ -15307,15 +15307,27 @@ const TELEPORT_CLEAR = 170;
 
 const BASE_HP = 250;
 
-const fighter = (spec) => ({ hp: BASE_HP, dodges: 0, ability: null, ...spec });
+/**
+ * A fighter can have any number of abilities. `ability` is kept as the first
+ * of them for anything that only wants one to show.
+ */
+const fighter = ({ ability, abilities, ...spec }) => {
+  const list = abilities || (ability ? [ability] : []);
+  return { hp: BASE_HP, dodges: 0, ...spec, abilities: list, ability: list[0] || null };
+};
 
 const FIGHTERS = [
   // Infinity: anything that comes within `range` of him moves at half speed.
   // A bump hits as hard as you were moving into it, so a slowed attacker also
   // hits him for less.
+  // Reversal Red: every 12 seconds, a long red shot at wherever the enemy is.
+  // It flies straight, so an enemy that moves can be missed.
   fighter({
     id: 'gojo', name: 'Gojo', colour: '#9fd8ff', shade: '#2a5d8a',
-    ability: { kind: 'infinity', name: 'Infinity', range: 110, slow: 0.5 },
+    abilities: [
+      { kind: 'infinity', name: 'Infinity', range: 110, slow: 0.5 },
+      { kind: 'shot', name: 'Reversal Red', every: 12, damage: 25, speed: 620, length: 90, colour: '#ff2a2a' },
+    ],
   }),
   // Heals a quarter of his health every 15 seconds he spends in the box.
   fighter({
@@ -15445,6 +15457,15 @@ __modules["src/games/faceoff/battle.js"] = (function () {
 
 const MAX_SUB_STEP = 1 / 120;
 
+/** Every ability a fighter has. */
+const abilitiesOf = (who) => who?.spec?.abilities || [];
+
+/** The fighter's ability of this kind, or null. */
+const abilityOf = (who, kind) => abilitiesOf(who).find((ability) => ability.kind === kind) || null;
+
+/** Abilities that go off on a timer, as opposed to on a hit or always. */
+const isClock = (ability) => Boolean(ability.every) && ability.kind !== 'burn';
+
 function makeFighter(id, { slot = 0, side = 'a' } = {}) {
   const spec = getFighter(id);
   return {
@@ -15461,7 +15482,8 @@ function makeFighter(id, { slot = 0, side = 'a' } = {}) {
     mass: 1,
     x: 0, y: 0, vx: 0, vy: 0,
     hitLock: 0,
-    abilityTimer: 0,   // seconds towards the next go, for abilities on a clock
+    // Seconds towards each clock ability's next go, one timer per ability.
+    timers: Object.fromEntries(spec.abilities.filter(isClock).map((a) => [a.kind, 0])),
     burn: null,        // { left, next, damage, every, from } while burning
     launched: null,    // { from, damage } while flying at a wall
     undying: false,    // Undyne after she has come back
@@ -15499,6 +15521,7 @@ function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random, limit
       b: { team: makeTeam(b, 'b'), front: 0, scale: scaleB },
     },
     summons: [],       // Whis, while he is here
+    shots: [],         // Reversal Red, while in flight
     log: [],
     events: [],
     over: null,
@@ -15528,7 +15551,7 @@ const pressureAt = (time) => 1 + Math.max(0, time - PRESSURE_FROM) * PRESSURE_RA
 
 /** Undyne coming back as Undyne the Undying. */
 function becomeUndying(who) {
-  const ability = who.spec.ability;
+  const ability = abilityOf(who, 'undying');
   who.undying = true;
   who.undyingRolled = true;
   who.name = ability.name;
@@ -15558,8 +15581,8 @@ function hurt(fight, target, amount, { from = null, kind = 'bump' } = {}) {
   fight.events.push({ kind: 'damage', uid: target.uid, amount: dealt, source: kind });
 
   if (target.hp <= 0) {
-    const ability = target.spec.ability;
-    if (ability?.kind === 'undying' && !target.undyingRolled) {
+    const ability = abilityOf(target, 'undying');
+    if (ability && !target.undyingRolled) {
       target.undyingRolled = true;
       if (fight.random() < ability.chance) {
         becomeUndying(target);
@@ -15591,21 +15614,23 @@ function heal(fight, target, amount) {
  * Saitama's Serious Punch, Garou's second hit, Ralsei's burn.
  */
 function strike(fight, from, to, amount) {
-  const ability = from.spec.ability;
-  if (ability?.kind === 'instakill' && fight.random() < ability.chance) {
-    announce(fight, from, ability.name);
+  const punch = abilityOf(from, 'instakill');
+  if (punch && fight.random() < punch.chance) {
+    announce(fight, from, punch.name);
     // Everything it has. A dodge still eats it, and Undyne still gets her roll.
     return hurt(fight, to, to.hp + 100000, { from, kind: 'instakill' });
   }
   let dealt = hurt(fight, to, amount, { from });
-  if (ability?.kind === 'double' && to.hp > 0 && fight.random() < ability.chance) {
-    announce(fight, from, ability.name);
+  const twice = abilityOf(from, 'double');
+  if (twice && to.hp > 0 && fight.random() < twice.chance) {
+    announce(fight, from, twice.name);
     dealt += hurt(fight, to, amount, { from });
   }
-  if (ability?.kind === 'burn' && to.hp > 0 && fight.random() < ability.chance) {
+  const burn = abilityOf(from, 'burn');
+  if (burn && to.hp > 0 && fight.random() < burn.chance) {
     // A fresh burn replaces one already going, back to the full fifteen.
-    to.burn = { left: ability.lasts, next: ability.every, every: ability.every, damage: ability.damage, from };
-    announce(fight, from, ability.name);
+    to.burn = { left: burn.lasts, next: burn.every, every: burn.every, damage: burn.damage, from };
+    announce(fight, from, burn.name);
   }
   return dealt;
 }
@@ -15625,8 +15650,8 @@ function setSpeed(b, speed) {
  * Gojo's Infinity, a share of it. Gojo is never slowed by his own.
  */
 function speedFor(who, foe) {
-  const aura = foe?.spec?.ability;
-  if (!aura || aura.kind !== 'infinity' || foe.hp <= 0) return CRUISE;
+  const aura = abilityOf(foe, 'infinity');
+  if (!aura || foe.hp <= 0) return CRUISE;
   const dist = Math.hypot(foe.x - who.x, foe.y - who.y);
   return dist <= aura.range ? CRUISE * aura.slow : CRUISE;
 }
@@ -15743,12 +15768,18 @@ function clearSpot(fight, who, foe) {
  * the bench is not doing anything yet.
  */
 function tickAbilities(fight, who, foe, dt) {
-  const ability = who.spec.ability;
-  if (!ability || who.hp <= 0 || !ability.every || ability.kind === 'burn') return;
-  who.abilityTimer += dt;
-  if (who.abilityTimer < ability.every) return;
-  who.abilityTimer -= ability.every;
+  if (who.hp <= 0) return;
+  for (const ability of abilitiesOf(who)) {
+    if (!isClock(ability)) continue;
+    who.timers[ability.kind] = (who.timers[ability.kind] || 0) + dt;
+    if (who.timers[ability.kind] < ability.every) continue;
+    who.timers[ability.kind] -= ability.every;
+    useAbility(fight, who, foe, ability);
+  }
+}
 
+/** One clock ability going off. */
+function useAbility(fight, who, foe, ability) {
   if (ability.kind === 'regen') {
     const given = heal(fight, who, who.maxHp * ability.share);
     if (given > 0) say(fight, `${who.name} heals ${Math.round(given)}`, { side: who.side });
@@ -15779,7 +15810,46 @@ function tickAbilities(fight, who, foe, dt) {
     });
     setSpeed(fight.summons.at(-1), CRUISE);
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
+    // Aimed at where the enemy is now, not where it is going.
+    const dx = foe.x - who.x;
+    const dy = foe.y - who.y;
+    const d = Math.hypot(dx, dy) || 1;
+    fight.shots.push({
+      side: who.side,
+      owner: who,
+      x: who.x + (dx / d) * who.radius,
+      y: who.y + (dy / d) * who.radius,
+      dx: dx / d,
+      dy: dy / d,
+      speed: ability.speed,
+      length: ability.length,
+      damage: ability.damage,
+      colour: ability.colour,
+      name: ability.name,
+    });
+    announce(fight, who, ability.name);
   }
+}
+
+/**
+ * Shots in flight. A shot flies straight until it touches the enemy in the
+ * box - then it does its damage, which still goes through `hurt` - or leaves
+ * the box. A shot whose fighter has gone flies on regardless.
+ */
+function tickShots(fight, dt) {
+  for (const shot of fight.shots) {
+    shot.x += shot.dx * shot.speed * dt;
+    shot.y += shot.dy * shot.speed * dt;
+    const foe = frontOf(fight, other(shot.side));
+    if (foe && foe.hp > 0 && Math.hypot(foe.x - shot.x, foe.y - shot.y) <= foe.radius + 4) {
+      shot.spent = true;
+      fight.events.push({ kind: 'shot-hit', x: shot.x, y: shot.y, colour: shot.colour });
+      hurt(fight, foe, shot.damage * fight.sides[shot.side].scale, { from: shot.owner, kind: 'shot' });
+    }
+    if (shot.x < BOX.x || shot.x > BOX.x + BOX.w || shot.y < BOX.y || shot.y > BOX.y + BOX.h) shot.spent = true;
+  }
+  fight.shots = fight.shots.filter((shot) => !shot.spent);
 }
 
 function tickBurn(fight, who, dt) {
@@ -15794,15 +15864,18 @@ function tickBurn(fight, who, dt) {
   }
 }
 
-/** Seconds until a fighter's clock ability goes next, or null if it has none. */
-function nextAbilityIn(who) {
-  const ability = who?.spec.ability;
-  if (!ability || !ability.every || ability.kind === 'burn') return null;
-  return Math.max(0, ability.every - who.abilityTimer);
+/**
+ * Seconds until a fighter's clock ability goes next - `kind` picks which, and
+ * without it the first one it has. Null if it has none.
+ */
+function nextAbilityIn(who, kind = null) {
+  const ability = kind ? abilityOf(who, kind) : abilitiesOf(who).find(isClock);
+  if (!ability || !isClock(ability)) return null;
+  return Math.max(0, ability.every - (who.timers[ability.kind] || 0));
 }
 
 /** Kept for Sukuna: seconds until he heals next. */
-const nextHealIn = (who) => (who?.spec.ability?.kind === 'regen' ? nextAbilityIn(who) : null);
+const nextHealIn = (who) => nextAbilityIn(who, 'regen');
 
 /* -------------------------------------------------------------- the clock */
 
@@ -15880,6 +15953,7 @@ function stepFight(fight, dt) {
       if (Math.hypot(foe.x - summon.x, foe.y - summon.y) <= summon.radius + foe.radius) summonBump(fight, summon, foe);
     }
     fight.summons = fight.summons.filter((s) => s.left > 0);
+    tickShots(fight, slice);
     if (checkOver(fight)) break;
   }
   return fight;
@@ -15917,7 +15991,7 @@ function runFight(fight, step = 1 / 30) {
   return fight.over || checkOver(fight);
 }
 
-  return { makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
+  return { abilitiesOf, abilityOf, isClock, makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
 })();
 
 // ---- src/games/faceoff/heads.js ----------------------------------
@@ -16337,7 +16411,7 @@ class SelectPanel {
       name.append(el('span', 'fo-card-place', ''));
       body.append(name);
       body.append(el('p', 'fo-card-blurb', statLine(spec)));
-      body.append(el('p', 'fo-card-ability', spec.ability ? spec.ability.name : 'ability coming'));
+      body.append(el('p', 'fo-card-ability', spec.abilities.length ? spec.abilities.map((a) => a.name).join(' + ') : 'no ability'));
       card.append(body);
       card.addEventListener('click', () => this.toggle(spec.id));
       this.grid.append(card);
@@ -16410,6 +16484,7 @@ __modules["src/games/faceoff/art.js"] = (function () {
   const { TAU, clamp } = __modules["src/core/utils.js"];
   const { BOX } = __modules["src/games/faceoff/content.js"];
   const { drawHead } = __modules["src/games/faceoff/heads.js"];
+  const { abilityOf, abilitiesOf, isClock } = __modules["src/games/faceoff/battle.js"];
 
 /**
  * The Undertale battle box, made bigger: black, a thick white border, and
@@ -16512,18 +16587,20 @@ function drawStatus(ctx, who, x, y, align = 'left') {
     ctx.fillStyle = '#9be8ff';
     ctx.fillText(`dodges left ${who.dodgesLeft}`, left, y + 20);
   }
-  const ability = who.spec.ability;
   ctx.font = `bold 12px ${FONT}`;
   const notes = [];
-  if (ability?.every && ability.kind !== 'burn') {
-    const left = Math.ceil(Math.max(0, ability.every - who.abilityTimer));
-    notes.push({ text: `${ability.name} in ${left}s`, colour: '#8f8' });
+  for (const ability of abilitiesOf(who).filter(isClock)) {
+    const left = Math.ceil(Math.max(0, ability.every - (who.timers[ability.kind] || 0)));
+    notes.push({ text: `${ability.name} ${left}s`, colour: '#8f8' });
   }
   if (who.burn) notes.push({ text: `burning ${Math.ceil(who.burn.left)}s`, colour: '#f93' });
-  notes.forEach((note, i) => {
+  // One line under the health bar, as many notes as fit.
+  let at = left + (who.dodgesLeft > 0 ? 160 : 0);
+  for (const note of notes) {
     ctx.fillStyle = note.colour;
-    ctx.fillText(note.text, left + (who.dodgesLeft > 0 ? 190 : 0) + i * 190, y + 20);
-  });
+    ctx.fillText(note.text, at, y + 20);
+    at += ctx.measureText(note.text).width + 18;
+  }
   ctx.restore();
 }
 
@@ -16591,8 +16668,8 @@ function drawBanner(ctx, text, sub) {
  * inside it and being slowed.
  */
 function drawInfinity(ctx, who, active, time = 0) {
-  const aura = who.spec.ability;
-  if (!aura || aura.kind !== 'infinity' || who.hp <= 0) return;
+  const aura = abilityOf(who, 'infinity');
+  if (!aura || who.hp <= 0) return;
   ctx.save();
   ctx.strokeStyle = '#9fd8ff';
   ctx.globalAlpha = active ? 0.55 + 0.25 * Math.sin(time * 10) : 0.18;
@@ -16616,7 +16693,31 @@ function drawSlowed(ctx, who) {
   ctx.restore();
 }
 
-  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed };
+/** A shot in flight: a long streak, brightest at the head. */
+function drawShot(ctx, shot) {
+  ctx.save();
+  const tailX = shot.x - shot.dx * shot.length;
+  const tailY = shot.y - shot.dy * shot.length;
+  const grad = ctx.createLinearGradient(tailX, tailY, shot.x, shot.y);
+  grad.addColorStop(0, 'rgba(255, 40, 40, 0)');
+  grad.addColorStop(1, shot.colour);
+  ctx.strokeStyle = grad;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 10;
+  ctx.beginPath();
+  ctx.moveTo(tailX, tailY);
+  ctx.lineTo(shot.x, shot.y);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255, 220, 220, 0.9)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(shot.x - shot.dx * shot.length * 0.5, shot.y - shot.dy * shot.length * 0.5);
+  ctx.lineTo(shot.x, shot.y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot };
 })();
 
 // ---- src/games/faceoff/game.js -----------------------------------
@@ -16625,7 +16726,7 @@ __modules["src/games/faceoff/game.js"] = (function () {
   const { BOX, FIGHTERS, MODE_BY_ID, STORY, STORY_RECOVERY, TOWER, TOWER_RECOVERY } = __modules["src/games/faceoff/content.js"];
   const { createFight, frontOf, healthShare, inInfinity, pressureAt, stepFight } = __modules["src/games/faceoff/battle.js"];
   const { SelectPanel } = __modules["src/games/faceoff/select.js"];
-  const { drawBall, drawBanner, drawBench, drawBox, drawInfinity, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawText } = __modules["src/games/faceoff/art.js"];
+  const { drawBall, drawBanner, drawBench, drawBox, drawInfinity, drawShot, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawText } = __modules["src/games/faceoff/art.js"];
 
 const GAME_ID = 'faceoff';
 
@@ -16761,7 +16862,7 @@ class FaceoffGame {
     for (const event of this.fight.events) {
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
-        const colour = { burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8' }[event.source] || '#f44';
+        const colour = { burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a' }[event.source] || '#f44';
         const big = event.source === 'instakill';
         this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
       } else if (event.kind === 'ability') {
@@ -16775,6 +16876,12 @@ class FaceoffGame {
         this.popups.push({ ...this.whereIs(event.uid), text: 'MISS', colour: '#ccc', size: 18, life: 0.8, maxLife: 0.8 });
       } else if (event.kind === 'heal') {
         this.popups.push({ ...this.whereIs(event.uid), text: `+${Math.round(event.amount)}`, colour: '#4f4', size: 18, life: 0.8, maxLife: 0.8 });
+      } else if (event.kind === 'shot-hit') {
+        for (let i = 0; i < 14; i += 1) {
+          const a = Math.random() * Math.PI * 2;
+          const v = 80 + Math.random() * 200;
+          this.sparks.push({ x: event.x, y: event.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.4, maxLife: 0.4 });
+        }
       } else if (event.kind === 'bump') {
         for (let i = 0; i < 8; i += 1) {
           const a = Math.random() * Math.PI * 2;
@@ -16849,6 +16956,7 @@ class FaceoffGame {
       if (who && foe) drawInfinity(ctx, who, inInfinity(foe, who), this.clock);
     }
     for (const summon of this.fight.summons) drawBall(ctx, { ...summon, spec: { colour: '#9cc4e8' } });
+    for (const shot of this.fight.shots) drawShot(ctx, shot);
     for (const [who, foe] of [[a, b], [b, a]]) {
       if (!who) continue;
       drawBall(ctx, who, { flash: this.flash[who.uid] || 0, trail: this.trails[who.uid] || [] });

@@ -1,6 +1,7 @@
 import { TAU, clamp } from '../../core/utils.js';
 import { BOX } from './content.js';
 import { drawHead } from './heads.js';
+import { abilityOf, abilitiesOf, isClock } from './battle.js';
 
 /**
  * The Undertale battle box, made bigger: black, a thick white border, and
@@ -103,18 +104,20 @@ export function drawStatus(ctx, who, x, y, align = 'left') {
     ctx.fillStyle = '#9be8ff';
     ctx.fillText(`dodges left ${who.dodgesLeft}`, left, y + 20);
   }
-  const ability = who.spec.ability;
   ctx.font = `bold 12px ${FONT}`;
   const notes = [];
-  if (ability?.every && ability.kind !== 'burn') {
-    const left = Math.ceil(Math.max(0, ability.every - who.abilityTimer));
-    notes.push({ text: `${ability.name} in ${left}s`, colour: '#8f8' });
+  for (const ability of abilitiesOf(who).filter(isClock)) {
+    const left = Math.ceil(Math.max(0, ability.every - (who.timers[ability.kind] || 0)));
+    notes.push({ text: `${ability.name} ${left}s`, colour: '#8f8' });
   }
   if (who.burn) notes.push({ text: `burning ${Math.ceil(who.burn.left)}s`, colour: '#f93' });
-  notes.forEach((note, i) => {
+  // One line under the health bar, as many notes as fit.
+  let at = left + (who.dodgesLeft > 0 ? 160 : 0);
+  for (const note of notes) {
     ctx.fillStyle = note.colour;
-    ctx.fillText(note.text, left + (who.dodgesLeft > 0 ? 190 : 0) + i * 190, y + 20);
-  });
+    ctx.fillText(note.text, at, y + 20);
+    at += ctx.measureText(note.text).width + 18;
+  }
   ctx.restore();
 }
 
@@ -182,8 +185,8 @@ export function drawBanner(ctx, text, sub) {
  * inside it and being slowed.
  */
 export function drawInfinity(ctx, who, active, time = 0) {
-  const aura = who.spec.ability;
-  if (!aura || aura.kind !== 'infinity' || who.hp <= 0) return;
+  const aura = abilityOf(who, 'infinity');
+  if (!aura || who.hp <= 0) return;
   ctx.save();
   ctx.strokeStyle = '#9fd8ff';
   ctx.globalAlpha = active ? 0.55 + 0.25 * Math.sin(time * 10) : 0.18;
@@ -203,6 +206,30 @@ export function drawSlowed(ctx, who) {
   ctx.globalAlpha = 0.8;
   ctx.beginPath();
   ctx.arc(who.x, who.y, who.radius + 4, 0, TAU);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** A shot in flight: a long streak, brightest at the head. */
+export function drawShot(ctx, shot) {
+  ctx.save();
+  const tailX = shot.x - shot.dx * shot.length;
+  const tailY = shot.y - shot.dy * shot.length;
+  const grad = ctx.createLinearGradient(tailX, tailY, shot.x, shot.y);
+  grad.addColorStop(0, 'rgba(255, 40, 40, 0)');
+  grad.addColorStop(1, shot.colour);
+  ctx.strokeStyle = grad;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 10;
+  ctx.beginPath();
+  ctx.moveTo(tailX, tailY);
+  ctx.lineTo(shot.x, shot.y);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255, 220, 220, 0.9)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(shot.x - shot.dx * shot.length * 0.5, shot.y - shot.dy * shot.length * 0.5);
+  ctx.lineTo(shot.x, shot.y);
   ctx.stroke();
   ctx.restore();
 }
