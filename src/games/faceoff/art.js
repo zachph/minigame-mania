@@ -256,3 +256,49 @@ export function drawSlash(ctx, slash) {
   }
   ctx.restore();
 }
+
+/**
+ * A Gaster Blaster: a long skull on the wall, and a white beam from its mouth
+ * to whoever it has locked on to.
+ */
+export function drawBlaster(ctx, blaster, target, time = 0) {
+  ctx.save();
+  const angle = target ? Math.atan2(target.y - blaster.y, target.x - blaster.x) : 0;
+  if (target) {
+    const flicker = 0.75 + 0.25 * Math.sin(time * 40);
+    ctx.globalAlpha = flicker;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 22;
+    ctx.beginPath();
+    ctx.moveTo(blaster.x, blaster.y);
+    ctx.lineTo(target.x, target.y);
+    ctx.stroke();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 9;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  // The skull, pointing along the beam.
+  ctx.translate(blaster.x, blaster.y);
+  ctx.rotate(angle);
+  ctx.fillStyle = '#f2f2f2';
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-22, -14);
+  ctx.lineTo(10, -16);
+  ctx.lineTo(24, -6);
+  ctx.lineTo(24, 6);
+  ctx.lineTo(10, 16);
+  ctx.lineTo(-22, 14);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.arc(-4, -7, 4, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(-4, 7, 4, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#7ab8ff';
+  ctx.beginPath(); ctx.arc(-4, -7, 1.6, 0, TAU); ctx.fill();
+  ctx.restore();
+}

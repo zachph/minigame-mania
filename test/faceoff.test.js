@@ -549,3 +549,55 @@ test('the cut draws', async () => {
   drawSlash(ctx, { x: 300, y: 200, life: 0.2, maxLife: 0.45 });
   assert.ok(ctx.calls > 5);
 });
+
+/* ------------------------------------------------------- Gaster Blaster */
+
+test('Sans has Blue Magic and Gaster Blaster', () => {
+  assert.deepEqual(getFighter('sans').abilities.map((a) => a.name), ['Blue Magic', 'Gaster Blaster']);
+});
+
+test('a Gaster Blaster does 1 a second for 10 seconds', () => {
+  const f = fight(['sans'], ['goku']);
+  quiet(f);
+  const [sans, goku] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  sans.timers.blaster = 7.99;
+  sans.timers.launch = -1000;              // keep Blue Magic out of it
+  stepFight(f, 1 / 30);
+  assert.equal(f.blasters.length, 1);
+  const before = goku.taken;
+  sans.timers.blaster = -1000;             // and no second blaster
+  for (let i = 0; i < 30 * 10.5; i += 1) { goku.hitLock = sans.hitLock = 99; f.sinceBump = 0; goku.x = sans.x + 400; stepFight(f, 1 / 30); }
+  assert.equal(Math.round(goku.taken - before), 10);
+  assert.equal(f.blasters.length, 0, 'and then it is gone');
+});
+
+test('it comes back every 8 seconds, so two overlap for a while', () => {
+  const f = fight(['sans'], ['goku']);
+  quiet(f);
+  const [sans, goku] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  sans.timers.launch = -1000;
+  let most = 0;
+  for (let i = 0; i < 30 * 20; i += 1) { goku.hitLock = sans.hitLock = 99; f.sinceBump = 0; goku.x = sans.x + 400; stepFight(f, 1 / 30); most = Math.max(most, f.blasters.length); }
+  assert.equal(most, 2);
+});
+
+test('the blasters go when Sans does', () => {
+  // A teammate behind him, or knocking him out ends the fight on the spot.
+  const f = fight(['sans', 'garou'], ['goku']);
+  const sans = frontOf(f, 'a');
+  sans.timers.blaster = 7.99;
+  stepFight(f, 1 / 30);
+  assert.equal(f.blasters.length, 1);
+  sans.dodgesLeft = 0;
+  hurt(f, sans, 5);
+  stepFight(f, 1 / 30);
+  assert.equal(f.blasters.length, 0);
+});
+
+test('the blaster and its beam draw', async () => {
+  const { drawBlaster } = await import('../src/games/faceoff/art.js');
+  const ctx = createFakeContext();
+  drawBlaster(ctx, { x: 110, y: 200 }, { x: 500, y: 260 }, 1.3);
+  drawBlaster(ctx, { x: 110, y: 200 }, null, 1.3);
+  assert.ok(ctx.calls > 10);
+});
