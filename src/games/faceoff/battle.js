@@ -36,6 +36,15 @@ import {
 
 const MAX_SUB_STEP = 1 / 120;
 
+/** Every ability a fighter has. */
+export const abilitiesOf = (who) => who?.spec?.abilities || [];
+
+/** The fighter's ability of this kind, or null. */
+export const abilityOf = (who, kind) => abilitiesOf(who).find((ability) => ability.kind === kind) || null;
+
+/** Abilities that go off on a timer, as opposed to on a hit or always. */
+export const isClock = (ability) => Boolean(ability.every) && ability.kind !== 'burn';
+
 export function makeFighter(id, { slot = 0, side = 'a' } = {}) {
   const spec = getFighter(id);
   return {
@@ -52,7 +61,8 @@ export function makeFighter(id, { slot = 0, side = 'a' } = {}) {
     mass: 1,
     x: 0, y: 0, vx: 0, vy: 0,
     hitLock: 0,
-    abilityTimer: 0,   // seconds towards the next go, for abilities on a clock
+    // Seconds towards each clock ability's next go, one timer per ability.
+    timers: Object.fromEntries(spec.abilities.filter(isClock).map((a) => [a.kind, 0])),
     burn: null,        // { left, next, damage, every, from } while burning
     launched: null,    // { from, damage } while flying at a wall
     undying: false,    // Undyne after she has come back
@@ -90,6 +100,7 @@ export function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random
       b: { team: makeTeam(b, 'b'), front: 0, scale: scaleB },
     },
     summons: [],       // Whis, while he is here
+    shots: [],         // Reversal Red, while in flight
     log: [],
     events: [],
     over: null,
@@ -119,7 +130,7 @@ export const pressureAt = (time) => 1 + Math.max(0, time - PRESSURE_FROM) * PRES
 
 /** Undyne coming back as Undyne the Undying. */
 export function becomeUndying(who) {
-  const ability = who.spec.ability;
+  const ability = abilityOf(who, 'undying');
   who.undying = true;
   who.undyingRolled = true;
   who.name = ability.name;
@@ -149,8 +160,8 @@ export function hurt(fight, target, amount, { from = null, kind = 'bump' } = {})
   fight.events.push({ kind: 'damage', uid: target.uid, amount: dealt, source: kind });
 
   if (target.hp <= 0) {
-    const ability = target.spec.ability;
-    if (ability?.kind === 'undying' && !target.undyingRolled) {
+    const ability = abilityOf(target, 'undying');
+    if (ability && !target.undyingRolled) {
       target.undyingRolled = true;
       if (fight.random() < ability.chance) {
         becomeUndying(target);
@@ -182,21 +193,23 @@ export function heal(fight, target, amount) {
  * Saitama's Serious Punch, Garou's second hit, Ralsei's burn.
  */
 export function strike(fight, from, to, amount) {
-  const ability = from.spec.ability;
-  if (ability?.kind === 'instakill' && fight.random() < ability.chance) {
-    announce(fight, from, ability.name);
+  const punch = abilityOf(from, 'instakill');
+  if (punch && fight.random() < punch.chance) {
+    announce(fight, from, punch.name);
     // Everything it has. A dodge still eats it, and Undyne still gets her roll.
     return hurt(fight, to, to.hp + 100000, { from, kind: 'instakill' });
   }
   let dealt = hurt(fight, to, amount, { from });
-  if (ability?.kind === 'double' && to.hp > 0 && fight.random() < ability.chance) {
-    announce(fight, from, ability.name);
+  const twice = abilityOf(from, 'double');
+  if (twice && to.hp > 0 && fight.random() < twice.chance) {
+    announce(fight, from, twice.name);
     dealt += hurt(fight, to, amount, { from });
   }
-  if (ability?.kind === 'burn' && to.hp > 0 && fight.random() < ability.chance) {
+  const burn = abilityOf(from, 'burn');
+  if (burn && to.hp > 0 && fight.random() < burn.chance) {
     // A fresh burn replaces one already going, back to the full fifteen.
-    to.burn = { left: ability.lasts, next: ability.every, every: ability.every, damage: ability.damage, from };
-    announce(fight, from, ability.name);
+    to.burn = { left: burn.lasts, next: burn.every, every: burn.every, damage: burn.damage, from };
+    announce(fight, from, burn.name);
   }
   return dealt;
 }
@@ -216,8 +229,8 @@ function setSpeed(b, speed) {
  * Gojo's Infinity, a share of it. Gojo is never slowed by his own.
  */
 export function speedFor(who, foe) {
-  const aura = foe?.spec?.ability;
-  if (!aura || aura.kind !== 'infinity' || foe.hp <= 0) return CRUISE;
+  const aura = abilityOf(foe, 'infinity');
+  if (!aura || foe.hp <= 0) return CRUISE;
   const dist = Math.hypot(foe.x - who.x, foe.y - who.y);
   return dist <= aura.range ? CRUISE * aura.slow : CRUISE;
 }
@@ -334,12 +347,18 @@ function clearSpot(fight, who, foe) {
  * the bench is not doing anything yet.
  */
 function tickAbilities(fight, who, foe, dt) {
-  const ability = who.spec.ability;
-  if (!ability || who.hp <= 0 || !ability.every || ability.kind === 'burn') return;
-  who.abilityTimer += dt;
-  if (who.abilityTimer < ability.every) return;
-  who.abilityTimer -= ability.every;
+  if (who.hp <= 0) return;
+  for (const ability of abilitiesOf(who)) {
+    if (!isClock(ability)) continue;
+    who.timers[ability.kind] = (who.timers[ability.kind] || 0) + dt;
+    if (who.timers[ability.kind] < ability.every) continue;
+    who.timers[ability.kind] -= ability.every;
+    useAbility(fight, who, foe, ability);
+  }
+}
 
+/** One clock ability going off. */
+function useAbility(fight, who, foe, ability) {
   if (ability.kind === 'regen') {
     const given = heal(fight, who, who.maxHp * ability.share);
     if (given > 0) say(fight, `${who.name} heals ${Math.round(given)}`, { side: who.side });
@@ -370,7 +389,46 @@ function tickAbilities(fight, who, foe, dt) {
     });
     setSpeed(fight.summons.at(-1), CRUISE);
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
+    // Aimed at where the enemy is now, not where it is going.
+    const dx = foe.x - who.x;
+    const dy = foe.y - who.y;
+    const d = Math.hypot(dx, dy) || 1;
+    fight.shots.push({
+      side: who.side,
+      owner: who,
+      x: who.x + (dx / d) * who.radius,
+      y: who.y + (dy / d) * who.radius,
+      dx: dx / d,
+      dy: dy / d,
+      speed: ability.speed,
+      length: ability.length,
+      damage: ability.damage,
+      colour: ability.colour,
+      name: ability.name,
+    });
+    announce(fight, who, ability.name);
   }
+}
+
+/**
+ * Shots in flight. A shot flies straight until it touches the enemy in the
+ * box - then it does its damage, which still goes through `hurt` - or leaves
+ * the box. A shot whose fighter has gone flies on regardless.
+ */
+function tickShots(fight, dt) {
+  for (const shot of fight.shots) {
+    shot.x += shot.dx * shot.speed * dt;
+    shot.y += shot.dy * shot.speed * dt;
+    const foe = frontOf(fight, other(shot.side));
+    if (foe && foe.hp > 0 && Math.hypot(foe.x - shot.x, foe.y - shot.y) <= foe.radius + 4) {
+      shot.spent = true;
+      fight.events.push({ kind: 'shot-hit', x: shot.x, y: shot.y, colour: shot.colour });
+      hurt(fight, foe, shot.damage * fight.sides[shot.side].scale, { from: shot.owner, kind: 'shot' });
+    }
+    if (shot.x < BOX.x || shot.x > BOX.x + BOX.w || shot.y < BOX.y || shot.y > BOX.y + BOX.h) shot.spent = true;
+  }
+  fight.shots = fight.shots.filter((shot) => !shot.spent);
 }
 
 function tickBurn(fight, who, dt) {
@@ -385,15 +443,18 @@ function tickBurn(fight, who, dt) {
   }
 }
 
-/** Seconds until a fighter's clock ability goes next, or null if it has none. */
-export function nextAbilityIn(who) {
-  const ability = who?.spec.ability;
-  if (!ability || !ability.every || ability.kind === 'burn') return null;
-  return Math.max(0, ability.every - who.abilityTimer);
+/**
+ * Seconds until a fighter's clock ability goes next - `kind` picks which, and
+ * without it the first one it has. Null if it has none.
+ */
+export function nextAbilityIn(who, kind = null) {
+  const ability = kind ? abilityOf(who, kind) : abilitiesOf(who).find(isClock);
+  if (!ability || !isClock(ability)) return null;
+  return Math.max(0, ability.every - (who.timers[ability.kind] || 0));
 }
 
 /** Kept for Sukuna: seconds until he heals next. */
-export const nextHealIn = (who) => (who?.spec.ability?.kind === 'regen' ? nextAbilityIn(who) : null);
+export const nextHealIn = (who) => nextAbilityIn(who, 'regen');
 
 /* -------------------------------------------------------------- the clock */
 
@@ -471,6 +532,7 @@ export function stepFight(fight, dt) {
       if (Math.hypot(foe.x - summon.x, foe.y - summon.y) <= summon.radius + foe.radius) summonBump(fight, summon, foe);
     }
     fight.summons = fight.summons.filter((s) => s.left > 0);
+    tickShots(fight, slice);
     if (checkOver(fight)) break;
   }
   return fight;

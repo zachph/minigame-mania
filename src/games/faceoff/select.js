@@ -83,7 +83,7 @@ export class SelectPanel {
       name.append(el('span', 'fo-card-place', ''));
       body.append(name);
       body.append(el('p', 'fo-card-blurb', statLine(spec)));
-      body.append(el('p', 'fo-card-ability', spec.ability ? spec.ability.name : 'ability coming'));
+      body.append(el('p', 'fo-card-ability', spec.abilities.length ? spec.abilities.map((a) => a.name).join(' + ') : 'no ability'));
       card.append(body);
       card.addEventListener('click', () => this.toggle(spec.id));
       this.grid.append(card);
