@@ -258,33 +258,66 @@ export function drawSlash(ctx, slash) {
 }
 
 /**
- * A Gaster Blaster: a long skull on the wall, and a white beam from its mouth
- * to whoever it has locked on to.
+ * Where a blast's beam runs: a line through the target, in the blast's own
+ * direction, from one wall of the box to the other. Returns the two ends; the
+ * skull sits at the first.
  */
+export function beamLine(blaster, target) {
+  const tx = target ? target.x : BOX.x + BOX.w / 2;
+  const ty = target ? target.y : BOX.y + BOX.h / 2;
+  const dir = {
+    diagonal: [1, 1],
+    horizontal: [1, 0],
+    'other-diagonal': [1, -1],
+    left: [1, 0],
+    right: [-1, 0],
+  }[blaster.aim] || [1, 0];
+  const len = Math.hypot(dir[0], dir[1]);
+  const dx = dir[0] / len;
+  const dy = dir[1] / len;
+  // How far back along the line to the wall it comes from, and on to the other.
+  const reach = (sx, sy) => {
+    let t = Infinity;
+    if (sx > 0) t = Math.min(t, (BOX.x + BOX.w - tx) / sx);
+    if (sx < 0) t = Math.min(t, (BOX.x - tx) / sx);
+    if (sy > 0) t = Math.min(t, (BOX.y + BOX.h - ty) / sy);
+    if (sy < 0) t = Math.min(t, (BOX.y - ty) / sy);
+    return Number.isFinite(t) ? t : 0;
+  };
+  const back = reach(-dx, -dy);
+  const on = reach(dx, dy);
+  const start = { x: tx - dx * back, y: ty - dy * back };
+  // The two big ones come from their own walls and stop at the target.
+  const end = blaster.big ? { x: tx, y: ty } : { x: tx + dx * on, y: ty + dy * on };
+  return { start, end, angle: Math.atan2(dy, dx) };
+}
+
+/** A Gaster Blaster: a skull on the wall and a white beam across the box. */
 export function drawBlaster(ctx, blaster, target, time = 0) {
+  const { start, end, angle } = beamLine(blaster, target);
+  const size = blaster.big ? 1.7 : 1;
   ctx.save();
-  const angle = target ? Math.atan2(target.y - blaster.y, target.x - blaster.x) : 0;
-  if (target) {
-    const flicker = 0.75 + 0.25 * Math.sin(time * 40);
-    ctx.globalAlpha = flicker;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.lineCap = 'round';
-    ctx.lineWidth = 22;
-    ctx.beginPath();
-    ctx.moveTo(blaster.x, blaster.y);
-    ctx.lineTo(target.x, target.y);
-    ctx.stroke();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 9;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
+  const flicker = 0.75 + 0.25 * Math.sin(time * 40);
+  ctx.globalAlpha = flicker;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 22 * size;
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.stroke();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 9 * size;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
   // The skull, pointing along the beam.
-  ctx.translate(blaster.x, blaster.y);
+  ctx.translate(start.x, start.y);
   ctx.rotate(angle);
+  ctx.scale(size, size);
   ctx.fillStyle = '#f2f2f2';
   ctx.strokeStyle = '#111';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 / size;
   ctx.beginPath();
   ctx.moveTo(-22, -14);
   ctx.lineTo(10, -16);

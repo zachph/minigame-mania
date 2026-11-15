@@ -556,48 +556,93 @@ test('Sans has Blue Magic and Gaster Blaster', () => {
   assert.deepEqual(getFighter('sans').abilities.map((a) => a.name), ['Blue Magic', 'Gaster Blaster']);
 });
 
-test('a Gaster Blaster does 1 a second for 10 seconds', () => {
-  const f = fight(['sans'], ['goku']);
-  quiet(f);
-  const [sans, goku] = [frontOf(f, 'a'), frontOf(f, 'b')];
-  sans.timers.blaster = 7.99;
-  sans.timers.launch = -1000;              // keep Blue Magic out of it
-  stepFight(f, 1 / 30);
-  assert.equal(f.blasters.length, 1);
-  const before = goku.taken;
-  sans.timers.blaster = -1000;             // and no second blaster
-  for (let i = 0; i < 30 * 10.5; i += 1) { goku.hitLock = sans.hitLock = 99; f.sinceBump = 0; goku.x = sans.x + 400; stepFight(f, 1 / 30); }
-  assert.equal(Math.round(goku.taken - before), 10);
-  assert.equal(f.blasters.length, 0, 'and then it is gone');
-});
-
-test('it comes back every 8 seconds, so two overlap for a while', () => {
-  const f = fight(['sans'], ['goku']);
-  quiet(f);
-  const [sans, goku] = [frontOf(f, 'a'), frontOf(f, 'b')];
-  sans.timers.launch = -1000;
-  let most = 0;
-  for (let i = 0; i < 30 * 20; i += 1) { goku.hitLock = sans.hitLock = 99; f.sinceBump = 0; goku.x = sans.x + 400; stepFight(f, 1 / 30); most = Math.max(most, f.blasters.length); }
-  assert.equal(most, 2);
-});
-
-test('the blasters go when Sans does', () => {
-  // A teammate behind him, or knocking him out ends the fight on the spot.
+/** Sans against a Goku who cannot die and is kept away from him. */
+function blasterFight() {
   const f = fight(['sans', 'garou'], ['goku']);
-  const sans = frontOf(f, 'a');
+  quiet(f);
+  const [sans, goku] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  sans.timers.launch = -1000;              // keep Blue Magic out of it
   sans.timers.blaster = 7.99;
-  stepFight(f, 1 / 30);
-  assert.equal(f.blasters.length, 1);
+  const step = () => { goku.hitLock = sans.hitLock = 99; f.sinceBump = 0; goku.x = sans.x + 400; stepFight(f, 1 / 30); };
+  return { f, sans, goku, step };
+}
+
+test('the run goes diagonal, horizontal, the other diagonal, then two big ones left and right', () => {
+  const { f, step } = blasterFight();
+  const seen = [];
+  for (let i = 0; i < 30 * 13; i += 1) {
+    step();
+    const now = f.blasters.map((b) => b.aim).sort().join('+');
+    if (now && now !== seen.at(-1)) seen.push(now);
+  }
+  assert.deepEqual(seen, ['diagonal', 'horizontal', 'other-diagonal', 'left+right']);
+});
+
+test('each blast lasts 3 seconds; the small ones do 4 a second, the big ones 3 each', () => {
+  const { f, goku, step } = blasterFight();
+  step();                                  // the run starts
+  const at = (seconds) => { while (f.time < seconds) step(); return goku.taken; };
+  const t0 = f.time;
+  const after9 = at(t0 + 9.05);
+  assert.equal(Math.round(after9), 36, 'three small blasts, 3 seconds each at 4 a second');
+  const after12 = at(t0 + 12.05);
+  assert.equal(Math.round(after12 - after9), 18, 'two big ones at 3 a second each for 3 seconds');
+});
+
+test('Sans can dodge the blasts too, a tick at a time', () => {
+  const f = fight(['sans', 'garou'], ['sans']);
+  const [mine, theirs] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  mine.timers.launch = -1000;
+  theirs.timers.launch = -1000;
+  theirs.timers.blaster = -1000;
+  mine.timers.blaster = 7.99;
+  for (let i = 0; i < 30 * 3.2 && !f.over; i += 1) { mine.hitLock = theirs.hitLock = 99; f.sinceBump = 0; theirs.x = mine.x + 400; stepFight(f, 1 / 30); }
+  assert.equal(theirs.hp, 1, 'he is still standing');
+  assert.equal(theirs.dodgesLeft, 21, 'three ticks, three dodges');
+});
+
+test('the 8 seconds start when a run is over, not when it starts', () => {
+  const { f, sans, step } = blasterFight();
+  step();
+  let ended = null;
+  let restarted = null;
+  for (let i = 0; i < 30 * 30 && restarted == null; i += 1) {
+    step();
+    const running = f.runs.some((run) => run.owner === sans);
+    if (!running && ended == null) ended = f.time;
+    if (running && ended != null) restarted = f.time;
+  }
+  assert.ok(ended != null && restarted != null);
+  assert.ok(Math.abs(restarted - ended - 8) < 0.1, `waited ${(restarted - ended).toFixed(2)}s`);
+});
+
+test('the run and its blasts go when Sans does', () => {
+  const { f, sans, step } = blasterFight();
+  step();
+  step();
+  assert.ok(f.runs.length === 1);
   sans.dodgesLeft = 0;
+  sans.hp = 5;                             // blasterFight made him unkillable
   hurt(f, sans, 5);
-  stepFight(f, 1 / 30);
+  step();
+  assert.equal(f.runs.length, 0);
   assert.equal(f.blasters.length, 0);
 });
 
-test('the blaster and its beam draw', async () => {
-  const { drawBlaster } = await import('../src/games/faceoff/art.js');
+test('every beam runs inside the box, and the blasters draw', async () => {
+  const { beamLine, drawBlaster } = await import('../src/games/faceoff/art.js');
   const ctx = createFakeContext();
-  drawBlaster(ctx, { x: 110, y: 200 }, { x: 500, y: 260 }, 1.3);
-  drawBlaster(ctx, { x: 110, y: 200 }, null, 1.3);
-  assert.ok(ctx.calls > 10);
+  const target = { x: 500, y: 250 };
+  for (const aim of ['diagonal', 'horizontal', 'other-diagonal', 'left', 'right']) {
+    const big = aim === 'left' || aim === 'right';
+    const { start, end } = beamLine({ aim, big }, target);
+    for (const p of [start, end]) {
+      assert.ok(p.x >= BOX.x - 1 && p.x <= BOX.x + BOX.w + 1 && p.y >= BOX.y - 1 && p.y <= BOX.y + BOX.h + 1, `${aim} leaves the box`);
+    }
+    drawBlaster(ctx, { aim, big }, target, 1.3);
+  }
+  const left = beamLine({ aim: 'left', big: true }, target);
+  const right = beamLine({ aim: 'right', big: true }, target);
+  assert.ok(left.start.x < target.x && right.start.x > target.x, 'the big ones come from either side');
+  assert.ok(ctx.calls > 20);
 });

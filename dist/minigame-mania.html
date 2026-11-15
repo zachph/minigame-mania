@@ -15341,14 +15341,27 @@ const FIGHTERS = [
   }),
   // 1 health, but the first 24 attacks that reach him miss. The 25th does not.
   // Every 10 seconds he throws the enemy at a wall, and the wall does 5.
-  // Gaster Blaster: every 8 seconds a blaster on the edge of the box locks on
-  // and burns 1 a second for 10 seconds. It outlasts its own cooldown, so two
-  // of them overlap for the last 2 seconds of each.
+  // Gaster Blaster: a run of blasts, one after another, each lasting 3
+  // seconds and locked on, so nobody gets out of the way - diagonal,
+  // horizontal, the other diagonal, then two big ones from the left and right
+  // at once. Sans can still dodge them, as he dodges anything. When the run is
+  // over it waits 8 seconds before the next one starts.
   fighter({
     id: 'sans', name: 'Sans', hp: 1, dodges: 24, colour: '#e8eef8', shade: '#5a6a8a',
     abilities: [
       { kind: 'launch', name: 'Blue Magic', every: 10, damage: 5 },
-      { kind: 'blaster', name: 'Gaster Blaster', every: 8, lasts: 10, damage: 1, tick: 1 },
+      {
+        kind: 'blaster',
+        name: 'Gaster Blaster',
+        every: 8,          // seconds between one run ending and the next starting
+        tick: 1,
+        steps: [
+          { lasts: 3, blasts: [{ aim: 'diagonal', damage: 4 }] },
+          { lasts: 3, blasts: [{ aim: 'horizontal', damage: 4 }] },
+          { lasts: 3, blasts: [{ aim: 'other-diagonal', damage: 4 }] },
+          { lasts: 3, blasts: [{ aim: 'left', damage: 3, big: true }, { aim: 'right', damage: 3, big: true }] },
+        ],
+      },
     ],
   }),
   // A quarter of his hits set the enemy burning: 1 a second for 15 seconds.
@@ -15534,6 +15547,7 @@ function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random, limit
     summons: [],       // Whis, while he is here
     shots: [],         // Reversal Red, while in flight
     blasters: [],      // Gaster Blasters, while firing
+    runs: [],          // Gaster Blaster runs in progress: which blast is next
     log: [],
     events: [],
     over: null,
@@ -15783,6 +15797,8 @@ function tickAbilities(fight, who, foe, dt) {
   if (who.hp <= 0) return;
   for (const ability of abilitiesOf(who)) {
     if (!isClock(ability)) continue;
+    // A run of blasts holds the clock: the 8 seconds start when it is over.
+    if (ability.kind === 'blaster' && fight.runs.some((run) => run.owner === who)) continue;
     who.timers[ability.kind] = (who.timers[ability.kind] || 0) + dt;
     if (who.timers[ability.kind] < ability.every) continue;
     who.timers[ability.kind] -= ability.every;
@@ -15828,22 +15844,7 @@ function useAbility(fight, who, foe, ability) {
     fight.events.push({ kind: 'slash', uid: foe.uid, x: foe.x, y: foe.y });
     hurt(fight, foe, ability.damage * fight.sides[who.side].scale, { from: who, kind: 'slash' });
   } else if (ability.kind === 'blaster' && foe && foe.hp > 0) {
-    // It sits on the wall furthest from the enemy and keeps its beam on them.
-    const spots = [
-      { x: BOX.x + 18, y: foe.y }, { x: BOX.x + BOX.w - 18, y: foe.y },
-      { x: foe.x, y: BOX.y + 18 }, { x: foe.x, y: BOX.y + BOX.h - 18 },
-    ];
-    const far = spots.reduce((best, p) => (Math.hypot(p.x - foe.x, p.y - foe.y) > Math.hypot(best.x - foe.x, best.y - foe.y) ? p : best));
-    fight.blasters.push({
-      side: who.side,
-      owner: who,
-      x: far.x,
-      y: far.y,
-      left: ability.lasts,
-      next: ability.tick,
-      tick: ability.tick,
-      damage: ability.damage,
-    });
+    fight.runs.push({ owner: who, side: who.side, ability, step: -1, stepLeft: 0 });
     announce(fight, who, ability.name);
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     // Aimed at where the enemy is now, not where it is going.
@@ -15868,9 +15869,38 @@ function useAbility(fight, who, foe, ability) {
 }
 
 /**
- * Blasters firing. Each keeps its beam on whoever is in front for the other
- * side and does its damage once a tick; it goes when its time is up or when
- * Sans does.
+ * A Gaster Blaster run: each step puts its blasts up for its time, then the
+ * next step's go up. A run ends with its last step, or with Sans.
+ */
+function tickRuns(fight, dt) {
+  for (const run of fight.runs) {
+    run.stepLeft -= dt;
+    if (run.stepLeft > 1e-9) continue;
+    run.step += 1;
+    const step = run.ability.steps[run.step];
+    if (!step) { run.done = true; continue; }
+    run.stepLeft += step.lasts;
+    for (const blast of step.blasts) {
+      fight.blasters.push({
+        side: run.side,
+        owner: run.owner,
+        aim: blast.aim,
+        big: Boolean(blast.big),
+        damage: blast.damage,
+        left: step.lasts,
+        next: run.ability.tick,
+        tick: run.ability.tick,
+      });
+    }
+  }
+  fight.runs = fight.runs.filter((run) => !run.done && run.owner.hp > 0);
+}
+
+/**
+ * Blasts firing. Each keeps its beam on whoever is in front for the other
+ * side and does its damage once a tick. Nobody can get out of the way of one,
+ * but Sans can dodge any attack, so against him each tick costs a dodge. A
+ * blast goes when its time is up, or when Sans does.
  */
 function tickBlasters(fight, dt) {
   for (const blaster of fight.blasters) {
@@ -15879,7 +15909,9 @@ function tickBlasters(fight, dt) {
     const foe = frontOf(fight, other(blaster.side));
     while (blaster.next <= 1e-9 && blaster.left > -1e-9) {
       blaster.next += blaster.tick;
-      if (foe && foe.hp > 0) hurt(fight, foe, blaster.damage * fight.sides[blaster.side].scale, { from: blaster.owner, kind: 'blaster' });
+      if (foe && foe.hp > 0) {
+        hurt(fight, foe, blaster.damage * fight.sides[blaster.side].scale, { from: blaster.owner, kind: 'blaster' });
+      }
     }
   }
   fight.blasters = fight.blasters.filter((b) => b.left > 1e-9 && b.owner.hp > 0);
@@ -16007,6 +16039,7 @@ function stepFight(fight, dt) {
     }
     fight.summons = fight.summons.filter((s) => s.left > 0);
     tickShots(fight, slice);
+    tickRuns(fight, slice);
     tickBlasters(fight, slice);
     if (checkOver(fight)) break;
   }
@@ -16795,33 +16828,66 @@ function drawSlash(ctx, slash) {
 }
 
 /**
- * A Gaster Blaster: a long skull on the wall, and a white beam from its mouth
- * to whoever it has locked on to.
+ * Where a blast's beam runs: a line through the target, in the blast's own
+ * direction, from one wall of the box to the other. Returns the two ends; the
+ * skull sits at the first.
  */
+function beamLine(blaster, target) {
+  const tx = target ? target.x : BOX.x + BOX.w / 2;
+  const ty = target ? target.y : BOX.y + BOX.h / 2;
+  const dir = {
+    diagonal: [1, 1],
+    horizontal: [1, 0],
+    'other-diagonal': [1, -1],
+    left: [1, 0],
+    right: [-1, 0],
+  }[blaster.aim] || [1, 0];
+  const len = Math.hypot(dir[0], dir[1]);
+  const dx = dir[0] / len;
+  const dy = dir[1] / len;
+  // How far back along the line to the wall it comes from, and on to the other.
+  const reach = (sx, sy) => {
+    let t = Infinity;
+    if (sx > 0) t = Math.min(t, (BOX.x + BOX.w - tx) / sx);
+    if (sx < 0) t = Math.min(t, (BOX.x - tx) / sx);
+    if (sy > 0) t = Math.min(t, (BOX.y + BOX.h - ty) / sy);
+    if (sy < 0) t = Math.min(t, (BOX.y - ty) / sy);
+    return Number.isFinite(t) ? t : 0;
+  };
+  const back = reach(-dx, -dy);
+  const on = reach(dx, dy);
+  const start = { x: tx - dx * back, y: ty - dy * back };
+  // The two big ones come from their own walls and stop at the target.
+  const end = blaster.big ? { x: tx, y: ty } : { x: tx + dx * on, y: ty + dy * on };
+  return { start, end, angle: Math.atan2(dy, dx) };
+}
+
+/** A Gaster Blaster: a skull on the wall and a white beam across the box. */
 function drawBlaster(ctx, blaster, target, time = 0) {
+  const { start, end, angle } = beamLine(blaster, target);
+  const size = blaster.big ? 1.7 : 1;
   ctx.save();
-  const angle = target ? Math.atan2(target.y - blaster.y, target.x - blaster.x) : 0;
-  if (target) {
-    const flicker = 0.75 + 0.25 * Math.sin(time * 40);
-    ctx.globalAlpha = flicker;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.lineCap = 'round';
-    ctx.lineWidth = 22;
-    ctx.beginPath();
-    ctx.moveTo(blaster.x, blaster.y);
-    ctx.lineTo(target.x, target.y);
-    ctx.stroke();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 9;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
+  const flicker = 0.75 + 0.25 * Math.sin(time * 40);
+  ctx.globalAlpha = flicker;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 22 * size;
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.stroke();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 9 * size;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
   // The skull, pointing along the beam.
-  ctx.translate(blaster.x, blaster.y);
+  ctx.translate(start.x, start.y);
   ctx.rotate(angle);
+  ctx.scale(size, size);
   ctx.fillStyle = '#f2f2f2';
   ctx.strokeStyle = '#111';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 / size;
   ctx.beginPath();
   ctx.moveTo(-22, -14);
   ctx.lineTo(10, -16);
@@ -16840,7 +16906,7 @@ function drawBlaster(ctx, blaster, target, time = 0) {
   ctx.restore();
 }
 
-  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, drawBlaster };
+  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, beamLine, drawBlaster };
 })();
 
 // ---- src/games/faceoff/game.js -----------------------------------
