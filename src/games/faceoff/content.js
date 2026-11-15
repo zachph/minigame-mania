@@ -14,7 +14,7 @@
 export const BOX = { x: 96, y: 92, w: 768, h: 300 };
 
 export const BALL_RADIUS = 30;   // big enough for a face to read
-export const CRUISE = 270;        // px/s every fighter keeps up
+export const CRUISE = 160;        // px/s every fighter keeps up - slow enough to follow
 export const HOMING = 8;        // how hard they lean in - lower and they orbit instead of meeting
 /**
  * Homing alone can leave two balls circling each other forever. If they go
@@ -33,7 +33,7 @@ export const BUMP_DAMAGE = 20;
 export const BUMP_SPREAD = 0.25;  // how much one bump wanders either side
 
 /** How fast Sans throws someone at a wall. */
-export const LAUNCH_SPEED = 900;
+export const LAUNCH_SPEED = 600;
 /** Goku never teleports closer than this to the enemy. */
 export const TELEPORT_CLEAR = 170;
 

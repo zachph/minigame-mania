@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seededRandom } from '../src/core/utils.js';
-import { BASE_HP, BOX, FIGHTERS, FIGHT_LIMIT, STORY, TEAM_SIZE, TOWER, getFighter } from '../src/games/faceoff/content.js';
+import { BASE_HP, BOX, CRUISE, FIGHTERS, FIGHT_LIMIT, STORY, TEAM_SIZE, TOWER, getFighter } from '../src/games/faceoff/content.js';
 import { bump, createFight, frontOf, heal, hurt, isBeaten, pressureAt, runFight, stepFight, strike } from '../src/games/faceoff/battle.js';
 import { drawBall, drawBanner, drawBench, drawBox, drawPopup, drawScreen, drawStatus } from '../src/games/faceoff/art.js';
 import { createFakeContext } from './helpers.js';
@@ -119,7 +119,10 @@ test('they keep meeting - nobody gets stuck circling', () => {
     const f = fight(['goku'], ['gojo'], seed);
     let bumps = 0;
     while (!f.over) { stepFight(f, 1 / 30); bumps += f.events.filter((e) => e.kind === 'bump').length; }
-    assert.ok(f.time / bumps < 2.5, `seed ${seed}: one bump every ${(f.time / bumps).toFixed(1)}s`);
+    // Scaled to the cruise speed: slower balls meet less often, but a pair
+    // stuck circling would not meet at all, which is what this is guarding.
+    const limit = 2.5 * (270 / CRUISE);
+    assert.ok(f.time / bumps < limit, `seed ${seed}: one bump every ${(f.time / bumps).toFixed(1)}s`);
   }
 });
 
