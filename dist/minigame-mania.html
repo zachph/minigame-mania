@@ -15367,9 +15367,14 @@ const FIGHTERS = [
     ],
   }),
   // A quarter of his hits set the enemy burning: 1 a second for 15 seconds.
+  // Fireball: every 10 seconds a ball of fire thrown at the enemy, for 20,
+  // and every one that lands sets them burning too.
   fighter({
     id: 'ralsei', name: 'Ralsei', colour: '#7ee08a', shade: '#2a6a3a',
-    ability: { kind: 'burn', name: 'Burn', chance: 0.25, damage: 1, every: 1, lasts: 15 },
+    abilities: [
+      { kind: 'burn', name: 'Burn', chance: 0.25, damage: 1, every: 1, lasts: 15 },
+      { kind: 'shot', name: 'Fireball', every: 10, damage: 20, speed: 420, size: 13, style: 'ball', colour: '#ff8a1a', burns: true },
+    ],
   }),
   // The first time she goes down, a 1 in 5 chance she gets back up as Undyne
   // the Undying, with 355 health instead of 250.
@@ -15878,6 +15883,9 @@ function useAbility(fight, who, foe, ability) {
       damage: ability.damage,
       colour: ability.colour,
       name: ability.name,
+      style: ability.style || 'beam',
+      size: ability.size || 4,
+      burns: Boolean(ability.burns),
     });
     announce(fight, who, ability.name);
   }
@@ -15960,10 +15968,16 @@ function tickShots(fight, dt) {
     shot.x += shot.dx * shot.speed * dt;
     shot.y += shot.dy * shot.speed * dt;
     const foe = frontOf(fight, other(shot.side));
-    if (foe && foe.hp > 0 && Math.hypot(foe.x - shot.x, foe.y - shot.y) <= foe.radius + 4) {
+    if (foe && foe.hp > 0 && Math.hypot(foe.x - shot.x, foe.y - shot.y) <= foe.radius + (shot.size || 4)) {
       shot.spent = true;
       fight.events.push({ kind: 'shot-hit', x: shot.x, y: shot.y, colour: shot.colour });
-      hurt(fight, foe, shot.damage * fight.sides[shot.side].scale, { from: shot.owner, kind: 'shot' });
+      const dealt = hurt(fight, foe, shot.damage * fight.sides[shot.side].scale, { from: shot.owner, kind: 'shot' });
+      // A shot that burns sets the owner's burn - but only if it landed, so a
+      // dodged Fireball sets nothing alight.
+      const burn = abilityOf(shot.owner, 'burn');
+      if (shot.burns && burn && dealt > 0 && foe.hp > 0) {
+        foe.burn = { left: burn.lasts, next: burn.every, every: burn.every, damage: burn.damage, from: shot.owner };
+      }
     }
     if (shot.x < BOX.x || shot.x > BOX.x + BOX.w || shot.y < BOX.y || shot.y > BOX.y + BOX.h) shot.spent = true;
   }
@@ -16715,12 +16729,20 @@ function drawStatus(ctx, who, x, y, align = 'left') {
     notes.push({ text: `${ability.name} ${left}s`, colour: '#8f8' });
   }
   if (who.burn) notes.push({ text: `burning ${Math.ceil(who.burn.left)}s`, colour: '#f93' });
-  // One line under the health bar, as many notes as fit.
+  // Under the health bar, wrapping onto a second line rather than running off
+  // the edge - Sans has a dodge count and three countdowns.
+  const edge = Math.min(left + w + 40, 950);
   let at = left + (who.dodgesLeft > 0 ? 160 : 0);
+  let line = y + 20;
   for (const note of notes) {
+    const width = ctx.measureText(note.text).width;
+    if (at + width > edge && at > left) {
+      at = left;
+      line += 16;
+    }
     ctx.fillStyle = note.colour;
-    ctx.fillText(note.text, at, y + 20);
-    at += ctx.measureText(note.text).width + 18;
+    ctx.fillText(note.text, at, line);
+    at += width + 18;
   }
   ctx.restore();
 }
@@ -16821,6 +16843,7 @@ function drawSlowed(ctx, who) {
 
 /** A shot in flight: a long streak, brightest at the head. */
 function drawShot(ctx, shot) {
+  if (shot.style === 'ball') { drawFireball(ctx, shot); return; }
   ctx.save();
   const tailX = shot.x - shot.dx * shot.length;
   const tailY = shot.y - shot.dy * shot.length;
@@ -16987,7 +17010,31 @@ function drawBones(ctx, wave) {
   ctx.restore();
 }
 
-  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, beamLine, drawBlaster, drawBones };
+/** A fireball: a hot core in a glow, with flame trailing behind it. */
+function drawFireball(ctx, shot) {
+  const r = shot.size || 13;
+  ctx.save();
+  for (let i = 5; i >= 1; i -= 1) {
+    const back = i * r * 0.7;
+    ctx.globalAlpha = 0.12 * (6 - i);
+    ctx.fillStyle = i > 3 ? '#ff4a1a' : '#ff8a1a';
+    ctx.beginPath();
+    ctx.arc(shot.x - shot.dx * back, shot.y - shot.dy * back, r * (1 - i * 0.12), 0, TAU);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  const glow = ctx.createRadialGradient(shot.x, shot.y, 1, shot.x, shot.y, r * 1.6);
+  glow.addColorStop(0, '#fff6c0');
+  glow.addColorStop(0.4, '#ffb030');
+  glow.addColorStop(1, 'rgba(255, 70, 20, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(shot.x, shot.y, r * 1.6, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, beamLine, drawBlaster, drawBones, drawFireball };
 })();
 
 // ---- src/games/faceoff/game.js -----------------------------------
@@ -17133,7 +17180,7 @@ class FaceoffGame {
     for (const event of this.fight.events) {
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
-        const colour = { burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff' }[event.source] || '#f44';
+        const colour = { fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff' }[event.source] || '#f44';
         const big = event.source === 'instakill';
         this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' || event.source === 'blaster' || event.source === 'bones' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
       } else if (event.kind === 'ability') {

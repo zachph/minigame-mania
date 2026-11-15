@@ -353,6 +353,7 @@ test('Ralsei sets a burn that does 1 a second for 15 seconds', () => {
   }
   assert.ok(burned, 'a quarter of hits should burn');
   quiet(f);
+  ralsei.timers.shot = -1000;              // no Fireballs in this one
   goku.burn.from = ralsei;
   const before = goku.taken;
   for (let i = 0; i < 30 * 16; i += 1) { goku.hitLock = ralsei.hitLock = 99; f.sinceBump = 0; goku.x = ralsei.x + 400; stepFight(f, 1 / 30); }
@@ -687,4 +688,65 @@ test('the bones draw from either side', async () => {
     for (const left of [5, 2.5, 0.1]) drawBones(ctx, { from, left, lasts: 5 });
   }
   assert.ok(ctx.calls > 30);
+});
+
+/* ------------------------------------------------------------- Fireball */
+
+test('Ralsei has Burn and Fireball', () => {
+  assert.deepEqual(getFighter('ralsei').abilities.map((a) => a.name), ['Burn', 'Fireball']);
+});
+
+test('a Fireball is thrown every 10 seconds and does 20 when it lands', () => {
+  const f = fight(['ralsei'], ['garou']);
+  const [ralsei, garou] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  ralsei.x = BOX.x + 120; ralsei.y = BOX.y + 150;
+  garou.x = BOX.x + 500; garou.y = BOX.y + 150;
+  ralsei.timers.shot = 9.99;
+  const before = garou.hp;
+  for (let i = 0; i < 120 && (f.shots.length || garou.hp === before); i += 1) {
+    garou.x = BOX.x + 500; garou.y = BOX.y + 150; garou.vx = garou.vy = 0;
+    garou.hitLock = ralsei.hitLock = 99;
+    f.sinceBump = 0;
+    stepFight(f, 1 / 60);
+  }
+  assert.equal(before - garou.hp, 20);
+  assert.equal(f.shots.length, 0);
+});
+
+test('the fireball draws', async () => {
+  const { drawShot } = await import('../src/games/faceoff/art.js');
+  const ctx = createFakeContext();
+  drawShot(ctx, { x: 300, y: 200, dx: 1, dy: 0, size: 13, style: 'ball', colour: '#ff8a1a' });
+  assert.ok(ctx.calls > 8);
+});
+
+test('a Fireball that lands sets the enemy burning', () => {
+  const f = fight(['ralsei'], ['garou']);
+  const [ralsei, garou] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  ralsei.x = BOX.x + 120; ralsei.y = BOX.y + 150;
+  ralsei.timers.shot = 9.99;
+  for (let i = 0; i < 120 && !garou.burn; i += 1) {
+    garou.x = BOX.x + 500; garou.y = BOX.y + 150; garou.vx = garou.vy = 0;
+    garou.hitLock = ralsei.hitLock = 99;
+    f.sinceBump = 0;
+    stepFight(f, 1 / 60);
+  }
+  assert.ok(garou.burn, 'it burns');
+  assert.equal(garou.burn.left > 14, true, 'for the full 15 seconds');
+});
+
+test('a dodged Fireball sets nothing alight', () => {
+  const f = fight(['ralsei'], ['sans']);
+  const [ralsei, sans] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  ralsei.x = BOX.x + 120; ralsei.y = BOX.y + 150;
+  ralsei.timers.shot = 9.99;
+  for (const k of Object.keys(sans.timers)) sans.timers[k] = -1000;
+  for (let i = 0; i < 120 && sans.dodgesLeft === 24; i += 1) {
+    sans.x = BOX.x + 500; sans.y = BOX.y + 150; sans.vx = sans.vy = 0;
+    sans.hitLock = ralsei.hitLock = 99;
+    f.sinceBump = 0;
+    stepFight(f, 1 / 60);
+  }
+  assert.equal(sans.dodgesLeft, 23);
+  assert.equal(sans.burn, null);
 });
