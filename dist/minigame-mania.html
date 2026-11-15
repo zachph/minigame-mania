@@ -15325,7 +15325,7 @@ const FIGHTERS = [
   fighter({
     id: 'gojo', name: 'Gojo', colour: '#9fd8ff', shade: '#2a5d8a',
     abilities: [
-      { kind: 'infinity', name: 'Infinity', range: 110, slow: 0.5 },
+      { kind: 'infinity', name: 'Infinity', range: 170, slow: 0.5 },
       { kind: 'shot', name: 'Reversal Red', every: 12, damage: 25, speed: 620, length: 90, colour: '#ff2a2a' },
     ],
   }),
@@ -16792,6 +16792,11 @@ function drawInfinity(ctx, who, active, time = 0) {
   const aura = abilityOf(who, 'infinity');
   if (!aura || who.hp <= 0) return;
   ctx.save();
+  // Kept inside the box - at this size it would otherwise run over the
+  // health bars underneath.
+  ctx.beginPath();
+  ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);
+  ctx.clip();
   ctx.strokeStyle = '#9fd8ff';
   ctx.globalAlpha = active ? 0.55 + 0.25 * Math.sin(time * 10) : 0.18;
   ctx.lineWidth = active ? 3 : 1.5;

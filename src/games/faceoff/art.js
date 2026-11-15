@@ -188,6 +188,11 @@ export function drawInfinity(ctx, who, active, time = 0) {
   const aura = abilityOf(who, 'infinity');
   if (!aura || who.hp <= 0) return;
   ctx.save();
+  // Kept inside the box - at this size it would otherwise run over the
+  // health bars underneath.
+  ctx.beginPath();
+  ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);
+  ctx.clip();
   ctx.strokeStyle = '#9fd8ff';
   ctx.globalAlpha = active ? 0.55 + 0.25 * Math.sin(time * 10) : 0.18;
   ctx.lineWidth = active ? 3 : 1.5;
