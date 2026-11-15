@@ -15341,9 +15341,15 @@ const FIGHTERS = [
   }),
   // 1 health, but the first 24 attacks that reach him miss. The 25th does not.
   // Every 10 seconds he throws the enemy at a wall, and the wall does 5.
+  // Gaster Blaster: every 8 seconds a blaster on the edge of the box locks on
+  // and burns 1 a second for 10 seconds. It outlasts its own cooldown, so two
+  // of them overlap for the last 2 seconds of each.
   fighter({
     id: 'sans', name: 'Sans', hp: 1, dodges: 24, colour: '#e8eef8', shade: '#5a6a8a',
-    ability: { kind: 'launch', name: 'Blue Magic', every: 10, damage: 5 },
+    abilities: [
+      { kind: 'launch', name: 'Blue Magic', every: 10, damage: 5 },
+      { kind: 'blaster', name: 'Gaster Blaster', every: 8, lasts: 10, damage: 1, tick: 1 },
+    ],
   }),
   // A quarter of his hits set the enemy burning: 1 a second for 15 seconds.
   fighter({
@@ -15527,6 +15533,7 @@ function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random, limit
     },
     summons: [],       // Whis, while he is here
     shots: [],         // Reversal Red, while in flight
+    blasters: [],      // Gaster Blasters, while firing
     log: [],
     events: [],
     over: null,
@@ -15820,6 +15827,24 @@ function useAbility(fight, who, foe, ability) {
     announce(fight, who, ability.name);
     fight.events.push({ kind: 'slash', uid: foe.uid, x: foe.x, y: foe.y });
     hurt(fight, foe, ability.damage * fight.sides[who.side].scale, { from: who, kind: 'slash' });
+  } else if (ability.kind === 'blaster' && foe && foe.hp > 0) {
+    // It sits on the wall furthest from the enemy and keeps its beam on them.
+    const spots = [
+      { x: BOX.x + 18, y: foe.y }, { x: BOX.x + BOX.w - 18, y: foe.y },
+      { x: foe.x, y: BOX.y + 18 }, { x: foe.x, y: BOX.y + BOX.h - 18 },
+    ];
+    const far = spots.reduce((best, p) => (Math.hypot(p.x - foe.x, p.y - foe.y) > Math.hypot(best.x - foe.x, best.y - foe.y) ? p : best));
+    fight.blasters.push({
+      side: who.side,
+      owner: who,
+      x: far.x,
+      y: far.y,
+      left: ability.lasts,
+      next: ability.tick,
+      tick: ability.tick,
+      damage: ability.damage,
+    });
+    announce(fight, who, ability.name);
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     // Aimed at where the enemy is now, not where it is going.
     const dx = foe.x - who.x;
@@ -15840,6 +15865,24 @@ function useAbility(fight, who, foe, ability) {
     });
     announce(fight, who, ability.name);
   }
+}
+
+/**
+ * Blasters firing. Each keeps its beam on whoever is in front for the other
+ * side and does its damage once a tick; it goes when its time is up or when
+ * Sans does.
+ */
+function tickBlasters(fight, dt) {
+  for (const blaster of fight.blasters) {
+    blaster.left -= dt;
+    blaster.next -= dt;
+    const foe = frontOf(fight, other(blaster.side));
+    while (blaster.next <= 1e-9 && blaster.left > -1e-9) {
+      blaster.next += blaster.tick;
+      if (foe && foe.hp > 0) hurt(fight, foe, blaster.damage * fight.sides[blaster.side].scale, { from: blaster.owner, kind: 'blaster' });
+    }
+  }
+  fight.blasters = fight.blasters.filter((b) => b.left > 1e-9 && b.owner.hp > 0);
 }
 
 /**
@@ -15964,6 +16007,7 @@ function stepFight(fight, dt) {
     }
     fight.summons = fight.summons.filter((s) => s.left > 0);
     tickShots(fight, slice);
+    tickBlasters(fight, slice);
     if (checkOver(fight)) break;
   }
   return fight;
@@ -16750,7 +16794,53 @@ function drawSlash(ctx, slash) {
   ctx.restore();
 }
 
-  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash };
+/**
+ * A Gaster Blaster: a long skull on the wall, and a white beam from its mouth
+ * to whoever it has locked on to.
+ */
+function drawBlaster(ctx, blaster, target, time = 0) {
+  ctx.save();
+  const angle = target ? Math.atan2(target.y - blaster.y, target.x - blaster.x) : 0;
+  if (target) {
+    const flicker = 0.75 + 0.25 * Math.sin(time * 40);
+    ctx.globalAlpha = flicker;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 22;
+    ctx.beginPath();
+    ctx.moveTo(blaster.x, blaster.y);
+    ctx.lineTo(target.x, target.y);
+    ctx.stroke();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 9;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  // The skull, pointing along the beam.
+  ctx.translate(blaster.x, blaster.y);
+  ctx.rotate(angle);
+  ctx.fillStyle = '#f2f2f2';
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-22, -14);
+  ctx.lineTo(10, -16);
+  ctx.lineTo(24, -6);
+  ctx.lineTo(24, 6);
+  ctx.lineTo(10, 16);
+  ctx.lineTo(-22, 14);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.arc(-4, -7, 4, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(-4, 7, 4, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#7ab8ff';
+  ctx.beginPath(); ctx.arc(-4, -7, 1.6, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+
+  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, drawBlaster };
 })();
 
 // ---- src/games/faceoff/game.js -----------------------------------
@@ -16759,7 +16849,7 @@ __modules["src/games/faceoff/game.js"] = (function () {
   const { BOX, FIGHTERS, MODE_BY_ID, STORY, STORY_RECOVERY, TOWER, TOWER_RECOVERY } = __modules["src/games/faceoff/content.js"];
   const { createFight, frontOf, healthShare, inInfinity, pressureAt, stepFight } = __modules["src/games/faceoff/battle.js"];
   const { SelectPanel } = __modules["src/games/faceoff/select.js"];
-  const { drawBall, drawBanner, drawBench, drawBox, drawInfinity, drawShot, drawSlash, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawText } = __modules["src/games/faceoff/art.js"];
+  const { drawBall, drawBanner, drawBench, drawBlaster, drawBox, drawInfinity, drawShot, drawSlash, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawText } = __modules["src/games/faceoff/art.js"];
 
 const GAME_ID = 'faceoff';
 
@@ -16896,9 +16986,9 @@ class FaceoffGame {
     for (const event of this.fight.events) {
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
-        const colour = { burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355' }[event.source] || '#f44';
+        const colour = { burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff' }[event.source] || '#f44';
         const big = event.source === 'instakill';
-        this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
+        this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' || event.source === 'blaster' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
       } else if (event.kind === 'ability') {
         const at = this.whereIs(event.uid);
         this.popups.push({ x: at.x, y: at.y - 22, text: event.name.toUpperCase(), colour: '#ff0', size: 14, life: 1.1, maxLife: 1.1 });
@@ -16996,6 +17086,9 @@ class FaceoffGame {
     }
     for (const summon of this.fight.summons) drawBall(ctx, { ...summon, spec: { colour: '#9cc4e8' } });
     for (const shot of this.fight.shots) drawShot(ctx, shot);
+    for (const blaster of this.fight.blasters) {
+      drawBlaster(ctx, blaster, frontOf(this.fight, blaster.side === 'a' ? 'b' : 'a'), this.clock);
+    }
     for (const [who, foe] of [[a, b], [b, a]]) {
       if (!who) continue;
       drawBall(ctx, who, { flash: this.flash[who.uid] || 0, trail: this.trails[who.uid] || [] });

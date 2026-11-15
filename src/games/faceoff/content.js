@@ -75,9 +75,15 @@ export const FIGHTERS = [
   }),
   // 1 health, but the first 24 attacks that reach him miss. The 25th does not.
   // Every 10 seconds he throws the enemy at a wall, and the wall does 5.
+  // Gaster Blaster: every 8 seconds a blaster on the edge of the box locks on
+  // and burns 1 a second for 10 seconds. It outlasts its own cooldown, so two
+  // of them overlap for the last 2 seconds of each.
   fighter({
     id: 'sans', name: 'Sans', hp: 1, dodges: 24, colour: '#e8eef8', shade: '#5a6a8a',
-    ability: { kind: 'launch', name: 'Blue Magic', every: 10, damage: 5 },
+    abilities: [
+      { kind: 'launch', name: 'Blue Magic', every: 10, damage: 5 },
+      { kind: 'blaster', name: 'Gaster Blaster', every: 8, lasts: 10, damage: 1, tick: 1 },
+    ],
   }),
   // A quarter of his hits set the enemy burning: 1 a second for 15 seconds.
   fighter({

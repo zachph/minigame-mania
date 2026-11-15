@@ -101,6 +101,7 @@ export function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random
     },
     summons: [],       // Whis, while he is here
     shots: [],         // Reversal Red, while in flight
+    blasters: [],      // Gaster Blasters, while firing
     log: [],
     events: [],
     over: null,
@@ -394,6 +395,24 @@ function useAbility(fight, who, foe, ability) {
     announce(fight, who, ability.name);
     fight.events.push({ kind: 'slash', uid: foe.uid, x: foe.x, y: foe.y });
     hurt(fight, foe, ability.damage * fight.sides[who.side].scale, { from: who, kind: 'slash' });
+  } else if (ability.kind === 'blaster' && foe && foe.hp > 0) {
+    // It sits on the wall furthest from the enemy and keeps its beam on them.
+    const spots = [
+      { x: BOX.x + 18, y: foe.y }, { x: BOX.x + BOX.w - 18, y: foe.y },
+      { x: foe.x, y: BOX.y + 18 }, { x: foe.x, y: BOX.y + BOX.h - 18 },
+    ];
+    const far = spots.reduce((best, p) => (Math.hypot(p.x - foe.x, p.y - foe.y) > Math.hypot(best.x - foe.x, best.y - foe.y) ? p : best));
+    fight.blasters.push({
+      side: who.side,
+      owner: who,
+      x: far.x,
+      y: far.y,
+      left: ability.lasts,
+      next: ability.tick,
+      tick: ability.tick,
+      damage: ability.damage,
+    });
+    announce(fight, who, ability.name);
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     // Aimed at where the enemy is now, not where it is going.
     const dx = foe.x - who.x;
@@ -414,6 +433,24 @@ function useAbility(fight, who, foe, ability) {
     });
     announce(fight, who, ability.name);
   }
+}
+
+/**
+ * Blasters firing. Each keeps its beam on whoever is in front for the other
+ * side and does its damage once a tick; it goes when its time is up or when
+ * Sans does.
+ */
+function tickBlasters(fight, dt) {
+  for (const blaster of fight.blasters) {
+    blaster.left -= dt;
+    blaster.next -= dt;
+    const foe = frontOf(fight, other(blaster.side));
+    while (blaster.next <= 1e-9 && blaster.left > -1e-9) {
+      blaster.next += blaster.tick;
+      if (foe && foe.hp > 0) hurt(fight, foe, blaster.damage * fight.sides[blaster.side].scale, { from: blaster.owner, kind: 'blaster' });
+    }
+  }
+  fight.blasters = fight.blasters.filter((b) => b.left > 1e-9 && b.owner.hp > 0);
 }
 
 /**
@@ -538,6 +575,7 @@ export function stepFight(fight, dt) {
     }
     fight.summons = fight.summons.filter((s) => s.left > 0);
     tickShots(fight, slice);
+    tickBlasters(fight, slice);
     if (checkOver(fight)) break;
   }
   return fight;
