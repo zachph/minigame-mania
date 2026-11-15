@@ -514,3 +514,38 @@ test('both of Gojo\'s timers run, and his status draws them', async () => {
   drawShot(ctx, { x: 300, y: 200, dx: 1, dy: 0, length: 90, colour: '#ff2a2a' });
   assert.ok(ctx.calls > 5);
 });
+
+/* ----------------------------------------------------------- Dismantle */
+
+test('Sukuna has his heal and Dismantle', () => {
+  assert.deepEqual(getFighter('sukuna').abilities.map((a) => a.name), ['Reverse Cursed Technique', 'Dismantle']);
+});
+
+test('Dismantle cuts the enemy for 5 every 5 seconds, wherever they are in the box', () => {
+  const f = fight(['sukuna'], ['goku']);
+  const [sukuna, goku] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  sukuna.x = BOX.x + 40; goku.x = BOX.x + BOX.w - 40;   // as far apart as it gets
+  sukuna.timers.slash = 4.99;
+  goku.hitLock = sukuna.hitLock = 99;
+  stepFight(f, 1 / 30);
+  assert.equal(goku.taken, 5);
+  assert.ok(f.events.some((e) => e.kind === 'slash'));
+});
+
+test('Sans dodges Dismantle, one dodge at a time', () => {
+  const f = fight(['sukuna'], ['sans']);
+  const [sukuna, sans] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  sukuna.timers.slash = 4.99;
+  sans.hitLock = sukuna.hitLock = 99;
+  sans.x = sukuna.x + 400;
+  stepFight(f, 1 / 30);
+  assert.equal(sans.hp, 1);
+  assert.equal(sans.dodgesLeft, 23);
+});
+
+test('the cut draws', async () => {
+  const { drawSlash } = await import('../src/games/faceoff/art.js');
+  const ctx = createFakeContext();
+  drawSlash(ctx, { x: 300, y: 200, life: 0.2, maxLife: 0.45 });
+  assert.ok(ctx.calls > 5);
+});

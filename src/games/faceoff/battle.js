@@ -389,6 +389,11 @@ function useAbility(fight, who, foe, ability) {
     });
     setSpeed(fight.summons.at(-1), CRUISE);
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'slash' && foe && foe.hp > 0) {
+    // Long range: reaches the enemy anywhere in the box, instantly.
+    announce(fight, who, ability.name);
+    fight.events.push({ kind: 'slash', uid: foe.uid, x: foe.x, y: foe.y });
+    hurt(fight, foe, ability.damage * fight.sides[who.side].scale, { from: who, kind: 'slash' });
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     // Aimed at where the enemy is now, not where it is going.
     const dx = foe.x - who.x;

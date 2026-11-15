@@ -17,6 +17,7 @@ import {
   drawBox,
   drawInfinity,
   drawShot,
+  drawSlash,
   drawSlowed,
   drawPopup,
   drawScreen,
@@ -100,6 +101,7 @@ class FaceoffGame {
     }
     this.popups = [];
     this.sparks = [];
+    this.slashes = [];
     this.flash = {};
     this.trails = {};
     this.stage = 'countdown';
@@ -159,7 +161,7 @@ class FaceoffGame {
     for (const event of this.fight.events) {
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
-        const colour = { burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a' }[event.source] || '#f44';
+        const colour = { burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355' }[event.source] || '#f44';
         const big = event.source === 'instakill';
         this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
       } else if (event.kind === 'ability') {
@@ -173,6 +175,9 @@ class FaceoffGame {
         this.popups.push({ ...this.whereIs(event.uid), text: 'MISS', colour: '#ccc', size: 18, life: 0.8, maxLife: 0.8 });
       } else if (event.kind === 'heal') {
         this.popups.push({ ...this.whereIs(event.uid), text: `+${Math.round(event.amount)}`, colour: '#4f4', size: 18, life: 0.8, maxLife: 0.8 });
+      } else if (event.kind === 'slash') {
+        const at = this.whereIs(event.uid);
+        this.slashes.push({ x: at.x, y: at.y + 36, life: 0.45, maxLife: 0.45 });
       } else if (event.kind === 'shot-hit') {
         for (let i = 0; i < 14; i += 1) {
           const a = Math.random() * Math.PI * 2;
@@ -197,6 +202,8 @@ class FaceoffGame {
     for (const p of this.popups) p.life -= dt;
     for (const s of this.sparks) { s.life -= dt; s.x += s.vx * dt; s.y += s.vy * dt; }
     this.popups = this.popups.filter((p) => p.life > 0);
+    for (const slash of this.slashes || []) slash.life -= dt;
+    this.slashes = (this.slashes || []).filter((slash) => slash.life > 0);
     this.sparks = this.sparks.filter((s) => s.life > 0);
   }
 
@@ -260,6 +267,7 @@ class FaceoffGame {
       if (foe && inInfinity(who, foe)) drawSlowed(ctx, who);
     }
     for (const s of this.sparks) drawSpark(ctx, s);
+    for (const slash of this.slashes || []) drawSlash(ctx, slash);
     for (const p of this.popups) drawPopup(ctx, p);
 
     drawStatus(ctx, frontOf(this.fight, 'a'), BOX.x, BOX.y + BOX.h + 34, 'left');
