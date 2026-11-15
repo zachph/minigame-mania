@@ -335,3 +335,45 @@ export function drawBlaster(ctx, blaster, target, time = 0) {
   ctx.beginPath(); ctx.arc(-4, -7, 1.6, 0, TAU); ctx.fill();
   ctx.restore();
 }
+
+/** One bone: a white rod with a knob at each end, from y1 to y2. */
+function bone(ctx, x, y1, y2) {
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'butt';
+  ctx.beginPath();
+  ctx.moveTo(x, y1);
+  ctx.lineTo(x, y2);
+  ctx.stroke();
+  ctx.fillStyle = '#fff';
+  for (const y of [y1, y2]) {
+    ctx.beginPath();
+    ctx.arc(x - 3, y, 4.5, 0, TAU);
+    ctx.arc(x + 3, y, 4.5, 0, TAU);
+    ctx.fill();
+  }
+}
+
+/**
+ * A Bone Wave: rows of bones up from the floor and down from the ceiling,
+ * rising and falling as they sweep across the box from one side.
+ */
+export function drawBones(ctx, wave) {
+  const progress = 1 - wave.left / wave.lasts;
+  const spacing = 34;
+  const travel = BOX.w + spacing * 8;
+  const shift = progress * travel;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);
+  ctx.clip();
+  for (let i = 0; i < 40; i += 1) {
+    const along = i * spacing - spacing * 8 + shift;
+    const x = wave.from === 'left' ? BOX.x + along : BOX.x + BOX.w - along;
+    if (x < BOX.x - 10 || x > BOX.x + BOX.w + 10) continue;
+    const rise = 40 + 50 * (0.5 + 0.5 * Math.sin(i * 0.9 + progress * 8));
+    bone(ctx, x, BOX.y + BOX.h - 6, BOX.y + BOX.h - rise);
+    bone(ctx, x, BOX.y + 6, BOX.y + 130 - rise);
+  }
+  ctx.restore();
+}

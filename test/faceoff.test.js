@@ -552,8 +552,8 @@ test('the cut draws', async () => {
 
 /* ------------------------------------------------------- Gaster Blaster */
 
-test('Sans has Blue Magic and Gaster Blaster', () => {
-  assert.deepEqual(getFighter('sans').abilities.map((a) => a.name), ['Blue Magic', 'Gaster Blaster']);
+test('Sans has Blue Magic, Gaster Blaster and Bone Wave', () => {
+  assert.deepEqual(getFighter('sans').abilities.map((a) => a.name), ['Blue Magic', 'Gaster Blaster', 'Bone Wave']);
 });
 
 /** Sans against a Goku who cannot die and is kept away from him. */
@@ -562,6 +562,7 @@ function blasterFight() {
   quiet(f);
   const [sans, goku] = [frontOf(f, 'a'), frontOf(f, 'b')];
   sans.timers.launch = -1000;              // keep Blue Magic out of it
+  sans.timers.bones = -1000;               // and the Bone Wave
   sans.timers.blaster = 7.99;
   const step = () => { goku.hitLock = sans.hitLock = 99; f.sinceBump = 0; goku.x = sans.x + 400; stepFight(f, 1 / 30); };
   return { f, sans, goku, step };
@@ -593,8 +594,10 @@ test('Sans can dodge the blasts too, a tick at a time', () => {
   const f = fight(['sans', 'garou'], ['sans']);
   const [mine, theirs] = [frontOf(f, 'a'), frontOf(f, 'b')];
   mine.timers.launch = -1000;
+  mine.timers.bones = -1000;
   theirs.timers.launch = -1000;
   theirs.timers.blaster = -1000;
+  theirs.timers.bones = -1000;
   mine.timers.blaster = 7.99;
   for (let i = 0; i < 30 * 3.2 && !f.over; i += 1) { mine.hitLock = theirs.hitLock = 99; f.sinceBump = 0; theirs.x = mine.x + 400; stepFight(f, 1 / 30); }
   assert.equal(theirs.hp, 1, 'he is still standing');
@@ -645,4 +648,43 @@ test('every beam runs inside the box, and the blasters draw', async () => {
   const right = beamLine({ aim: 'right', big: true }, target);
   assert.ok(left.start.x < target.x && right.start.x > target.x, 'the big ones come from either side');
   assert.ok(ctx.calls > 20);
+});
+
+/* ------------------------------------------------------------ Bone Wave */
+
+test('the Bone Wave comes every 20 seconds and does 1 a second for 5', () => {
+  const f = fight(['sans', 'garou'], ['goku']);
+  quiet(f);
+  const [sans, goku] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  sans.timers.launch = -1000;
+  sans.timers.blaster = -1000;
+  sans.timers.bones = 19.99;
+  const step = () => { goku.hitLock = sans.hitLock = 99; f.sinceBump = 0; goku.x = sans.x + 400; stepFight(f, 1 / 30); };
+  step();
+  assert.equal(f.waves.length, 1);
+  sans.timers.bones = -1000;
+  const before = goku.taken;
+  for (let i = 0; i < 30 * 5.5; i += 1) step();
+  assert.equal(Math.round(goku.taken - before), 5);
+  assert.equal(f.waves.length, 0, 'and it has passed');
+});
+
+test('Sans dodges a Bone Wave a tick at a time', () => {
+  const f = fight(['sans', 'garou'], ['sans']);
+  const [mine, theirs] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  for (const s of [mine, theirs]) { s.timers.launch = -1000; s.timers.blaster = -1000; }
+  theirs.timers.bones = -1000;
+  mine.timers.bones = 19.99;
+  for (let i = 0; i < 30 * 2.2 && !f.over; i += 1) { mine.hitLock = theirs.hitLock = 99; f.sinceBump = 0; theirs.x = mine.x + 400; stepFight(f, 1 / 30); }
+  assert.equal(theirs.hp, 1);
+  assert.equal(theirs.dodgesLeft, 22);
+});
+
+test('the bones draw from either side', async () => {
+  const { drawBones } = await import('../src/games/faceoff/art.js');
+  const ctx = createFakeContext();
+  for (const from of ['left', 'right']) {
+    for (const left of [5, 2.5, 0.1]) drawBones(ctx, { from, left, lasts: 5 });
+  }
+  assert.ok(ctx.calls > 30);
 });

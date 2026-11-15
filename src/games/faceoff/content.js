@@ -96,6 +96,8 @@ export const FIGHTERS = [
           { lasts: 3, blasts: [{ aim: 'left', damage: 3, big: true }, { aim: 'right', damage: 3, big: true }] },
         ],
       },
+      // Bone Wave: every 20 seconds, bones sweep the box for 5, 1 a second.
+      { kind: 'bones', name: 'Bone Wave', every: 20, lasts: 5, damage: 1, tick: 1 },
     ],
   }),
   // A quarter of his hits set the enemy burning: 1 a second for 15 seconds.

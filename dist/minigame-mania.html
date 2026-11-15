@@ -15362,6 +15362,8 @@ const FIGHTERS = [
           { lasts: 3, blasts: [{ aim: 'left', damage: 3, big: true }, { aim: 'right', damage: 3, big: true }] },
         ],
       },
+      // Bone Wave: every 20 seconds, bones sweep the box for 5, 1 a second.
+      { kind: 'bones', name: 'Bone Wave', every: 20, lasts: 5, damage: 1, tick: 1 },
     ],
   }),
   // A quarter of his hits set the enemy burning: 1 a second for 15 seconds.
@@ -15548,6 +15550,7 @@ function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random, limit
     shots: [],         // Reversal Red, while in flight
     blasters: [],      // Gaster Blasters, while firing
     runs: [],          // Gaster Blaster runs in progress: which blast is next
+    waves: [],         // Bone Waves, while they sweep
     log: [],
     events: [],
     over: null,
@@ -15846,6 +15849,18 @@ function useAbility(fight, who, foe, ability) {
   } else if (ability.kind === 'blaster' && foe && foe.hp > 0) {
     fight.runs.push({ owner: who, side: who.side, ability, step: -1, stepLeft: 0 });
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'bones' && foe && foe.hp > 0) {
+    fight.waves.push({
+      side: who.side,
+      owner: who,
+      lasts: ability.lasts,
+      left: ability.lasts,
+      next: ability.tick,
+      tick: ability.tick,
+      damage: ability.damage,
+      from: fight.random() < 0.5 ? 'left' : 'right',
+    });
+    announce(fight, who, ability.name);
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     // Aimed at where the enemy is now, not where it is going.
     const dx = foe.x - who.x;
@@ -15915,6 +15930,24 @@ function tickBlasters(fight, dt) {
     }
   }
   fight.blasters = fight.blasters.filter((b) => b.left > 1e-9 && b.owner.hp > 0);
+}
+
+/**
+ * Bone Waves sweeping. A wave fills the box, so whoever is in front for the
+ * other side takes its damage once a tick until it has passed - Sans dodging
+ * it a tick at a time, as he dodges anything.
+ */
+function tickWaves(fight, dt) {
+  for (const wave of fight.waves) {
+    wave.left -= dt;
+    wave.next -= dt;
+    const foe = frontOf(fight, other(wave.side));
+    while (wave.next <= 1e-9 && wave.left > -1e-9) {
+      wave.next += wave.tick;
+      if (foe && foe.hp > 0) hurt(fight, foe, wave.damage * fight.sides[wave.side].scale, { from: wave.owner, kind: 'bones' });
+    }
+  }
+  fight.waves = fight.waves.filter((w) => w.left > 1e-9 && w.owner.hp > 0);
 }
 
 /**
@@ -16041,6 +16074,7 @@ function stepFight(fight, dt) {
     tickShots(fight, slice);
     tickRuns(fight, slice);
     tickBlasters(fight, slice);
+    tickWaves(fight, slice);
     if (checkOver(fight)) break;
   }
   return fight;
@@ -16906,7 +16940,49 @@ function drawBlaster(ctx, blaster, target, time = 0) {
   ctx.restore();
 }
 
-  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, beamLine, drawBlaster };
+/** One bone: a white rod with a knob at each end, from y1 to y2. */
+function bone(ctx, x, y1, y2) {
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'butt';
+  ctx.beginPath();
+  ctx.moveTo(x, y1);
+  ctx.lineTo(x, y2);
+  ctx.stroke();
+  ctx.fillStyle = '#fff';
+  for (const y of [y1, y2]) {
+    ctx.beginPath();
+    ctx.arc(x - 3, y, 4.5, 0, TAU);
+    ctx.arc(x + 3, y, 4.5, 0, TAU);
+    ctx.fill();
+  }
+}
+
+/**
+ * A Bone Wave: rows of bones up from the floor and down from the ceiling,
+ * rising and falling as they sweep across the box from one side.
+ */
+function drawBones(ctx, wave) {
+  const progress = 1 - wave.left / wave.lasts;
+  const spacing = 34;
+  const travel = BOX.w + spacing * 8;
+  const shift = progress * travel;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);
+  ctx.clip();
+  for (let i = 0; i < 40; i += 1) {
+    const along = i * spacing - spacing * 8 + shift;
+    const x = wave.from === 'left' ? BOX.x + along : BOX.x + BOX.w - along;
+    if (x < BOX.x - 10 || x > BOX.x + BOX.w + 10) continue;
+    const rise = 40 + 50 * (0.5 + 0.5 * Math.sin(i * 0.9 + progress * 8));
+    bone(ctx, x, BOX.y + BOX.h - 6, BOX.y + BOX.h - rise);
+    bone(ctx, x, BOX.y + 6, BOX.y + 130 - rise);
+  }
+  ctx.restore();
+}
+
+  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, beamLine, drawBlaster, drawBones };
 })();
 
 // ---- src/games/faceoff/game.js -----------------------------------
@@ -16915,7 +16991,7 @@ __modules["src/games/faceoff/game.js"] = (function () {
   const { BOX, FIGHTERS, MODE_BY_ID, STORY, STORY_RECOVERY, TOWER, TOWER_RECOVERY } = __modules["src/games/faceoff/content.js"];
   const { createFight, frontOf, healthShare, inInfinity, pressureAt, stepFight } = __modules["src/games/faceoff/battle.js"];
   const { SelectPanel } = __modules["src/games/faceoff/select.js"];
-  const { drawBall, drawBanner, drawBench, drawBlaster, drawBox, drawInfinity, drawShot, drawSlash, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawText } = __modules["src/games/faceoff/art.js"];
+  const { drawBall, drawBanner, drawBench, drawBlaster, drawBones, drawBox, drawInfinity, drawShot, drawSlash, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawText } = __modules["src/games/faceoff/art.js"];
 
 const GAME_ID = 'faceoff';
 
@@ -17052,9 +17128,9 @@ class FaceoffGame {
     for (const event of this.fight.events) {
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
-        const colour = { burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff' }[event.source] || '#f44';
+        const colour = { burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff' }[event.source] || '#f44';
         const big = event.source === 'instakill';
-        this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' || event.source === 'blaster' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
+        this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' || event.source === 'blaster' || event.source === 'bones' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
       } else if (event.kind === 'ability') {
         const at = this.whereIs(event.uid);
         this.popups.push({ x: at.x, y: at.y - 22, text: event.name.toUpperCase(), colour: '#ff0', size: 14, life: 1.1, maxLife: 1.1 });
@@ -17151,6 +17227,7 @@ class FaceoffGame {
       if (who && foe) drawInfinity(ctx, who, inInfinity(foe, who), this.clock);
     }
     for (const summon of this.fight.summons) drawBall(ctx, { ...summon, spec: { colour: '#9cc4e8' } });
+    for (const wave of this.fight.waves) drawBones(ctx, wave);
     for (const shot of this.fight.shots) drawShot(ctx, shot);
     for (const blaster of this.fight.blasters) {
       drawBlaster(ctx, blaster, frontOf(this.fight, blaster.side === 'a' ? 'b' : 'a'), this.clock);
