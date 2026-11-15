@@ -103,6 +103,7 @@ export function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random
     shots: [],         // Reversal Red, while in flight
     blasters: [],      // Gaster Blasters, while firing
     runs: [],          // Gaster Blaster runs in progress: which blast is next
+    waves: [],         // Bone Waves, while they sweep
     log: [],
     events: [],
     over: null,
@@ -401,6 +402,18 @@ function useAbility(fight, who, foe, ability) {
   } else if (ability.kind === 'blaster' && foe && foe.hp > 0) {
     fight.runs.push({ owner: who, side: who.side, ability, step: -1, stepLeft: 0 });
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'bones' && foe && foe.hp > 0) {
+    fight.waves.push({
+      side: who.side,
+      owner: who,
+      lasts: ability.lasts,
+      left: ability.lasts,
+      next: ability.tick,
+      tick: ability.tick,
+      damage: ability.damage,
+      from: fight.random() < 0.5 ? 'left' : 'right',
+    });
+    announce(fight, who, ability.name);
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     // Aimed at where the enemy is now, not where it is going.
     const dx = foe.x - who.x;
@@ -470,6 +483,24 @@ function tickBlasters(fight, dt) {
     }
   }
   fight.blasters = fight.blasters.filter((b) => b.left > 1e-9 && b.owner.hp > 0);
+}
+
+/**
+ * Bone Waves sweeping. A wave fills the box, so whoever is in front for the
+ * other side takes its damage once a tick until it has passed - Sans dodging
+ * it a tick at a time, as he dodges anything.
+ */
+function tickWaves(fight, dt) {
+  for (const wave of fight.waves) {
+    wave.left -= dt;
+    wave.next -= dt;
+    const foe = frontOf(fight, other(wave.side));
+    while (wave.next <= 1e-9 && wave.left > -1e-9) {
+      wave.next += wave.tick;
+      if (foe && foe.hp > 0) hurt(fight, foe, wave.damage * fight.sides[wave.side].scale, { from: wave.owner, kind: 'bones' });
+    }
+  }
+  fight.waves = fight.waves.filter((w) => w.left > 1e-9 && w.owner.hp > 0);
 }
 
 /**
@@ -596,6 +627,7 @@ export function stepFight(fight, dt) {
     tickShots(fight, slice);
     tickRuns(fight, slice);
     tickBlasters(fight, slice);
+    tickWaves(fight, slice);
     if (checkOver(fight)) break;
   }
   return fight;
