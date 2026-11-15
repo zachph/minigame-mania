@@ -101,9 +101,14 @@ export const FIGHTERS = [
     ],
   }),
   // A quarter of his hits set the enemy burning: 1 a second for 15 seconds.
+  // Fireball: every 10 seconds a ball of fire thrown at the enemy, for 20,
+  // and every one that lands sets them burning too.
   fighter({
     id: 'ralsei', name: 'Ralsei', colour: '#7ee08a', shade: '#2a6a3a',
-    ability: { kind: 'burn', name: 'Burn', chance: 0.25, damage: 1, every: 1, lasts: 15 },
+    abilities: [
+      { kind: 'burn', name: 'Burn', chance: 0.25, damage: 1, every: 1, lasts: 15 },
+      { kind: 'shot', name: 'Fireball', every: 10, damage: 20, speed: 420, size: 13, style: 'ball', colour: '#ff8a1a', burns: true },
+    ],
   }),
   // The first time she goes down, a 1 in 5 chance she gets back up as Undyne
   // the Undying, with 355 health instead of 250.

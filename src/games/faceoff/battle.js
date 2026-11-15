@@ -431,6 +431,9 @@ function useAbility(fight, who, foe, ability) {
       damage: ability.damage,
       colour: ability.colour,
       name: ability.name,
+      style: ability.style || 'beam',
+      size: ability.size || 4,
+      burns: Boolean(ability.burns),
     });
     announce(fight, who, ability.name);
   }
@@ -513,10 +516,16 @@ function tickShots(fight, dt) {
     shot.x += shot.dx * shot.speed * dt;
     shot.y += shot.dy * shot.speed * dt;
     const foe = frontOf(fight, other(shot.side));
-    if (foe && foe.hp > 0 && Math.hypot(foe.x - shot.x, foe.y - shot.y) <= foe.radius + 4) {
+    if (foe && foe.hp > 0 && Math.hypot(foe.x - shot.x, foe.y - shot.y) <= foe.radius + (shot.size || 4)) {
       shot.spent = true;
       fight.events.push({ kind: 'shot-hit', x: shot.x, y: shot.y, colour: shot.colour });
-      hurt(fight, foe, shot.damage * fight.sides[shot.side].scale, { from: shot.owner, kind: 'shot' });
+      const dealt = hurt(fight, foe, shot.damage * fight.sides[shot.side].scale, { from: shot.owner, kind: 'shot' });
+      // A shot that burns sets the owner's burn - but only if it landed, so a
+      // dodged Fireball sets nothing alight.
+      const burn = abilityOf(shot.owner, 'burn');
+      if (shot.burns && burn && dealt > 0 && foe.hp > 0) {
+        foe.burn = { left: burn.lasts, next: burn.every, every: burn.every, damage: burn.damage, from: shot.owner };
+      }
     }
     if (shot.x < BOX.x || shot.x > BOX.x + BOX.w || shot.y < BOX.y || shot.y > BOX.y + BOX.h) shot.spent = true;
   }

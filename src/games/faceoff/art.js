@@ -111,12 +111,20 @@ export function drawStatus(ctx, who, x, y, align = 'left') {
     notes.push({ text: `${ability.name} ${left}s`, colour: '#8f8' });
   }
   if (who.burn) notes.push({ text: `burning ${Math.ceil(who.burn.left)}s`, colour: '#f93' });
-  // One line under the health bar, as many notes as fit.
+  // Under the health bar, wrapping onto a second line rather than running off
+  // the edge - Sans has a dodge count and three countdowns.
+  const edge = Math.min(left + w + 40, 950);
   let at = left + (who.dodgesLeft > 0 ? 160 : 0);
+  let line = y + 20;
   for (const note of notes) {
+    const width = ctx.measureText(note.text).width;
+    if (at + width > edge && at > left) {
+      at = left;
+      line += 16;
+    }
     ctx.fillStyle = note.colour;
-    ctx.fillText(note.text, at, y + 20);
-    at += ctx.measureText(note.text).width + 18;
+    ctx.fillText(note.text, at, line);
+    at += width + 18;
   }
   ctx.restore();
 }
@@ -217,6 +225,7 @@ export function drawSlowed(ctx, who) {
 
 /** A shot in flight: a long streak, brightest at the head. */
 export function drawShot(ctx, shot) {
+  if (shot.style === 'ball') { drawFireball(ctx, shot); return; }
   ctx.save();
   const tailX = shot.x - shot.dx * shot.length;
   const tailY = shot.y - shot.dy * shot.length;
@@ -380,5 +389,29 @@ export function drawBones(ctx, wave) {
     bone(ctx, x, BOX.y + BOX.h - 6, BOX.y + BOX.h - rise);
     bone(ctx, x, BOX.y + 6, BOX.y + 130 - rise);
   }
+  ctx.restore();
+}
+
+/** A fireball: a hot core in a glow, with flame trailing behind it. */
+export function drawFireball(ctx, shot) {
+  const r = shot.size || 13;
+  ctx.save();
+  for (let i = 5; i >= 1; i -= 1) {
+    const back = i * r * 0.7;
+    ctx.globalAlpha = 0.12 * (6 - i);
+    ctx.fillStyle = i > 3 ? '#ff4a1a' : '#ff8a1a';
+    ctx.beginPath();
+    ctx.arc(shot.x - shot.dx * back, shot.y - shot.dy * back, r * (1 - i * 0.12), 0, TAU);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  const glow = ctx.createRadialGradient(shot.x, shot.y, 1, shot.x, shot.y, r * 1.6);
+  glow.addColorStop(0, '#fff6c0');
+  glow.addColorStop(0.4, '#ffb030');
+  glow.addColorStop(1, 'rgba(255, 70, 20, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(shot.x, shot.y, r * 1.6, 0, TAU);
+  ctx.fill();
   ctx.restore();
 }
