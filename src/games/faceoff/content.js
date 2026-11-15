@@ -59,7 +59,7 @@ export const FIGHTERS = [
   fighter({
     id: 'gojo', name: 'Gojo', colour: '#9fd8ff', shade: '#2a5d8a',
     abilities: [
-      { kind: 'infinity', name: 'Infinity', range: 110, slow: 0.5 },
+      { kind: 'infinity', name: 'Infinity', range: 170, slow: 0.5 },
       { kind: 'shot', name: 'Reversal Red', every: 12, damage: 25, speed: 620, length: 90, colour: '#ff2a2a' },
     ],
   }),
