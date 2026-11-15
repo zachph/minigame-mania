@@ -102,6 +102,7 @@ export function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random
     summons: [],       // Whis, while he is here
     shots: [],         // Reversal Red, while in flight
     blasters: [],      // Gaster Blasters, while firing
+    runs: [],          // Gaster Blaster runs in progress: which blast is next
     log: [],
     events: [],
     over: null,
@@ -351,6 +352,8 @@ function tickAbilities(fight, who, foe, dt) {
   if (who.hp <= 0) return;
   for (const ability of abilitiesOf(who)) {
     if (!isClock(ability)) continue;
+    // A run of blasts holds the clock: the 8 seconds start when it is over.
+    if (ability.kind === 'blaster' && fight.runs.some((run) => run.owner === who)) continue;
     who.timers[ability.kind] = (who.timers[ability.kind] || 0) + dt;
     if (who.timers[ability.kind] < ability.every) continue;
     who.timers[ability.kind] -= ability.every;
@@ -396,22 +399,7 @@ function useAbility(fight, who, foe, ability) {
     fight.events.push({ kind: 'slash', uid: foe.uid, x: foe.x, y: foe.y });
     hurt(fight, foe, ability.damage * fight.sides[who.side].scale, { from: who, kind: 'slash' });
   } else if (ability.kind === 'blaster' && foe && foe.hp > 0) {
-    // It sits on the wall furthest from the enemy and keeps its beam on them.
-    const spots = [
-      { x: BOX.x + 18, y: foe.y }, { x: BOX.x + BOX.w - 18, y: foe.y },
-      { x: foe.x, y: BOX.y + 18 }, { x: foe.x, y: BOX.y + BOX.h - 18 },
-    ];
-    const far = spots.reduce((best, p) => (Math.hypot(p.x - foe.x, p.y - foe.y) > Math.hypot(best.x - foe.x, best.y - foe.y) ? p : best));
-    fight.blasters.push({
-      side: who.side,
-      owner: who,
-      x: far.x,
-      y: far.y,
-      left: ability.lasts,
-      next: ability.tick,
-      tick: ability.tick,
-      damage: ability.damage,
-    });
+    fight.runs.push({ owner: who, side: who.side, ability, step: -1, stepLeft: 0 });
     announce(fight, who, ability.name);
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     // Aimed at where the enemy is now, not where it is going.
@@ -436,9 +424,38 @@ function useAbility(fight, who, foe, ability) {
 }
 
 /**
- * Blasters firing. Each keeps its beam on whoever is in front for the other
- * side and does its damage once a tick; it goes when its time is up or when
- * Sans does.
+ * A Gaster Blaster run: each step puts its blasts up for its time, then the
+ * next step's go up. A run ends with its last step, or with Sans.
+ */
+function tickRuns(fight, dt) {
+  for (const run of fight.runs) {
+    run.stepLeft -= dt;
+    if (run.stepLeft > 1e-9) continue;
+    run.step += 1;
+    const step = run.ability.steps[run.step];
+    if (!step) { run.done = true; continue; }
+    run.stepLeft += step.lasts;
+    for (const blast of step.blasts) {
+      fight.blasters.push({
+        side: run.side,
+        owner: run.owner,
+        aim: blast.aim,
+        big: Boolean(blast.big),
+        damage: blast.damage,
+        left: step.lasts,
+        next: run.ability.tick,
+        tick: run.ability.tick,
+      });
+    }
+  }
+  fight.runs = fight.runs.filter((run) => !run.done && run.owner.hp > 0);
+}
+
+/**
+ * Blasts firing. Each keeps its beam on whoever is in front for the other
+ * side and does its damage once a tick. Nobody can get out of the way of one,
+ * but Sans can dodge any attack, so against him each tick costs a dodge. A
+ * blast goes when its time is up, or when Sans does.
  */
 function tickBlasters(fight, dt) {
   for (const blaster of fight.blasters) {
@@ -447,7 +464,9 @@ function tickBlasters(fight, dt) {
     const foe = frontOf(fight, other(blaster.side));
     while (blaster.next <= 1e-9 && blaster.left > -1e-9) {
       blaster.next += blaster.tick;
-      if (foe && foe.hp > 0) hurt(fight, foe, blaster.damage * fight.sides[blaster.side].scale, { from: blaster.owner, kind: 'blaster' });
+      if (foe && foe.hp > 0) {
+        hurt(fight, foe, blaster.damage * fight.sides[blaster.side].scale, { from: blaster.owner, kind: 'blaster' });
+      }
     }
   }
   fight.blasters = fight.blasters.filter((b) => b.left > 1e-9 && b.owner.hp > 0);
@@ -575,6 +594,7 @@ export function stepFight(fight, dt) {
     }
     fight.summons = fight.summons.filter((s) => s.left > 0);
     tickShots(fight, slice);
+    tickRuns(fight, slice);
     tickBlasters(fight, slice);
     if (checkOver(fight)) break;
   }
