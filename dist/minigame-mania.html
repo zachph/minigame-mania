@@ -15330,9 +15330,14 @@ const FIGHTERS = [
     ],
   }),
   // Heals a quarter of his health every 15 seconds he spends in the box.
+  // Dismantle: every 5 seconds an instant cut on the enemy wherever they are
+  // in the box, for 5. Nothing to aim, nothing to dodge but Sans's dodges.
   fighter({
     id: 'sukuna', name: 'Sukuna', colour: '#ff7a7a', shade: '#7a1e2a',
-    ability: { kind: 'regen', name: 'Reverse Cursed Technique', share: 0.25, every: 15 },
+    abilities: [
+      { kind: 'regen', name: 'Reverse Cursed Technique', share: 0.25, every: 15 },
+      { kind: 'slash', name: 'Dismantle', every: 5, damage: 5 },
+    ],
   }),
   // 1 health, but the first 24 attacks that reach him miss. The 25th does not.
   // Every 10 seconds he throws the enemy at a wall, and the wall does 5.
@@ -15810,6 +15815,11 @@ function useAbility(fight, who, foe, ability) {
     });
     setSpeed(fight.summons.at(-1), CRUISE);
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'slash' && foe && foe.hp > 0) {
+    // Long range: reaches the enemy anywhere in the box, instantly.
+    announce(fight, who, ability.name);
+    fight.events.push({ kind: 'slash', uid: foe.uid, x: foe.x, y: foe.y });
+    hurt(fight, foe, ability.damage * fight.sides[who.side].scale, { from: who, kind: 'slash' });
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     // Aimed at where the enemy is now, not where it is going.
     const dx = foe.x - who.x;
@@ -16717,7 +16727,30 @@ function drawShot(ctx, shot) {
   ctx.restore();
 }
 
-  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot };
+/** Dismantle landing: a few clean cuts across the target, fading out. */
+function drawSlash(ctx, slash) {
+  const t = clamp(slash.life / slash.maxLife, 0, 1);
+  ctx.save();
+  ctx.globalAlpha = t;
+  ctx.lineCap = 'round';
+  for (const [angle, offset] of [[-0.7, -10], [-0.6, 4], [-0.8, 16]]) {
+    const len = 34 + (1 - t) * 16;
+    const cx = slash.x + offset * 0.6;
+    const cy = slash.y + offset * 0.4;
+    ctx.strokeStyle = '#ff3355';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx - Math.cos(angle) * len, cy - Math.sin(angle) * len);
+    ctx.lineTo(cx + Math.cos(angle) * len, cy + Math.sin(angle) * len);
+    ctx.stroke();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash };
 })();
 
 // ---- src/games/faceoff/game.js -----------------------------------
@@ -16726,7 +16759,7 @@ __modules["src/games/faceoff/game.js"] = (function () {
   const { BOX, FIGHTERS, MODE_BY_ID, STORY, STORY_RECOVERY, TOWER, TOWER_RECOVERY } = __modules["src/games/faceoff/content.js"];
   const { createFight, frontOf, healthShare, inInfinity, pressureAt, stepFight } = __modules["src/games/faceoff/battle.js"];
   const { SelectPanel } = __modules["src/games/faceoff/select.js"];
-  const { drawBall, drawBanner, drawBench, drawBox, drawInfinity, drawShot, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawText } = __modules["src/games/faceoff/art.js"];
+  const { drawBall, drawBanner, drawBench, drawBox, drawInfinity, drawShot, drawSlash, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawText } = __modules["src/games/faceoff/art.js"];
 
 const GAME_ID = 'faceoff';
 
@@ -16803,6 +16836,7 @@ class FaceoffGame {
     }
     this.popups = [];
     this.sparks = [];
+    this.slashes = [];
     this.flash = {};
     this.trails = {};
     this.stage = 'countdown';
@@ -16862,7 +16896,7 @@ class FaceoffGame {
     for (const event of this.fight.events) {
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
-        const colour = { burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a' }[event.source] || '#f44';
+        const colour = { burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355' }[event.source] || '#f44';
         const big = event.source === 'instakill';
         this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
       } else if (event.kind === 'ability') {
@@ -16876,6 +16910,9 @@ class FaceoffGame {
         this.popups.push({ ...this.whereIs(event.uid), text: 'MISS', colour: '#ccc', size: 18, life: 0.8, maxLife: 0.8 });
       } else if (event.kind === 'heal') {
         this.popups.push({ ...this.whereIs(event.uid), text: `+${Math.round(event.amount)}`, colour: '#4f4', size: 18, life: 0.8, maxLife: 0.8 });
+      } else if (event.kind === 'slash') {
+        const at = this.whereIs(event.uid);
+        this.slashes.push({ x: at.x, y: at.y + 36, life: 0.45, maxLife: 0.45 });
       } else if (event.kind === 'shot-hit') {
         for (let i = 0; i < 14; i += 1) {
           const a = Math.random() * Math.PI * 2;
@@ -16900,6 +16937,8 @@ class FaceoffGame {
     for (const p of this.popups) p.life -= dt;
     for (const s of this.sparks) { s.life -= dt; s.x += s.vx * dt; s.y += s.vy * dt; }
     this.popups = this.popups.filter((p) => p.life > 0);
+    for (const slash of this.slashes || []) slash.life -= dt;
+    this.slashes = (this.slashes || []).filter((slash) => slash.life > 0);
     this.sparks = this.sparks.filter((s) => s.life > 0);
   }
 
@@ -16963,6 +17002,7 @@ class FaceoffGame {
       if (foe && inInfinity(who, foe)) drawSlowed(ctx, who);
     }
     for (const s of this.sparks) drawSpark(ctx, s);
+    for (const slash of this.slashes || []) drawSlash(ctx, slash);
     for (const p of this.popups) drawPopup(ctx, p);
 
     drawStatus(ctx, frontOf(this.fight, 'a'), BOX.x, BOX.y + BOX.h + 34, 'left');

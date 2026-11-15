@@ -64,9 +64,14 @@ export const FIGHTERS = [
     ],
   }),
   // Heals a quarter of his health every 15 seconds he spends in the box.
+  // Dismantle: every 5 seconds an instant cut on the enemy wherever they are
+  // in the box, for 5. Nothing to aim, nothing to dodge but Sans's dodges.
   fighter({
     id: 'sukuna', name: 'Sukuna', colour: '#ff7a7a', shade: '#7a1e2a',
-    ability: { kind: 'regen', name: 'Reverse Cursed Technique', share: 0.25, every: 15 },
+    abilities: [
+      { kind: 'regen', name: 'Reverse Cursed Technique', share: 0.25, every: 15 },
+      { kind: 'slash', name: 'Dismantle', every: 5, damage: 5 },
+    ],
   }),
   // 1 health, but the first 24 attacks that reach him miss. The 25th does not.
   // Every 10 seconds he throws the enemy at a wall, and the wall does 5.

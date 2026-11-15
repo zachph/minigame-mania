@@ -233,3 +233,26 @@ export function drawShot(ctx, shot) {
   ctx.stroke();
   ctx.restore();
 }
+
+/** Dismantle landing: a few clean cuts across the target, fading out. */
+export function drawSlash(ctx, slash) {
+  const t = clamp(slash.life / slash.maxLife, 0, 1);
+  ctx.save();
+  ctx.globalAlpha = t;
+  ctx.lineCap = 'round';
+  for (const [angle, offset] of [[-0.7, -10], [-0.6, 4], [-0.8, 16]]) {
+    const len = 34 + (1 - t) * 16;
+    const cx = slash.x + offset * 0.6;
+    const cy = slash.y + offset * 0.4;
+    ctx.strokeStyle = '#ff3355';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx - Math.cos(angle) * len, cy - Math.sin(angle) * len);
+    ctx.lineTo(cx + Math.cos(angle) * len, cy + Math.sin(angle) * len);
+    ctx.stroke();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
