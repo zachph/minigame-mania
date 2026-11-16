@@ -48,6 +48,21 @@ export function drawBall(ctx, who, { flash = 0, trail = [] } = {}) {
   ctx.arc(who.x, who.y, who.radius, 0, TAU);
   ctx.fill();
   drawHead(ctx, who.undying ? 'undying' : who.kind === 'whis' ? 'whis' : who.id, who.x, who.y, who.radius * 0.95);
+  // A dash leaves streaks of water behind it.
+  if (who.dash) {
+    ctx.strokeStyle = 'rgba(150, 210, 255, 0.7)';
+    ctx.lineCap = 'round';
+    for (const [off, len] of [[-12, 70], [0, 95], [12, 70]]) {
+      const px = -who.dash.dy * off;
+      const py = who.dash.dx * off;
+      ctx.lineWidth = off === 0 ? 4 : 2.5;
+      ctx.beginPath();
+      ctx.moveTo(who.x + px - who.dash.dx * who.radius, who.y + py - who.dash.dy * who.radius);
+      ctx.lineTo(who.x + px - who.dash.dx * len, who.y + py - who.dash.dy * len);
+      ctx.stroke();
+    }
+  }
+
   // The ring says what is happening to it: blue when Sans has thrown it,
   // orange while it burns.
   ctx.strokeStyle = who.launched ? '#4aa8ff' : who.burn ? '#f93' : '#fff';
