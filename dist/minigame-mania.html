@@ -15431,7 +15431,16 @@ const FIGHTERS = [
   // bumps the enemy and cannot be hurt.
   fighter({
     id: 'beerus', name: 'Beerus', colour: '#c89aff', shade: '#4b2a86',
-    ability: { kind: 'summon', name: 'Summon Whis', every: 15, lasts: 5 },
+    // Hakai: every 18 seconds a square comes down on the enemy and stays where
+    // it fell. Anything in it takes 5 every half second. It shrinks as it
+    // goes - big for 5 seconds, medium for 3, small for 1.5 - then it is gone.
+    abilities: [
+      { kind: 'summon', name: 'Summon Whis', every: 15, lasts: 5 },
+      {
+        kind: 'zone', name: 'Hakai', every: 18, damage: 5, tick: 0.5, colour: '#b46aff',
+        stages: [{ size: 240, lasts: 5 }, { size: 150, lasts: 3 }, { size: 80, lasts: 1.5 }],
+      },
+    ],
   }),
 ];
 
@@ -15590,6 +15599,7 @@ function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random, limit
     waves: [],         // Bone Waves, while they sweep
     volleys: [],       // Undyne's spears still to throw
     beams: [],         // Kamehameha, while it is firing
+    zones: [],         // Hakai squares, while they last
     log: [],
     events: [],
     over: null,
@@ -15918,6 +15928,23 @@ function useAbility(fight, who, foe, ability) {
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     fireShot(fight, who, foe, ability);
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'zone' && foe && foe.hp > 0) {
+    // Comes down where the enemy is now, and stays there - kept inside the box.
+    const half = ability.stages[0].size / 2;
+    fight.zones.push({
+      side: who.side,
+      owner: who,
+      x: clamp(foe.x, BOX.x + Math.min(half, BOX.w / 2), BOX.x + BOX.w - Math.min(half, BOX.w / 2)),
+      y: clamp(foe.y, BOX.y + Math.min(half, BOX.h / 2), BOX.y + BOX.h - Math.min(half, BOX.h / 2)),
+      stages: ability.stages,
+      stage: 0,
+      stageLeft: ability.stages[0].lasts,
+      next: ability.tick,
+      tick: ability.tick,
+      damage: ability.damage,
+      colour: ability.colour,
+    });
+    announce(fight, who, ability.name);
   } else if (ability.kind === 'windup' && foe && foe.hp > 0) {
     who.windup = { left: ability.hold, hold: ability.hold, spec: ability };
     who.vx = 0;
@@ -16119,6 +16146,43 @@ function tickBeams(fight, dt) {
   fight.beams = fight.beams.filter((b) => b.left > 1e-9 && b.owner.hp > 0);
 }
 
+/** The side of a zone square right now, or 0 once it has run out. */
+const zoneSize = (zone) => zone.stages[zone.stage]?.size || 0;
+
+/** True when a fighter is touching a zone square at all. */
+function inZone(zone, who) {
+  const half = zoneSize(zone) / 2;
+  const nearX = clamp(who.x, zone.x - half, zone.x + half);
+  const nearY = clamp(who.y, zone.y - half, zone.y + half);
+  return Math.hypot(who.x - nearX, who.y - nearY) <= who.radius;
+}
+
+/**
+ * Hakai squares. Each shrinks a stage at a time and does its damage every
+ * tick to the enemy, but only while they are in it - a square does not
+ * follow anyone, so it can be walked out of, and it gets easier the smaller
+ * it gets. Gone after its last stage, or when Beerus is.
+ */
+function tickZones(fight, dt) {
+  for (const zone of fight.zones) {
+    zone.stageLeft -= dt;
+    while (zone.stageLeft <= 1e-9 && zone.stage < zone.stages.length) {
+      zone.stage += 1;
+      if (zone.stage < zone.stages.length) zone.stageLeft += zone.stages[zone.stage].lasts;
+    }
+    if (zone.stage >= zone.stages.length) continue;
+    zone.next -= dt;
+    const foe = frontOf(fight, other(zone.side));
+    while (zone.next <= 1e-9) {
+      zone.next += zone.tick;
+      if (foe && foe.hp > 0 && inZone(zone, foe)) {
+        hurt(fight, foe, zone.damage * fight.sides[zone.side].scale, { from: zone.owner, kind: 'zone' });
+      }
+    }
+  }
+  fight.zones = fight.zones.filter((z) => z.stage < z.stages.length && z.owner.hp > 0);
+}
+
 /**
  * Shots in flight. A shot flies straight until it touches the enemy in the
  * box - then it does its damage, which still goes through `hurt` - or leaves
@@ -16255,6 +16319,7 @@ function stepFight(fight, dt) {
     tickBlasters(fight, slice);
     tickWaves(fight, slice);
     tickBeams(fight, slice);
+    tickZones(fight, slice);
     if (checkOver(fight)) break;
   }
   return fight;
@@ -16292,7 +16357,7 @@ function runFight(fight, step = 1 / 30) {
   return fight.over || checkOver(fight);
 }
 
-  return { abilitiesOf, abilityOf, isClock, makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
+  return { abilitiesOf, abilityOf, isClock, makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, zoneSize, inZone, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
 })();
 
 // ---- src/games/faceoff/heads.js ----------------------------------
@@ -17328,7 +17393,27 @@ function drawWindup(ctx, who) {
   ctx.restore();
 }
 
-  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, beamLine, drawBlaster, drawBones, drawFireball, drawSpear, drawBeam, drawTable, drawWindup };
+/** A Hakai square: a purple outline over a faint fill, flickering. */
+function drawZone(ctx, zone, time = 0) {
+  const size = zone.stages[zone.stage]?.size || 0;
+  if (!size) return;
+  const half = size / 2;
+  ctx.save();
+  ctx.globalAlpha = 0.16 + 0.06 * Math.sin(time * 12);
+  ctx.fillStyle = zone.colour;
+  ctx.fillRect(zone.x - half, zone.y - half, size, size);
+  ctx.globalAlpha = 0.85;
+  ctx.strokeStyle = zone.colour;
+  ctx.lineWidth = 4;
+  ctx.strokeRect(zone.x - half, zone.y - half, size, size);
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = '#efe0ff';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(zone.x - half + 6, zone.y - half + 6, size - 12, size - 12);
+  ctx.restore();
+}
+
+  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, beamLine, drawBlaster, drawBones, drawFireball, drawSpear, drawBeam, drawTable, drawWindup, drawZone };
 })();
 
 // ---- src/games/faceoff/game.js -----------------------------------
@@ -17337,7 +17422,7 @@ __modules["src/games/faceoff/game.js"] = (function () {
   const { BOX, FIGHTERS, MODE_BY_ID, STORY, STORY_RECOVERY, TOWER, TOWER_RECOVERY } = __modules["src/games/faceoff/content.js"];
   const { createFight, frontOf, healthShare, inInfinity, pressureAt, stepFight } = __modules["src/games/faceoff/battle.js"];
   const { SelectPanel } = __modules["src/games/faceoff/select.js"];
-  const { drawBall, drawBeam, drawBanner, drawBench, drawBlaster, drawBones, drawBox, drawInfinity, drawShot, drawSlash, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawWindup, drawText } = __modules["src/games/faceoff/art.js"];
+  const { drawBall, drawBeam, drawBanner, drawBench, drawBlaster, drawBones, drawBox, drawInfinity, drawShot, drawSlash, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawWindup, drawZone, drawText } = __modules["src/games/faceoff/art.js"];
 
 const GAME_ID = 'faceoff';
 
@@ -17474,7 +17559,7 @@ class FaceoffGame {
     for (const event of this.fight.events) {
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
-        const colour = { table: '#d9a35a', dash: '#96d2ff', beam: '#6ac8ff', fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff' }[event.source] || '#f44';
+        const colour = { zone: '#b46aff', table: '#d9a35a', dash: '#96d2ff', beam: '#6ac8ff', fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff' }[event.source] || '#f44';
         const big = event.source === 'instakill';
         this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' || event.source === 'blaster' || event.source === 'bones' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
       } else if (event.kind === 'ability') {
@@ -17573,6 +17658,7 @@ class FaceoffGame {
       if (who && foe) drawInfinity(ctx, who, inInfinity(foe, who), this.clock);
     }
     for (const summon of this.fight.summons) drawBall(ctx, { ...summon, spec: { colour: '#9cc4e8' } });
+    for (const zone of this.fight.zones) drawZone(ctx, zone, this.clock);
     for (const wave of this.fight.waves) drawBones(ctx, wave);
     for (const beam of this.fight.beams) {
       drawBeam(ctx, beam, beam.owner, frontOf(this.fight, beam.side === 'a' ? 'b' : 'a'), this.clock);

@@ -165,7 +165,16 @@ export const FIGHTERS = [
   // bumps the enemy and cannot be hurt.
   fighter({
     id: 'beerus', name: 'Beerus', colour: '#c89aff', shade: '#4b2a86',
-    ability: { kind: 'summon', name: 'Summon Whis', every: 15, lasts: 5 },
+    // Hakai: every 18 seconds a square comes down on the enemy and stays where
+    // it fell. Anything in it takes 5 every half second. It shrinks as it
+    // goes - big for 5 seconds, medium for 3, small for 1.5 - then it is gone.
+    abilities: [
+      { kind: 'summon', name: 'Summon Whis', every: 15, lasts: 5 },
+      {
+        kind: 'zone', name: 'Hakai', every: 18, damage: 5, tick: 0.5, colour: '#b46aff',
+        stages: [{ size: 240, lasts: 5 }, { size: 150, lasts: 3 }, { size: 80, lasts: 1.5 }],
+      },
+    ],
   }),
 ];
 

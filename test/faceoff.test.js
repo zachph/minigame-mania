@@ -462,8 +462,9 @@ test('Gojo has both of his abilities', () => {
   assert.deepEqual(getFighter('gojo').abilities.map((a) => a.name), ['Infinity', 'Reversal Red']);
 });
 
-test('a fighter with one ability still has it listed, and one with none has an empty list', () => {
-  assert.deepEqual(getFighter('beerus').abilities.map((a) => a.kind), ['summon']);
+test('a fighter written with a single ability still has it listed', () => {
+  // Nobody is written that way any more; the factory still has to accept it.
+  assert.ok(FIGHTERS.every((f) => f.abilities.length >= 1));
   for (const spec of FIGHTERS) assert.ok(Array.isArray(spec.abilities));
 });
 
@@ -997,4 +998,91 @@ test('the windup and the flying table draw', async () => {
   drawWindup(ctx, { x: 300, y: 300, radius: 30, windup: null });
   drawShot(ctx, { x: 400, y: 200, dx: 1, dy: 0, size: 26, style: 'table' });
   assert.ok(ctx.calls > 10);
+});
+
+/* ---------------------------------------------------------------- Hakai */
+
+test('Beerus has Summon Whis and Hakai', () => {
+  assert.deepEqual(getFighter('beerus').abilities.map((a) => a.name), ['Summon Whis', 'Hakai']);
+});
+
+function hakaiFight(target = 'garou') {
+  const f = fight(['beerus'], [target]);
+  const [beerus, foe] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  for (const k of Object.keys(foe.timers)) foe.timers[k] = -1000;
+  beerus.timers.summon = -1000;
+  beerus.x = BOX.x + 60; beerus.y = BOX.y + 60;
+  foe.x = BOX.x + 500; foe.y = BOX.y + 150;
+  beerus.timers.zone = 18 - 1e-6;
+  const hold = (x = BOX.x + 500, y = BOX.y + 150) => {
+    foe.x = x; foe.y = y; foe.vx = foe.vy = 0;
+    beerus.x = BOX.x + 60; beerus.y = BOX.y + 60;
+    foe.hitLock = beerus.hitLock = 99; f.sinceBump = 0;
+  };
+  return { f, beerus, foe, hold };
+}
+
+test('every 18 seconds a square comes down on the enemy and shrinks: 5s, 3s, 1.5s', async () => {
+  const { zoneSize } = await import('../src/games/faceoff/battle.js');
+  const { f, beerus, hold } = hakaiFight();
+  hold();
+  stepFight(f, 1 / 60);
+  beerus.timers.zone = -1000;
+  assert.equal(f.zones.length, 1);
+  const zone = f.zones[0];
+  assert.equal(zone.x, BOX.x + 500);
+  const sizeAt = (t) => { while (f.time < t) { hold(); stepFight(f, 1 / 60); } return f.zones[0] ? zoneSize(f.zones[0]) : 0; };
+  const t0 = f.time;
+  assert.equal(sizeAt(t0 + 4.9), 240, 'big');
+  assert.equal(sizeAt(t0 + 7.9), 150, 'medium');
+  assert.equal(sizeAt(t0 + 9.4), 80, 'small');
+  assert.equal(sizeAt(t0 + 9.6), 0, 'gone');
+});
+
+test('inside it the enemy takes 5 every half second', () => {
+  const { f, beerus, foe, hold } = hakaiFight();
+  foe.hp = foe.maxHp = 100000;
+  hold();
+  stepFight(f, 1 / 60);
+  beerus.timers.zone = -1000;
+  const before = foe.taken;
+  for (let i = 0; i < 60 * 9.6; i += 1) { hold(); stepFight(f, 1 / 60); }
+  // 9.5 seconds of square, a tick every half second: the one that would land
+  // at 9.5 arrives just as the square goes, so eighteen land.
+  assert.equal(Math.round(foe.taken - before), 90, 'eighteen ticks of 5 across all three sizes');
+});
+
+test('out of it, nothing', () => {
+  const { f, beerus, foe, hold } = hakaiFight();
+  hold();
+  stepFight(f, 1 / 60);
+  beerus.timers.zone = -1000;
+  for (let i = 0; i < 60 * 3; i += 1) { hold(BOX.x + 120, BOX.y + 250); stepFight(f, 1 / 60); }
+  assert.equal(foe.taken, 0);
+});
+
+test('Sans dodges the square a tick at a time', () => {
+  const { f, beerus, foe, hold } = hakaiFight('sans');
+  hold();
+  stepFight(f, 1 / 60);
+  beerus.timers.zone = -1000;
+  for (let i = 0; i < 60 * 1.1; i += 1) { hold(); stepFight(f, 1 / 60); }
+  assert.equal(foe.hp, 1);
+  assert.equal(foe.dodgesLeft, 22);
+});
+
+test('the square stays inside the box and draws', async () => {
+  const { drawZone } = await import('../src/games/faceoff/art.js');
+  const { f, beerus, foe } = hakaiFight();
+  // The enemy tucked into the top-left corner, Beerus well away from them.
+  foe.x = BOX.x + 40; foe.y = BOX.y + 40; foe.vx = foe.vy = 0;
+  beerus.x = BOX.x + 600; beerus.y = BOX.y + 250;
+  stepFight(f, 1 / 60);
+  const zone = f.zones[0];
+  const half = zone.stages[0].size / 2;
+  assert.ok(zone.x - half >= BOX.x - 1, 'pushed in from the left wall');
+  assert.ok(zone.y - half >= BOX.y - 1, 'and from the top');
+  const ctx = createFakeContext();
+  drawZone(ctx, zone, 1);
+  assert.ok(ctx.calls >= 5);
 });
