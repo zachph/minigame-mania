@@ -105,6 +105,7 @@ export function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random
     runs: [],          // Gaster Blaster runs in progress: which blast is next
     waves: [],         // Bone Waves, while they sweep
     volleys: [],       // Undyne's spears still to throw
+    beams: [],         // Kamehameha, while it is firing
     log: [],
     events: [],
     over: null,
@@ -418,6 +419,18 @@ function useAbility(fight, who, foe, ability) {
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     fireShot(fight, who, foe, ability);
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'beam' && foe && foe.hp > 0) {
+    fight.beams.push({
+      side: who.side,
+      owner: who,
+      lasts: ability.lasts,
+      left: ability.lasts,
+      next: ability.tick,
+      tick: ability.tick,
+      damage: ability.damage,
+      colour: ability.colour,
+    });
+    announce(fight, who, ability.name);
   } else if (ability.kind === 'volley' && foe && foe.hp > 0) {
     // The first goes now; the rest follow one at a time in tickVolleys.
     fight.volleys.push({ owner: who, side: who.side, left: ability.count, next: 0, gap: ability.gap, shot: { ...ability.shot, name: ability.name } });
@@ -531,6 +544,24 @@ function tickWaves(fight, dt) {
     }
   }
   fight.waves = fight.waves.filter((w) => w.left > 1e-9 && w.owner.hp > 0);
+}
+
+/**
+ * Beams firing from their fighter, locked on to whoever is in front for the
+ * other side: damage once a tick until the beam runs out or its fighter goes
+ * down. Sans dodges each tick, as he dodges anything.
+ */
+function tickBeams(fight, dt) {
+  for (const beam of fight.beams) {
+    beam.left -= dt;
+    beam.next -= dt;
+    const foe = frontOf(fight, other(beam.side));
+    while (beam.next <= 1e-9 && beam.left > -1e-9) {
+      beam.next += beam.tick;
+      if (foe && foe.hp > 0) hurt(fight, foe, beam.damage * fight.sides[beam.side].scale, { from: beam.owner, kind: 'beam' });
+    }
+  }
+  fight.beams = fight.beams.filter((b) => b.left > 1e-9 && b.owner.hp > 0);
 }
 
 /**
@@ -665,6 +696,7 @@ export function stepFight(fight, dt) {
     tickRuns(fight, slice);
     tickBlasters(fight, slice);
     tickWaves(fight, slice);
+    tickBeams(fight, slice);
     if (checkOver(fight)) break;
   }
   return fight;

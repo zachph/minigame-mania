@@ -134,9 +134,14 @@ export const FIGHTERS = [
     ability: { kind: 'instakill', name: 'Serious Punch', chance: 0.05 },
   }),
   // Every 20 seconds he vanishes and reappears somewhere else in the box.
+  // Kamehameha: every 11 seconds a beam from his hands, locked on to the
+  // enemy, 3 every 0.8 seconds for 8 seconds.
   fighter({
     id: 'goku', name: 'Goku', colour: '#ffb15a', shade: '#9a4a10',
-    ability: { kind: 'teleport', name: 'Instant Transmission', every: 20 },
+    abilities: [
+      { kind: 'teleport', name: 'Instant Transmission', every: 20 },
+      { kind: 'beam', name: 'Kamehameha', every: 11, lasts: 8, damage: 3, tick: 0.8, colour: '#6ac8ff' },
+    ],
   }),
   // Every 15 seconds Whis joins in for 5: a second ball on Beerus's side that
   // bumps the enemy and cannot be hurt.

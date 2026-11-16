@@ -443,3 +443,40 @@ export function drawSpear(ctx, shot) {
   ctx.stroke();
   ctx.restore();
 }
+
+/**
+ * A Kamehameha: a glowing ball at the fighter's hands and a blue beam from it
+ * to the target, pulsing.
+ */
+export function drawBeam(ctx, beam, from, target, time = 0) {
+  if (!from || !target) return;
+  const angle = Math.atan2(target.y - from.y, target.x - from.x);
+  const sx = from.x + Math.cos(angle) * (from.radius + 4);
+  const sy = from.y + Math.sin(angle) * (from.radius + 4);
+  const pulse = 0.85 + 0.15 * Math.sin(time * 30);
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.35;
+  ctx.strokeStyle = beam.colour;
+  ctx.lineWidth = 30 * pulse;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(target.x, target.y);
+  ctx.stroke();
+  ctx.globalAlpha = 0.9;
+  ctx.lineWidth = 14 * pulse;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#eaf8ff';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+  const glow = ctx.createRadialGradient(sx, sy, 1, sx, sy, 22);
+  glow.addColorStop(0, '#ffffff');
+  glow.addColorStop(0.4, beam.colour);
+  glow.addColorStop(1, 'rgba(106, 200, 255, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(sx, sy, 22, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
