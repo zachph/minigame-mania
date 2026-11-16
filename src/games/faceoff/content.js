@@ -124,9 +124,18 @@ export const FIGHTERS = [
     ],
   }),
   // 40% of his hits land twice.
+  // Water Stream Rock Smashing Fist: every 15 seconds he dashes at the enemy.
+  // A dash that lands does 10 and knocks them back, and he goes straight
+  // after them again - up to 5 times. One that misses ends it.
   fighter({
     id: 'garou', name: 'Garou', colour: '#d8d8e0', shade: '#4a4a5a',
-    ability: { kind: 'double', name: 'Double Hit', chance: 0.4 },
+    abilities: [
+      { kind: 'double', name: 'Double Hit', chance: 0.4 },
+      {
+        kind: 'dash', name: 'Water Stream Rock Smashing Fist',
+        every: 15, damage: 10, speed: 720, reach: 0.8, knockback: 430, maxHits: 5,
+      },
+    ],
   }),
   // One hit in twenty ends it.
   fighter({

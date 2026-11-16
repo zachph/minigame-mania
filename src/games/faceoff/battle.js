@@ -65,6 +65,7 @@ export function makeFighter(id, { slot = 0, side = 'a' } = {}) {
     timers: Object.fromEntries(spec.abilities.filter(isClock).map((a) => [a.kind, 0])),
     burn: null,        // { left, next, damage, every, from } while burning
     launched: null,    // { from, damage } while flying at a wall
+    dash: null,        // Garou mid-dash: { dx, dy, left, hits, spec }
     undying: false,    // Undyne after she has come back
     undyingRolled: false,
     dealt: 0,
@@ -178,6 +179,7 @@ export function hurt(fight, target, amount, { from = null, kind = 'bump' } = {})
     target.hp = 0;
     target.burn = null;
     target.launched = null;
+    target.dash = null;
     fight.events.push({ kind: 'down', uid: target.uid });
     say(fight, `${target.name} is out`, { side: target.side });
   }
@@ -248,7 +250,14 @@ export const inInfinity = (who, foe) => speedFor(who, foe) < CRUISE;
  * fast, ignoring everything, until it does.
  */
 export function move(who, foe, dt) {
-  const flying = Boolean(who.launched);
+  if (who.dash) {
+    // Straight and fast - but Infinity halves it, as it halves any attack.
+    const speed = who.dash.spec.speed * (speedFor(who, foe) / CRUISE);
+    who.vx = who.dash.dx * speed;
+    who.vy = who.dash.dy * speed;
+    who.dash.left -= dt;
+  }
+  const flying = Boolean(who.launched) || Boolean(who.dash);
   if (!flying) {
     if (foe) {
       const dx = foe.x - who.x;
@@ -419,6 +428,9 @@ function useAbility(fight, who, foe, ability) {
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     fireShot(fight, who, foe, ability);
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'dash' && foe && foe.hp > 0 && !who.launched) {
+    startDash(who, foe, ability, 0);
+    announce(fight, who, ability.name);
   } else if (ability.kind === 'beam' && foe && foe.hp > 0) {
     fight.beams.push({
       side: who.side,
@@ -436,6 +448,41 @@ function useAbility(fight, who, foe, ability) {
     fight.volleys.push({ owner: who, side: who.side, left: ability.count, next: 0, gap: ability.gap, shot: { ...ability.shot, name: ability.name } });
     announce(fight, who, ability.name);
   }
+}
+
+/** Points a dash straight at where the enemy is now, not where it is going. */
+function startDash(who, foe, spec, hits) {
+  const dx = foe.x - who.x;
+  const dy = foe.y - who.y;
+  const d = Math.hypot(dx, dy) || 1;
+  who.dash = { dx: dx / d, dy: dy / d, left: spec.reach, hits, spec };
+  who.vx = (dx / d) * spec.speed;
+  who.vy = (dy / d) * spec.speed;
+}
+
+/**
+ * A dash landing: 10, a knockback, and - if the hit got through and there is
+ * room for another - straight after them again. A dodged one ends it.
+ */
+function dashHit(fight, who, foe) {
+  const { spec, dx, dy } = who.dash;
+  const hits = who.dash.hits + 1;
+  const dealt = hurt(fight, foe, spec.damage * fight.sides[who.side].scale, { from: who, kind: 'dash' });
+  fight.events.push({ kind: 'bump', x: (who.x + foe.x) / 2, y: (who.y + foe.y) / 2 });
+  fight.sinceBump = 0;
+  if (dealt <= 0 || foe.hp <= 0) { endDash(who); return; }
+  // Knocked back the way the dash was going, flying until a wall stops it.
+  foe.launched = { from: who, damage: 0 };
+  foe.vx = dx * spec.knockback;
+  foe.vy = dy * spec.knockback;
+  if (hits >= spec.maxHits) { endDash(who); return; }
+  startDash(who, foe, spec, hits);
+}
+
+function endDash(who) {
+  who.dash = null;
+  who.hitLock = HIT_LOCK;
+  setSpeed(who, CRUISE);
 }
 
 /** Throws one shot at where the enemy is now, not where it is going. */
@@ -659,7 +706,7 @@ export function stepFight(fight, dt) {
     fight.sinceBump += slice;
     if (fight.sinceBump > STALL_AFTER) {
       for (const [who, foe] of [[fa, fb], [fb, fa]]) {
-        if (who.launched) continue;
+        if (who.launched || who.dash) continue;
         const d = Math.hypot(foe.x - who.x, foe.y - who.y) || 1;
         who.vx = ((foe.x - who.x) / d) * CRUISE;
         who.vy = ((foe.y - who.y) / d) * CRUISE;
@@ -669,6 +716,7 @@ export function stepFight(fight, dt) {
 
     for (const [who, foe] of [[fa, fb], [fb, fa]]) {
       const wall = move(who, foe, slice);
+      if (who.dash && (wall || who.dash.left <= 0)) endDash(who);
       if (wall && who.launched) {
         const { from, damage } = who.launched;
         who.launched = null;
@@ -677,10 +725,11 @@ export function stepFight(fight, dt) {
         hurt(fight, who, damage * pressureAt(fight.time), { from, kind: 'slam' });
       }
     }
+    const touching = Math.hypot(fb.x - fa.x, fb.y - fa.y) <= fa.radius + fb.radius;
+    if (touching && fa.dash && !fb.dash) dashHit(fight, fa, fb);
+    else if (touching && fb.dash && !fa.dash) dashHit(fight, fb, fa);
     // A thrown ball is out of the fight until it lands.
-    if (!fa.launched && !fb.launched && Math.hypot(fb.x - fa.x, fb.y - fa.y) <= fa.radius + fb.radius) {
-      bump(fight, fa, fb);
-    }
+    else if (touching && !fa.launched && !fb.launched && !fa.dash && !fb.dash) bump(fight, fa, fb);
 
     for (const summon of fight.summons) {
       summon.left -= slice;

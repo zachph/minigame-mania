@@ -463,7 +463,7 @@ test('Gojo has both of his abilities', () => {
 });
 
 test('a fighter with one ability still has it listed, and one with none has an empty list', () => {
-  assert.deepEqual(getFighter('garou').abilities.map((a) => a.kind), ['double']);
+  assert.deepEqual(getFighter('saitama').abilities.map((a) => a.kind), ['instakill']);
   for (const spec of FIGHTERS) assert.ok(Array.isArray(spec.abilities));
 });
 
@@ -841,4 +841,89 @@ test('the Kamehameha draws', async () => {
   drawBeam(ctx, { colour: '#6ac8ff' }, { x: 200, y: 200, radius: 30 }, { x: 600, y: 260 }, 1);
   drawBeam(ctx, { colour: '#6ac8ff' }, null, { x: 600, y: 260 }, 1);
   assert.ok(ctx.calls > 5);
+});
+
+/* ------------------------------------------------ Water Stream Rock Smashing Fist */
+
+test('Garou has Double Hit and his Water Stream dash', () => {
+  assert.deepEqual(getFighter('garou').abilities.map((a) => a.name), ['Double Hit', 'Water Stream Rock Smashing Fist']);
+});
+
+/** Garou facing a target that cannot die, the dash about to go. */
+function dashFight(target = 'goku') {
+  const f = fight(['garou'], [target]);
+  const [garou, foe] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  for (const k of Object.keys(foe.timers)) foe.timers[k] = -1000;
+  garou.x = BOX.x + 200; garou.y = BOX.y + 150;
+  foe.x = BOX.x + 360; foe.y = BOX.y + 150;
+  garou.timers.dash = 15 - 1e-6;
+  return { f, garou, foe };
+}
+
+test('the dash goes every 15 seconds, and one that lands does 10 and knocks them back', () => {
+  const { f, garou, foe } = dashFight();
+  foe.hp = foe.maxHp = 100000;
+  stepFight(f, 1 / 120);
+  assert.ok(garou.dash, 'he is dashing');
+  foe.hitLock = 99;
+  let landed = false;
+  for (let i = 0; i < 120 && !landed; i += 1) {
+    stepFight(f, 1 / 120);
+    landed = foe.taken > 0;
+  }
+  assert.ok(landed);
+  assert.equal(foe.taken, 10);
+  assert.ok(foe.launched, 'and they are knocked back');
+});
+
+/** Steps a fight, counting the dash's own hits and dodges (not ordinary bumps). */
+function runDash(f, garou, seconds) {
+  const tally = { hits: 0, missed: 0, missWhileDashing: [] };
+  for (let i = 0; i < 60 * seconds; i += 1) {
+    const wasDashing = Boolean(garou.dash);
+    stepFight(f, 1 / 60);
+    if (i > 1) garou.timers.dash = -1000;
+    for (const e of f.events) {
+      if (e.kind === 'damage' && e.source === 'dash') tally.hits += 1;
+      if (e.kind === 'miss' && wasDashing) { tally.missed += 1; tally.missWhileDashing.push(Boolean(garou.dash)); }
+    }
+  }
+  return tally;
+}
+
+test('when it lands he goes again, but never more than 5 times', () => {
+  let most = 0;
+  for (let seed = 1; seed <= 30; seed += 1) {
+    const { f, garou, foe } = dashFight();
+    f.random = seededRandom(seed);
+    foe.hp = foe.maxHp = 100000;
+    const { hits } = runDash(f, garou, 4);
+    most = Math.max(most, hits);
+    assert.ok(hits <= 5, `seed ${seed}: ${hits} hits`);
+  }
+  assert.ok(most >= 2, 'it should chain at least sometimes');
+});
+
+test('a dash Sans dodges ends the combo', () => {
+  const { f, garou } = dashFight('sans');
+  const { hits, missed, missWhileDashing } = runDash(f, garou, 2);
+  assert.equal(hits, 0);
+  assert.ok(missed >= 1, 'the dash reached him and he dodged it');
+  assert.equal(missWhileDashing[0], false, 'and Garou stopped there instead of going again');
+});
+
+test('a dash that hits a wall or runs out just ends', () => {
+  const { f, garou, foe } = dashFight();
+  foe.x = BOX.x + BOX.w - 60;   // far away, then out of the line
+  stepFight(f, 1 / 120);
+  foe.y = BOX.y + BOX.h - 40;
+  for (let i = 0; i < 120 && garou.dash; i += 1) stepFight(f, 1 / 120);
+  assert.equal(garou.dash, null);
+});
+
+test('a dashing Garou draws', () => {
+  const ctx = createFakeContext();
+  const { f, garou } = dashFight();
+  stepFight(f, 1 / 120);
+  assert.doesNotThrow(() => drawBall(ctx, garou, {}));
 });
