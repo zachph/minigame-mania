@@ -108,6 +108,7 @@ export function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random
     waves: [],         // Bone Waves, while they sweep
     volleys: [],       // Undyne's spears still to throw
     beams: [],         // Kamehameha, while it is firing
+    zones: [],         // Hakai squares, while they last
     log: [],
     events: [],
     over: null,
@@ -436,6 +437,23 @@ function useAbility(fight, who, foe, ability) {
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     fireShot(fight, who, foe, ability);
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'zone' && foe && foe.hp > 0) {
+    // Comes down where the enemy is now, and stays there - kept inside the box.
+    const half = ability.stages[0].size / 2;
+    fight.zones.push({
+      side: who.side,
+      owner: who,
+      x: clamp(foe.x, BOX.x + Math.min(half, BOX.w / 2), BOX.x + BOX.w - Math.min(half, BOX.w / 2)),
+      y: clamp(foe.y, BOX.y + Math.min(half, BOX.h / 2), BOX.y + BOX.h - Math.min(half, BOX.h / 2)),
+      stages: ability.stages,
+      stage: 0,
+      stageLeft: ability.stages[0].lasts,
+      next: ability.tick,
+      tick: ability.tick,
+      damage: ability.damage,
+      colour: ability.colour,
+    });
+    announce(fight, who, ability.name);
   } else if (ability.kind === 'windup' && foe && foe.hp > 0) {
     who.windup = { left: ability.hold, hold: ability.hold, spec: ability };
     who.vx = 0;
@@ -637,6 +655,43 @@ function tickBeams(fight, dt) {
   fight.beams = fight.beams.filter((b) => b.left > 1e-9 && b.owner.hp > 0);
 }
 
+/** The side of a zone square right now, or 0 once it has run out. */
+export const zoneSize = (zone) => zone.stages[zone.stage]?.size || 0;
+
+/** True when a fighter is touching a zone square at all. */
+export function inZone(zone, who) {
+  const half = zoneSize(zone) / 2;
+  const nearX = clamp(who.x, zone.x - half, zone.x + half);
+  const nearY = clamp(who.y, zone.y - half, zone.y + half);
+  return Math.hypot(who.x - nearX, who.y - nearY) <= who.radius;
+}
+
+/**
+ * Hakai squares. Each shrinks a stage at a time and does its damage every
+ * tick to the enemy, but only while they are in it - a square does not
+ * follow anyone, so it can be walked out of, and it gets easier the smaller
+ * it gets. Gone after its last stage, or when Beerus is.
+ */
+function tickZones(fight, dt) {
+  for (const zone of fight.zones) {
+    zone.stageLeft -= dt;
+    while (zone.stageLeft <= 1e-9 && zone.stage < zone.stages.length) {
+      zone.stage += 1;
+      if (zone.stage < zone.stages.length) zone.stageLeft += zone.stages[zone.stage].lasts;
+    }
+    if (zone.stage >= zone.stages.length) continue;
+    zone.next -= dt;
+    const foe = frontOf(fight, other(zone.side));
+    while (zone.next <= 1e-9) {
+      zone.next += zone.tick;
+      if (foe && foe.hp > 0 && inZone(zone, foe)) {
+        hurt(fight, foe, zone.damage * fight.sides[zone.side].scale, { from: zone.owner, kind: 'zone' });
+      }
+    }
+  }
+  fight.zones = fight.zones.filter((z) => z.stage < z.stages.length && z.owner.hp > 0);
+}
+
 /**
  * Shots in flight. A shot flies straight until it touches the enemy in the
  * box - then it does its damage, which still goes through `hurt` - or leaves
@@ -773,6 +828,7 @@ export function stepFight(fight, dt) {
     tickBlasters(fight, slice);
     tickWaves(fight, slice);
     tickBeams(fight, slice);
+    tickZones(fight, slice);
     if (checkOver(fight)) break;
   }
   return fight;

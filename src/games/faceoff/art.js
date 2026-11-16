@@ -543,3 +543,23 @@ export function drawWindup(ctx, who) {
   ctx.fillRect(tx - 28, barY, 56 * clamp(done, 0, 1), 5);
   ctx.restore();
 }
+
+/** A Hakai square: a purple outline over a faint fill, flickering. */
+export function drawZone(ctx, zone, time = 0) {
+  const size = zone.stages[zone.stage]?.size || 0;
+  if (!size) return;
+  const half = size / 2;
+  ctx.save();
+  ctx.globalAlpha = 0.16 + 0.06 * Math.sin(time * 12);
+  ctx.fillStyle = zone.colour;
+  ctx.fillRect(zone.x - half, zone.y - half, size, size);
+  ctx.globalAlpha = 0.85;
+  ctx.strokeStyle = zone.colour;
+  ctx.lineWidth = 4;
+  ctx.strokeRect(zone.x - half, zone.y - half, size, size);
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = '#efe0ff';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(zone.x - half + 6, zone.y - half + 6, size - 12, size - 12);
+  ctx.restore();
+}
