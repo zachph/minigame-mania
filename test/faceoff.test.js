@@ -463,7 +463,7 @@ test('Gojo has both of his abilities', () => {
 });
 
 test('a fighter with one ability still has it listed, and one with none has an empty list', () => {
-  assert.deepEqual(getFighter('saitama').abilities.map((a) => a.kind), ['instakill']);
+  assert.deepEqual(getFighter('beerus').abilities.map((a) => a.kind), ['summon']);
   for (const spec of FIGHTERS) assert.ok(Array.isArray(spec.abilities));
 });
 
@@ -926,4 +926,75 @@ test('a dashing Garou draws', () => {
   const { f, garou } = dashFight();
   stepFight(f, 1 / 120);
   assert.doesNotThrow(() => drawBall(ctx, garou, {}));
+});
+
+/* ----------------------------------------------------------- Table Flip */
+
+test('Saitama has Serious Punch and Table Flip', () => {
+  assert.deepEqual(getFighter('saitama').abilities.map((a) => a.name), ['Serious Punch', 'Table Flip']);
+});
+
+function tableFight(target = 'garou') {
+  const f = fight(['saitama'], [target]);
+  const [saitama, foe] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  for (const k of Object.keys(foe.timers)) foe.timers[k] = -1000;
+  saitama.x = BOX.x + 150; saitama.y = BOX.y + 150;
+  saitama.timers.windup = 15 - 1e-6;
+  const hold = () => { foe.x = BOX.x + 560; foe.y = BOX.y + 150; foe.vx = foe.vy = 0; foe.hitLock = saitama.hitLock = 99; f.sinceBump = 0; };
+  return { f, saitama, foe, hold };
+}
+
+test('every 15 seconds he stands still for 2 with the triangle over him', () => {
+  const { f, saitama, hold } = tableFight();
+  hold();
+  stepFight(f, 1 / 60);
+  assert.ok(saitama.windup, 'he is winding up');
+  const at = { x: saitama.x, y: saitama.y };
+  for (let i = 0; i < 60 * 1.9; i += 1) { hold(); stepFight(f, 1 / 60); }
+  assert.ok(saitama.windup, 'still holding at 1.9 seconds');
+  assert.equal(saitama.x, at.x);
+  assert.equal(saitama.y, at.y, 'and he has not moved');
+  assert.equal(f.shots.length, 0, 'nothing thrown yet');
+  for (let i = 0; i < 12; i += 1) { hold(); stepFight(f, 1 / 60); }
+  assert.equal(saitama.windup, null);
+  assert.equal(f.shots.length, 1, 'then the table goes');
+});
+
+test('the table does 50 when it lands', () => {
+  const { f, saitama, foe, hold } = tableFight();
+  saitama.timers.windup = 15 - 1e-6;
+  for (let i = 0; i < 60 * 4 && foe.taken === 0; i += 1) { hold(); stepFight(f, 1 / 60); if (i > 1) saitama.timers.windup = -1000; }
+  assert.equal(foe.taken, 50);
+});
+
+test('Sans dodges the table like anything else', () => {
+  const { f, saitama, foe, hold } = tableFight('sans');
+  for (let i = 0; i < 60 * 4 && foe.dodgesLeft === 24; i += 1) { hold(); stepFight(f, 1 / 60); if (i > 1) saitama.timers.windup = -1000; }
+  assert.equal(foe.hp, 1);
+  assert.equal(foe.dodgesLeft, 23);
+});
+
+test('standing still costs him: a bump while he winds up hits him harder', () => {
+  let still = 0;
+  let moving = 0;
+  for (let seed = 1; seed <= 40; seed += 1) {
+    for (const holding of [true, false]) {
+      const f = fight(['saitama'], ['garou'], seed);
+      const [saitama, garou] = [frontOf(f, 'a'), frontOf(f, 'b')];
+      Object.assign(garou, { x: 440, y: 240, vx: -160, vy: 0, hitLock: 0 });
+      Object.assign(saitama, { x: 400, y: 240, vx: holding ? 0 : 160, vy: 0, hitLock: 0 });
+      bump(f, saitama, garou);
+      if (holding) still += saitama.taken; else moving += saitama.taken;
+    }
+  }
+  assert.ok(still > moving);
+});
+
+test('the windup and the flying table draw', async () => {
+  const { drawWindup, drawShot } = await import('../src/games/faceoff/art.js');
+  const ctx = createFakeContext();
+  drawWindup(ctx, { x: 300, y: 300, radius: 30, windup: { left: 1, hold: 2 } });
+  drawWindup(ctx, { x: 300, y: 300, radius: 30, windup: null });
+  drawShot(ctx, { x: 400, y: 200, dx: 1, dy: 0, size: 26, style: 'table' });
+  assert.ok(ctx.calls > 10);
 });

@@ -66,6 +66,7 @@ export function makeFighter(id, { slot = 0, side = 'a' } = {}) {
     burn: null,        // { left, next, damage, every, from } while burning
     launched: null,    // { from, damage } while flying at a wall
     dash: null,        // Garou mid-dash: { dx, dy, left, hits, spec }
+    windup: null,      // Saitama holding still: { left, hold, spec }
     undying: false,    // Undyne after she has come back
     undyingRolled: false,
     dealt: 0,
@@ -180,6 +181,7 @@ export function hurt(fight, target, amount, { from = null, kind = 'bump' } = {})
     target.burn = null;
     target.launched = null;
     target.dash = null;
+    target.windup = null;
     fight.events.push({ kind: 'down', uid: target.uid });
     say(fight, `${target.name} is out`, { side: target.side });
   }
@@ -256,6 +258,12 @@ export function move(who, foe, dt) {
     who.vx = who.dash.dx * speed;
     who.vy = who.dash.dy * speed;
     who.dash.left -= dt;
+  }
+  // Holding still for a windup: going nowhere, unless something throws him.
+  if (who.windup && !who.launched && !who.dash) {
+    who.vx = 0;
+    who.vy = 0;
+    return false;
   }
   const flying = Boolean(who.launched) || Boolean(who.dash);
   if (!flying) {
@@ -428,6 +436,11 @@ function useAbility(fight, who, foe, ability) {
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     fireShot(fight, who, foe, ability);
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'windup' && foe && foe.hp > 0) {
+    who.windup = { left: ability.hold, hold: ability.hold, spec: ability };
+    who.vx = 0;
+    who.vy = 0;
+    announce(fight, who, ability.name);
   } else if (ability.kind === 'dash' && foe && foe.hp > 0 && !who.launched) {
     startDash(who, foe, ability, 0);
     announce(fight, who, ability.name);
@@ -448,6 +461,19 @@ function useAbility(fight, who, foe, ability) {
     fight.volleys.push({ owner: who, side: who.side, left: ability.count, next: 0, gap: ability.gap, shot: { ...ability.shot, name: ability.name } });
     announce(fight, who, ability.name);
   }
+}
+
+/**
+ * A fighter holding still before letting go: when the hold runs out, the
+ * thing it was holding is thrown at the enemy as it is at that moment.
+ */
+function tickWindup(fight, who, foe, dt) {
+  if (!who.windup || who.hp <= 0) return;
+  who.windup.left -= dt;
+  if (who.windup.left > 0) return;
+  const { spec } = who.windup;
+  who.windup = null;
+  if (foe && foe.hp > 0) fireShot(fight, who, foe, { ...spec.shot, name: spec.name });
 }
 
 /** Points a dash straight at where the enemy is now, not where it is going. */
@@ -695,6 +721,7 @@ export function stepFight(fight, dt) {
     for (const [who, foe] of [[a, b], [b, a]]) {
       who.hitLock = Math.max(0, who.hitLock - slice);
       tickAbilities(fight, who, foe, slice);
+      tickWindup(fight, who, foe, slice);
       tickBurn(fight, who, slice);
     }
     for (const side of ['a', 'b']) sendNext(fight, side);
@@ -706,7 +733,7 @@ export function stepFight(fight, dt) {
     fight.sinceBump += slice;
     if (fight.sinceBump > STALL_AFTER) {
       for (const [who, foe] of [[fa, fb], [fb, fa]]) {
-        if (who.launched || who.dash) continue;
+        if (who.launched || who.dash || who.windup) continue;
         const d = Math.hypot(foe.x - who.x, foe.y - who.y) || 1;
         who.vx = ((foe.x - who.x) / d) * CRUISE;
         who.vy = ((foe.y - who.y) / d) * CRUISE;

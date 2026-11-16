@@ -15404,9 +15404,18 @@ const FIGHTERS = [
     ],
   }),
   // One hit in twenty ends it.
+  // Table Flip: every 15 seconds he stands still for 2 with a big triangle
+  // over his head - open to anything that comes at him - then flips it at the
+  // enemy for 50.
   fighter({
     id: 'saitama', name: 'Saitama', colour: '#ffe07a', shade: '#a07a10',
-    ability: { kind: 'instakill', name: 'Serious Punch', chance: 0.05 },
+    abilities: [
+      { kind: 'instakill', name: 'Serious Punch', chance: 0.05 },
+      {
+        kind: 'windup', name: 'Table Flip', every: 15, hold: 2,
+        shot: { damage: 50, speed: 480, size: 26, style: 'table', colour: '#d9a35a' },
+      },
+    ],
   }),
   // Every 20 seconds he vanishes and reappears somewhere else in the box.
   // Kamehameha: every 11 seconds a beam from his hands, locked on to the
@@ -15539,6 +15548,7 @@ function makeFighter(id, { slot = 0, side = 'a' } = {}) {
     burn: null,        // { left, next, damage, every, from } while burning
     launched: null,    // { from, damage } while flying at a wall
     dash: null,        // Garou mid-dash: { dx, dy, left, hits, spec }
+    windup: null,      // Saitama holding still: { left, hold, spec }
     undying: false,    // Undyne after she has come back
     undyingRolled: false,
     dealt: 0,
@@ -15653,6 +15663,7 @@ function hurt(fight, target, amount, { from = null, kind = 'bump' } = {}) {
     target.burn = null;
     target.launched = null;
     target.dash = null;
+    target.windup = null;
     fight.events.push({ kind: 'down', uid: target.uid });
     say(fight, `${target.name} is out`, { side: target.side });
   }
@@ -15729,6 +15740,12 @@ function move(who, foe, dt) {
     who.vx = who.dash.dx * speed;
     who.vy = who.dash.dy * speed;
     who.dash.left -= dt;
+  }
+  // Holding still for a windup: going nowhere, unless something throws him.
+  if (who.windup && !who.launched && !who.dash) {
+    who.vx = 0;
+    who.vy = 0;
+    return false;
   }
   const flying = Boolean(who.launched) || Boolean(who.dash);
   if (!flying) {
@@ -15901,6 +15918,11 @@ function useAbility(fight, who, foe, ability) {
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     fireShot(fight, who, foe, ability);
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'windup' && foe && foe.hp > 0) {
+    who.windup = { left: ability.hold, hold: ability.hold, spec: ability };
+    who.vx = 0;
+    who.vy = 0;
+    announce(fight, who, ability.name);
   } else if (ability.kind === 'dash' && foe && foe.hp > 0 && !who.launched) {
     startDash(who, foe, ability, 0);
     announce(fight, who, ability.name);
@@ -15921,6 +15943,19 @@ function useAbility(fight, who, foe, ability) {
     fight.volleys.push({ owner: who, side: who.side, left: ability.count, next: 0, gap: ability.gap, shot: { ...ability.shot, name: ability.name } });
     announce(fight, who, ability.name);
   }
+}
+
+/**
+ * A fighter holding still before letting go: when the hold runs out, the
+ * thing it was holding is thrown at the enemy as it is at that moment.
+ */
+function tickWindup(fight, who, foe, dt) {
+  if (!who.windup || who.hp <= 0) return;
+  who.windup.left -= dt;
+  if (who.windup.left > 0) return;
+  const { spec } = who.windup;
+  who.windup = null;
+  if (foe && foe.hp > 0) fireShot(fight, who, foe, { ...spec.shot, name: spec.name });
 }
 
 /** Points a dash straight at where the enemy is now, not where it is going. */
@@ -16168,6 +16203,7 @@ function stepFight(fight, dt) {
     for (const [who, foe] of [[a, b], [b, a]]) {
       who.hitLock = Math.max(0, who.hitLock - slice);
       tickAbilities(fight, who, foe, slice);
+      tickWindup(fight, who, foe, slice);
       tickBurn(fight, who, slice);
     }
     for (const side of ['a', 'b']) sendNext(fight, side);
@@ -16179,7 +16215,7 @@ function stepFight(fight, dt) {
     fight.sinceBump += slice;
     if (fight.sinceBump > STALL_AFTER) {
       for (const [who, foe] of [[fa, fb], [fb, fa]]) {
-        if (who.launched || who.dash) continue;
+        if (who.launched || who.dash || who.windup) continue;
         const d = Math.hypot(foe.x - who.x, foe.y - who.y) || 1;
         who.vx = ((foe.x - who.x) / d) * CRUISE;
         who.vy = ((foe.y - who.y) / d) * CRUISE;
@@ -16990,6 +17026,7 @@ function drawSlowed(ctx, who) {
 function drawShot(ctx, shot) {
   if (shot.style === 'ball') { drawFireball(ctx, shot); return; }
   if (shot.style === 'spear') { drawSpear(ctx, shot); return; }
+  if (shot.style === 'table') { drawTable(ctx, shot.x, shot.y, shot.size || 26, (shot.spin = (shot.spin || 0) + 0.35)); return; }
   ctx.save();
   const tailX = shot.x - shot.dx * shot.length;
   const tailY = shot.y - shot.dy * shot.length;
@@ -17244,7 +17281,54 @@ function drawBeam(ctx, beam, from, target, time = 0) {
   ctx.restore();
 }
 
-  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, beamLine, drawBlaster, drawBones, drawFireball, drawSpear, drawBeam };
+/** The big triangle - Saitama's table - centred on x, y, turned by `angle`. */
+function drawTable(ctx, x, y, size, angle = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = '#d9a35a';
+  ctx.strokeStyle = '#5a3a14';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, -size);
+  ctx.lineTo(size * 0.95, size * 0.7);
+  ctx.lineTo(-size * 0.95, size * 0.7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(90, 58, 20, 0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, -size * 0.45);
+  ctx.lineTo(size * 0.5, size * 0.42);
+  ctx.lineTo(-size * 0.5, size * 0.42);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * Saitama winding up: the triangle hangs over his head, rising as the hold
+ * runs down, with a bar under it filling towards the throw.
+ */
+function drawWindup(ctx, who) {
+  if (!who?.windup) return;
+  const done = 1 - who.windup.left / who.windup.hold;
+  const lift = done * 8;
+  const tx = who.x;
+  // Clear of his name label, which sits just over the ball.
+  const ty = who.y - who.radius - 46 - lift;
+  drawTable(ctx, tx, ty, 24, Math.sin(done * 12) * 0.05);
+  ctx.save();
+  const barY = ty - 34;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+  ctx.fillRect(tx - 28, barY, 56, 5);
+  ctx.fillStyle = '#ffe07a';
+  ctx.fillRect(tx - 28, barY, 56 * clamp(done, 0, 1), 5);
+  ctx.restore();
+}
+
+  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, beamLine, drawBlaster, drawBones, drawFireball, drawSpear, drawBeam, drawTable, drawWindup };
 })();
 
 // ---- src/games/faceoff/game.js -----------------------------------
@@ -17253,7 +17337,7 @@ __modules["src/games/faceoff/game.js"] = (function () {
   const { BOX, FIGHTERS, MODE_BY_ID, STORY, STORY_RECOVERY, TOWER, TOWER_RECOVERY } = __modules["src/games/faceoff/content.js"];
   const { createFight, frontOf, healthShare, inInfinity, pressureAt, stepFight } = __modules["src/games/faceoff/battle.js"];
   const { SelectPanel } = __modules["src/games/faceoff/select.js"];
-  const { drawBall, drawBeam, drawBanner, drawBench, drawBlaster, drawBones, drawBox, drawInfinity, drawShot, drawSlash, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawText } = __modules["src/games/faceoff/art.js"];
+  const { drawBall, drawBeam, drawBanner, drawBench, drawBlaster, drawBones, drawBox, drawInfinity, drawShot, drawSlash, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawWindup, drawText } = __modules["src/games/faceoff/art.js"];
 
 const GAME_ID = 'faceoff';
 
@@ -17390,7 +17474,7 @@ class FaceoffGame {
     for (const event of this.fight.events) {
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
-        const colour = { dash: '#96d2ff', beam: '#6ac8ff', fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff' }[event.source] || '#f44';
+        const colour = { table: '#d9a35a', dash: '#96d2ff', beam: '#6ac8ff', fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff' }[event.source] || '#f44';
         const big = event.source === 'instakill';
         this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' || event.source === 'blaster' || event.source === 'bones' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
       } else if (event.kind === 'ability') {
@@ -17501,6 +17585,7 @@ class FaceoffGame {
       if (!who) continue;
       drawBall(ctx, who, { flash: this.flash[who.uid] || 0, trail: this.trails[who.uid] || [] });
       if (foe && inInfinity(who, foe)) drawSlowed(ctx, who);
+      drawWindup(ctx, who);
     }
     for (const s of this.sparks) drawSpark(ctx, s);
     for (const slash of this.slashes || []) drawSlash(ctx, slash);

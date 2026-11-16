@@ -242,6 +242,7 @@ export function drawSlowed(ctx, who) {
 export function drawShot(ctx, shot) {
   if (shot.style === 'ball') { drawFireball(ctx, shot); return; }
   if (shot.style === 'spear') { drawSpear(ctx, shot); return; }
+  if (shot.style === 'table') { drawTable(ctx, shot.x, shot.y, shot.size || 26, (shot.spin = (shot.spin || 0) + 0.35)); return; }
   ctx.save();
   const tailX = shot.x - shot.dx * shot.length;
   const tailY = shot.y - shot.dy * shot.length;
@@ -493,5 +494,52 @@ export function drawBeam(ctx, beam, from, target, time = 0) {
   ctx.beginPath();
   ctx.arc(sx, sy, 22, 0, TAU);
   ctx.fill();
+  ctx.restore();
+}
+
+/** The big triangle - Saitama's table - centred on x, y, turned by `angle`. */
+export function drawTable(ctx, x, y, size, angle = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = '#d9a35a';
+  ctx.strokeStyle = '#5a3a14';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, -size);
+  ctx.lineTo(size * 0.95, size * 0.7);
+  ctx.lineTo(-size * 0.95, size * 0.7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(90, 58, 20, 0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, -size * 0.45);
+  ctx.lineTo(size * 0.5, size * 0.42);
+  ctx.lineTo(-size * 0.5, size * 0.42);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * Saitama winding up: the triangle hangs over his head, rising as the hold
+ * runs down, with a bar under it filling towards the throw.
+ */
+export function drawWindup(ctx, who) {
+  if (!who?.windup) return;
+  const done = 1 - who.windup.left / who.windup.hold;
+  const lift = done * 8;
+  const tx = who.x;
+  // Clear of his name label, which sits just over the ball.
+  const ty = who.y - who.radius - 46 - lift;
+  drawTable(ctx, tx, ty, 24, Math.sin(done * 12) * 0.05);
+  ctx.save();
+  const barY = ty - 34;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+  ctx.fillRect(tx - 28, barY, 56, 5);
+  ctx.fillStyle = '#ffe07a';
+  ctx.fillRect(tx - 28, barY, 56 * clamp(done, 0, 1), 5);
   ctx.restore();
 }

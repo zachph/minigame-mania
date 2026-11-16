@@ -26,6 +26,7 @@ import {
   drawScreen,
   drawSpark,
   drawStatus,
+  drawWindup,
   drawText,
 } from './art.js';
 
@@ -164,7 +165,7 @@ class FaceoffGame {
     for (const event of this.fight.events) {
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
-        const colour = { dash: '#96d2ff', beam: '#6ac8ff', fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff' }[event.source] || '#f44';
+        const colour = { table: '#d9a35a', dash: '#96d2ff', beam: '#6ac8ff', fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff' }[event.source] || '#f44';
         const big = event.source === 'instakill';
         this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' || event.source === 'blaster' || event.source === 'bones' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
       } else if (event.kind === 'ability') {
@@ -275,6 +276,7 @@ class FaceoffGame {
       if (!who) continue;
       drawBall(ctx, who, { flash: this.flash[who.uid] || 0, trail: this.trails[who.uid] || [] });
       if (foe && inInfinity(who, foe)) drawSlowed(ctx, who);
+      drawWindup(ctx, who);
     }
     for (const s of this.sparks) drawSpark(ctx, s);
     for (const slash of this.slashes || []) drawSlash(ctx, slash);
