@@ -138,9 +138,18 @@ export const FIGHTERS = [
     ],
   }),
   // One hit in twenty ends it.
+  // Table Flip: every 15 seconds he stands still for 2 with a big triangle
+  // over his head - open to anything that comes at him - then flips it at the
+  // enemy for 50.
   fighter({
     id: 'saitama', name: 'Saitama', colour: '#ffe07a', shade: '#a07a10',
-    ability: { kind: 'instakill', name: 'Serious Punch', chance: 0.05 },
+    abilities: [
+      { kind: 'instakill', name: 'Serious Punch', chance: 0.05 },
+      {
+        kind: 'windup', name: 'Table Flip', every: 15, hold: 2,
+        shot: { damage: 50, speed: 480, size: 26, style: 'table', colour: '#d9a35a' },
+      },
+    ],
   }),
   // Every 20 seconds he vanishes and reappears somewhere else in the box.
   // Kamehameha: every 11 seconds a beam from his hands, locked on to the
