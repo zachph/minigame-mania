@@ -15400,9 +15400,14 @@ const FIGHTERS = [
     ability: { kind: 'instakill', name: 'Serious Punch', chance: 0.05 },
   }),
   // Every 20 seconds he vanishes and reappears somewhere else in the box.
+  // Kamehameha: every 11 seconds a beam from his hands, locked on to the
+  // enemy, 3 every 0.8 seconds for 8 seconds.
   fighter({
     id: 'goku', name: 'Goku', colour: '#ffb15a', shade: '#9a4a10',
-    ability: { kind: 'teleport', name: 'Instant Transmission', every: 20 },
+    abilities: [
+      { kind: 'teleport', name: 'Instant Transmission', every: 20 },
+      { kind: 'beam', name: 'Kamehameha', every: 11, lasts: 8, damage: 3, tick: 0.8, colour: '#6ac8ff' },
+    ],
   }),
   // Every 15 seconds Whis joins in for 5: a second ball on Beerus's side that
   // bumps the enemy and cannot be hurt.
@@ -15564,6 +15569,7 @@ function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random, limit
     runs: [],          // Gaster Blaster runs in progress: which blast is next
     waves: [],         // Bone Waves, while they sweep
     volleys: [],       // Undyne's spears still to throw
+    beams: [],         // Kamehameha, while it is firing
     log: [],
     events: [],
     over: null,
@@ -15877,6 +15883,18 @@ function useAbility(fight, who, foe, ability) {
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     fireShot(fight, who, foe, ability);
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'beam' && foe && foe.hp > 0) {
+    fight.beams.push({
+      side: who.side,
+      owner: who,
+      lasts: ability.lasts,
+      left: ability.lasts,
+      next: ability.tick,
+      tick: ability.tick,
+      damage: ability.damage,
+      colour: ability.colour,
+    });
+    announce(fight, who, ability.name);
   } else if (ability.kind === 'volley' && foe && foe.hp > 0) {
     // The first goes now; the rest follow one at a time in tickVolleys.
     fight.volleys.push({ owner: who, side: who.side, left: ability.count, next: 0, gap: ability.gap, shot: { ...ability.shot, name: ability.name } });
@@ -15990,6 +16008,24 @@ function tickWaves(fight, dt) {
     }
   }
   fight.waves = fight.waves.filter((w) => w.left > 1e-9 && w.owner.hp > 0);
+}
+
+/**
+ * Beams firing from their fighter, locked on to whoever is in front for the
+ * other side: damage once a tick until the beam runs out or its fighter goes
+ * down. Sans dodges each tick, as he dodges anything.
+ */
+function tickBeams(fight, dt) {
+  for (const beam of fight.beams) {
+    beam.left -= dt;
+    beam.next -= dt;
+    const foe = frontOf(fight, other(beam.side));
+    while (beam.next <= 1e-9 && beam.left > -1e-9) {
+      beam.next += beam.tick;
+      if (foe && foe.hp > 0) hurt(fight, foe, beam.damage * fight.sides[beam.side].scale, { from: beam.owner, kind: 'beam' });
+    }
+  }
+  fight.beams = fight.beams.filter((b) => b.left > 1e-9 && b.owner.hp > 0);
 }
 
 /**
@@ -16124,6 +16160,7 @@ function stepFight(fight, dt) {
     tickRuns(fight, slice);
     tickBlasters(fight, slice);
     tickWaves(fight, slice);
+    tickBeams(fight, slice);
     if (checkOver(fight)) break;
   }
   return fight;
@@ -17097,7 +17134,44 @@ function drawSpear(ctx, shot) {
   ctx.restore();
 }
 
-  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, beamLine, drawBlaster, drawBones, drawFireball, drawSpear };
+/**
+ * A Kamehameha: a glowing ball at the fighter's hands and a blue beam from it
+ * to the target, pulsing.
+ */
+function drawBeam(ctx, beam, from, target, time = 0) {
+  if (!from || !target) return;
+  const angle = Math.atan2(target.y - from.y, target.x - from.x);
+  const sx = from.x + Math.cos(angle) * (from.radius + 4);
+  const sy = from.y + Math.sin(angle) * (from.radius + 4);
+  const pulse = 0.85 + 0.15 * Math.sin(time * 30);
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.35;
+  ctx.strokeStyle = beam.colour;
+  ctx.lineWidth = 30 * pulse;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(target.x, target.y);
+  ctx.stroke();
+  ctx.globalAlpha = 0.9;
+  ctx.lineWidth = 14 * pulse;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#eaf8ff';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+  const glow = ctx.createRadialGradient(sx, sy, 1, sx, sy, 22);
+  glow.addColorStop(0, '#ffffff');
+  glow.addColorStop(0.4, beam.colour);
+  glow.addColorStop(1, 'rgba(106, 200, 255, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(sx, sy, 22, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, beamLine, drawBlaster, drawBones, drawFireball, drawSpear, drawBeam };
 })();
 
 // ---- src/games/faceoff/game.js -----------------------------------
@@ -17106,7 +17180,7 @@ __modules["src/games/faceoff/game.js"] = (function () {
   const { BOX, FIGHTERS, MODE_BY_ID, STORY, STORY_RECOVERY, TOWER, TOWER_RECOVERY } = __modules["src/games/faceoff/content.js"];
   const { createFight, frontOf, healthShare, inInfinity, pressureAt, stepFight } = __modules["src/games/faceoff/battle.js"];
   const { SelectPanel } = __modules["src/games/faceoff/select.js"];
-  const { drawBall, drawBanner, drawBench, drawBlaster, drawBones, drawBox, drawInfinity, drawShot, drawSlash, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawText } = __modules["src/games/faceoff/art.js"];
+  const { drawBall, drawBeam, drawBanner, drawBench, drawBlaster, drawBones, drawBox, drawInfinity, drawShot, drawSlash, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawText } = __modules["src/games/faceoff/art.js"];
 
 const GAME_ID = 'faceoff';
 
@@ -17243,7 +17317,7 @@ class FaceoffGame {
     for (const event of this.fight.events) {
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
-        const colour = { fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff' }[event.source] || '#f44';
+        const colour = { beam: '#6ac8ff', fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff' }[event.source] || '#f44';
         const big = event.source === 'instakill';
         this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' || event.source === 'blaster' || event.source === 'bones' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
       } else if (event.kind === 'ability') {
@@ -17343,6 +17417,9 @@ class FaceoffGame {
     }
     for (const summon of this.fight.summons) drawBall(ctx, { ...summon, spec: { colour: '#9cc4e8' } });
     for (const wave of this.fight.waves) drawBones(ctx, wave);
+    for (const beam of this.fight.beams) {
+      drawBeam(ctx, beam, beam.owner, frontOf(this.fight, beam.side === 'a' ? 'b' : 'a'), this.clock);
+    }
     for (const shot of this.fight.shots) drawShot(ctx, shot);
     for (const blaster of this.fight.blasters) {
       drawBlaster(ctx, blaster, frontOf(this.fight, blaster.side === 'a' ? 'b' : 'a'), this.clock);

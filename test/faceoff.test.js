@@ -265,6 +265,7 @@ test('Sukuna heals a quarter of his health every 15 seconds', async () => {
   const sukuna = frontOf(f, 'a');
   const goku = frontOf(f, 'b');
   sukuna.hp = 100;
+  goku.timers.beam = -1000;               // Goku's Kamehameha would muddy it
   goku.hp = 100000;                       // keep the fight going
   goku.maxHp = 100000;
   // Stop them meeting so only the heal moves his health.
@@ -462,7 +463,7 @@ test('Gojo has both of his abilities', () => {
 });
 
 test('a fighter with one ability still has it listed, and one with none has an empty list', () => {
-  assert.deepEqual(getFighter('goku').abilities.map((a) => a.kind), ['teleport']);
+  assert.deepEqual(getFighter('garou').abilities.map((a) => a.kind), ['double']);
   for (const spec of FIGHTERS) assert.ok(Array.isArray(spec.abilities));
 });
 
@@ -795,5 +796,49 @@ test('a spear draws', async () => {
   const { drawShot } = await import('../src/games/faceoff/art.js');
   const ctx = createFakeContext();
   drawShot(ctx, { x: 300, y: 200, dx: 0.6, dy: 0.8, length: 46, style: 'spear', colour: '#6ab4ff' });
+  assert.ok(ctx.calls > 5);
+});
+
+/* ----------------------------------------------------------- Kamehameha */
+
+test('Goku has Instant Transmission and Kamehameha', () => {
+  assert.deepEqual(getFighter('goku').abilities.map((a) => a.name), ['Instant Transmission', 'Kamehameha']);
+});
+
+test('a Kamehameha does 3 every 0.8 seconds for 8 seconds, every 11', () => {
+  const f = fight(['goku'], ['garou']);
+  quiet(f);
+  const [goku, garou] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  goku.timers.teleport = -1000;
+  goku.timers.beam = 10.99;
+  const step = () => { garou.hitLock = goku.hitLock = 99; f.sinceBump = 0; garou.x = goku.x + 400; stepFight(f, 1 / 60); };
+  step();
+  assert.equal(f.beams.length, 1);
+  goku.timers.beam = -1000;
+  const before = garou.taken;
+  for (let i = 0; i < 60 * 8.5; i += 1) step();
+  assert.equal(Math.round(garou.taken - before), 30, 'ten hits of 3');
+  assert.equal(f.beams.length, 0);
+});
+
+test('the beam stops when Goku goes down, and Sans dodges each hit', () => {
+  const f = fight(['goku', 'garou'], ['sans']);
+  const [goku, sans] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  for (const k of Object.keys(sans.timers)) sans.timers[k] = -1000;
+  goku.timers.teleport = -1000;
+  goku.timers.beam = 10.99;
+  for (let i = 0; i < 60 * 1.7; i += 1) { sans.hitLock = goku.hitLock = 99; f.sinceBump = 0; sans.x = goku.x + 400; stepFight(f, 1 / 60); }
+  assert.equal(sans.hp, 1);
+  assert.equal(sans.dodgesLeft, 22, 'two hits, two dodges');
+  hurt(f, goku, 10000);
+  stepFight(f, 1 / 60);
+  assert.equal(f.beams.length, 0);
+});
+
+test('the Kamehameha draws', async () => {
+  const { drawBeam } = await import('../src/games/faceoff/art.js');
+  const ctx = createFakeContext();
+  drawBeam(ctx, { colour: '#6ac8ff' }, { x: 200, y: 200, radius: 30 }, { x: 600, y: 260 }, 1);
+  drawBeam(ctx, { colour: '#6ac8ff' }, null, { x: 600, y: 260 }, 1);
   assert.ok(ctx.calls > 5);
 });
