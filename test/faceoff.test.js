@@ -750,3 +750,50 @@ test('a dodged Fireball sets nothing alight', () => {
   assert.equal(sans.dodgesLeft, 23);
   assert.equal(sans.burn, null);
 });
+
+/* --------------------------------------------------------------- Spears */
+
+test('Undyne has her comeback and her Spears', () => {
+  assert.deepEqual(getFighter('undyne').abilities.map((a) => a.name), ['Undyne the Undying', 'Spears']);
+});
+
+test('she throws 10 spears one at a time, and each that lands does 5', () => {
+  const f = fight(['undyne'], ['garou']);
+  quiet(f);
+  const [undyne, garou] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  undyne.x = BOX.x + 120; undyne.y = BOX.y + 150;
+  undyne.timers.volley = 9.99;
+  let thrown = 0;
+  let most = 0;
+  for (let i = 0; i < 60 * 6; i += 1) {
+    garou.x = BOX.x + 500; garou.y = BOX.y + 150; garou.vx = garou.vy = 0;
+    garou.hitLock = undyne.hitLock = 99;
+    f.sinceBump = 0;
+    const before = f.shots.length;
+    stepFight(f, 1 / 60);
+    if (i > 0) undyne.timers.volley = -1000;
+    thrown += Math.max(0, f.shots.length - before);
+    most = Math.max(most, f.shots.length);
+  }
+  assert.equal(Math.round(garou.taken), 50, 'ten spears, five each');
+  assert.ok(most < 10, 'they were thrown one at a time, never all at once');
+});
+
+test('the spears stop coming when Undyne goes down', () => {
+  const f = fight(['undyne', 'goku'], ['garou']);
+  const undyne = frontOf(f, 'a');
+  undyne.undyingRolled = true;             // no comeback for this one
+  undyne.timers.volley = 9.99;
+  stepFight(f, 1 / 60);
+  assert.equal(f.volleys.length, 1);
+  hurt(f, undyne, 10000);
+  stepFight(f, 1 / 60);
+  assert.equal(f.volleys.length, 0);
+});
+
+test('a spear draws', async () => {
+  const { drawShot } = await import('../src/games/faceoff/art.js');
+  const ctx = createFakeContext();
+  drawShot(ctx, { x: 300, y: 200, dx: 0.6, dy: 0.8, length: 46, style: 'spear', colour: '#6ab4ff' });
+  assert.ok(ctx.calls > 5);
+});
