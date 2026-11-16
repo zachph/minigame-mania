@@ -104,6 +104,7 @@ export function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random
     blasters: [],      // Gaster Blasters, while firing
     runs: [],          // Gaster Blaster runs in progress: which blast is next
     waves: [],         // Bone Waves, while they sweep
+    volleys: [],       // Undyne's spears still to throw
     log: [],
     events: [],
     over: null,
@@ -415,28 +416,54 @@ function useAbility(fight, who, foe, ability) {
     });
     announce(fight, who, ability.name);
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
-    // Aimed at where the enemy is now, not where it is going.
-    const dx = foe.x - who.x;
-    const dy = foe.y - who.y;
-    const d = Math.hypot(dx, dy) || 1;
-    fight.shots.push({
-      side: who.side,
-      owner: who,
-      x: who.x + (dx / d) * who.radius,
-      y: who.y + (dy / d) * who.radius,
-      dx: dx / d,
-      dy: dy / d,
-      speed: ability.speed,
-      length: ability.length,
-      damage: ability.damage,
-      colour: ability.colour,
-      name: ability.name,
-      style: ability.style || 'beam',
-      size: ability.size || 4,
-      burns: Boolean(ability.burns),
-    });
+    fireShot(fight, who, foe, ability);
+    announce(fight, who, ability.name);
+  } else if (ability.kind === 'volley' && foe && foe.hp > 0) {
+    // The first goes now; the rest follow one at a time in tickVolleys.
+    fight.volleys.push({ owner: who, side: who.side, left: ability.count, next: 0, gap: ability.gap, shot: { ...ability.shot, name: ability.name } });
     announce(fight, who, ability.name);
   }
+}
+
+/** Throws one shot at where the enemy is now, not where it is going. */
+function fireShot(fight, who, foe, spec) {
+  const dx = foe.x - who.x;
+  const dy = foe.y - who.y;
+  const d = Math.hypot(dx, dy) || 1;
+  fight.shots.push({
+    side: who.side,
+    owner: who,
+    x: who.x + (dx / d) * who.radius,
+    y: who.y + (dy / d) * who.radius,
+    dx: dx / d,
+    dy: dy / d,
+    speed: spec.speed,
+    length: spec.length,
+    damage: spec.damage,
+    colour: spec.colour,
+    name: spec.name,
+    style: spec.style || 'beam',
+    size: spec.size || 4,
+    burns: Boolean(spec.burns),
+  });
+}
+
+/**
+ * Volleys being thrown: one shot every `gap` seconds until all are gone, each
+ * aimed at the enemy as it is at that moment. A volley stops when its thrower
+ * goes down; spears already in the air keep going.
+ */
+function tickVolleys(fight, dt) {
+  for (const volley of fight.volleys) {
+    volley.next -= dt;
+    while (volley.next <= 1e-9 && volley.left > 0) {
+      volley.next += volley.gap;
+      volley.left -= 1;
+      const foe = frontOf(fight, other(volley.side));
+      if (foe && foe.hp > 0 && volley.owner.hp > 0) fireShot(fight, volley.owner, foe, volley.shot);
+    }
+  }
+  fight.volleys = fight.volleys.filter((v) => v.left > 0 && v.owner.hp > 0);
 }
 
 /**
@@ -633,6 +660,7 @@ export function stepFight(fight, dt) {
       if (Math.hypot(foe.x - summon.x, foe.y - summon.y) <= summon.radius + foe.radius) summonBump(fight, summon, foe);
     }
     fight.summons = fight.summons.filter((s) => s.left > 0);
+    tickVolleys(fight, slice);
     tickShots(fight, slice);
     tickRuns(fight, slice);
     tickBlasters(fight, slice);

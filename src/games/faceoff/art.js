@@ -226,6 +226,7 @@ export function drawSlowed(ctx, who) {
 /** A shot in flight: a long streak, brightest at the head. */
 export function drawShot(ctx, shot) {
   if (shot.style === 'ball') { drawFireball(ctx, shot); return; }
+  if (shot.style === 'spear') { drawSpear(ctx, shot); return; }
   ctx.save();
   const tailX = shot.x - shot.dx * shot.length;
   const tailY = shot.y - shot.dy * shot.length;
@@ -413,5 +414,32 @@ export function drawFireball(ctx, shot) {
   ctx.beginPath();
   ctx.arc(shot.x, shot.y, r * 1.6, 0, TAU);
   ctx.fill();
+  ctx.restore();
+}
+
+/** One of Undyne's spears: a shaft with a head, pointing where it flies. */
+export function drawSpear(ctx, shot) {
+  const len = shot.length || 46;
+  ctx.save();
+  ctx.translate(shot.x, shot.y);
+  ctx.rotate(Math.atan2(shot.dy, shot.dx));
+  ctx.strokeStyle = shot.colour;
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-len, 0);
+  ctx.lineTo(-6, 0);
+  ctx.stroke();
+  ctx.fillStyle = '#cfe6ff';
+  ctx.beginPath();
+  ctx.moveTo(8, 0);
+  ctx.lineTo(-8, -6);
+  ctx.lineTo(-5, 0);
+  ctx.lineTo(-8, 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = shot.colour;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
   ctx.restore();
 }
