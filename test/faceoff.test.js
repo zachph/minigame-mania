@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seededRandom } from '../src/core/utils.js';
 import { BALL_RADIUS, BASE_HP, BOX, CRUISE, FIGHTERS, FIGHT_LIMIT, STORY, TEAM_SIZE, TOWER, getFighter } from '../src/games/faceoff/content.js';
-import { beamLine, bump, createFight, frontOf, heal, hurt, isBeaten, pressureAt, runFight, stepFight, strike } from '../src/games/faceoff/battle.js';
+import { beamLine, bump, onBeam, createFight, frontOf, heal, hurt, isBeaten, pressureAt, runFight, stepFight, strike } from '../src/games/faceoff/battle.js';
 import { drawBall, drawBanner, drawBench, drawBox, drawPopup, drawScreen, drawStatus } from '../src/games/faceoff/art.js';
 import { createFakeContext } from './helpers.js';
 
@@ -608,12 +608,14 @@ test('in the middle, every corner blast and both big ones hit, 1 every half seco
   assert.equal(Math.round(after12 - after9), 12, 'two big ones, 6 ticks each');
 });
 
-test('out of every beam, nothing hits', () => {
-  const { f, goku, step, spot } = blasterFight();
-  spot.y = BOX.y + BOX.h / 2 - 75;         // above the middle: off the diagonals, the big beams and the top wall
-  for (let i = 0; i < 30 * 13; i += 1) step();
-  assert.equal(goku.taken, 0);
-  assert.ok(f.time > 12);
+test('beams only hit whoever is in them', () => {
+  const steps = getFighter('sans').abilities.find((a) => a.kind === 'blaster').steps;
+  // Left of the middle, between the two left diagonals and clear of the left wall.
+  const clear = { x: BOX.x + 104, y: BOX.y + BOX.h / 2 };
+  for (const blast of [...steps[0].blasts, ...steps[1].blasts]) assert.equal(onBeam(blast, clear), false, `${blast.from}>${blast.to}`);
+  const middle = { x: BOX.x + BOX.w / 2, y: BOX.y + BOX.h / 2 };
+  assert.ok(steps[0].blasts.every((blast) => onBeam(blast, middle)));
+  assert.ok(steps[3].blasts.every((blast) => onBeam(blast, middle)));
 });
 
 test('along a wall, only that wall\'s beam hits', () => {

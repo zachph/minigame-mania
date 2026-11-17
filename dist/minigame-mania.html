@@ -15330,16 +15330,20 @@ const BLASTER_SPOTS = {
   middle: [0.5, 0.5],
 };
 
+/** How thick the beams are: a normal one is about a fighter wide, a big one most of the box. */
+const BLAST_WIDTH = 64;
+const BIG_BLAST_WIDTH = 210;
+
 /** A blaster in every corner, all firing at the middle. */
 const CORNERS_AT_MIDDLE = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
-  .map((from) => ({ from, to: 'middle', damage: 1 }));
+  .map((from) => ({ from, to: 'middle', damage: 1, width: BLAST_WIDTH }));
 
 /** A blaster in every corner firing along its wall, round the box like a pinwheel. */
 const ALONG_THE_WALLS = [
-  { from: 'top-left', to: 'bottom-left', damage: 1 },     // down the left wall
-  { from: 'top-right', to: 'top-left', damage: 1 },       // along the top
-  { from: 'bottom-right', to: 'top-right', damage: 1 },   // up the right wall
-  { from: 'bottom-left', to: 'bottom-right', damage: 1 }, // along the bottom
+  { from: 'top-left', to: 'bottom-left', damage: 1, width: BLAST_WIDTH },     // down the left wall
+  { from: 'top-right', to: 'top-left', damage: 1, width: BLAST_WIDTH },       // along the top
+  { from: 'bottom-right', to: 'top-right', damage: 1, width: BLAST_WIDTH },   // up the right wall
+  { from: 'bottom-left', to: 'bottom-right', damage: 1, width: BLAST_WIDTH }, // along the bottom
 ];
 
 const FIGHTERS = [
@@ -15387,8 +15391,8 @@ const FIGHTERS = [
           { lasts: 3, blasts: ALONG_THE_WALLS },
           { lasts: 3, blasts: CORNERS_AT_MIDDLE },
           { lasts: 3, blasts: [
-            { from: 'left', to: 'middle', damage: 1, big: true },
-            { from: 'right', to: 'middle', damage: 1, big: true },
+            { from: 'left', to: 'middle', damage: 1, big: true, width: BIG_BLAST_WIDTH },
+            { from: 'right', to: 'middle', damage: 1, big: true, width: BIG_BLAST_WIDTH },
           ] },
         ],
       },
@@ -15529,13 +15533,13 @@ const PRESSURE_FROM = 25;
 const PRESSURE_RATE = 0.06;
 const FIGHT_LIMIT = 90;
 
-  return { BOX, BALL_RADIUS, CRUISE, HOMING, STALL_AFTER, HIT_LOCK, BUMP_DAMAGE, BUMP_SPREAD, LAUNCH_SPEED, TELEPORT_CLEAR, BASE_HP, BLASTER_SPOTS, FIGHTERS, FIGHTER_BY_ID, getFighter, TEAM_SIZE, MODES, MODE_BY_ID, TOWER, TOWER_RECOVERY, STORY, STORY_RECOVERY, PRESSURE_FROM, PRESSURE_RATE, FIGHT_LIMIT };
+  return { BOX, BALL_RADIUS, CRUISE, HOMING, STALL_AFTER, HIT_LOCK, BUMP_DAMAGE, BUMP_SPREAD, LAUNCH_SPEED, TELEPORT_CLEAR, BASE_HP, BLASTER_SPOTS, BLAST_WIDTH, BIG_BLAST_WIDTH, FIGHTERS, FIGHTER_BY_ID, getFighter, TEAM_SIZE, MODES, MODE_BY_ID, TOWER, TOWER_RECOVERY, STORY, STORY_RECOVERY, PRESSURE_FROM, PRESSURE_RATE, FIGHT_LIMIT };
 })();
 
 // ---- src/games/faceoff/battle.js ---------------------------------
 __modules["src/games/faceoff/battle.js"] = (function () {
   const { clamp } = __modules["src/core/utils.js"];
-  const { BALL_RADIUS, BLASTER_SPOTS, BOX, BUMP_DAMAGE, BUMP_SPREAD, CRUISE, FIGHT_LIMIT, HIT_LOCK, HOMING, LAUNCH_SPEED, PRESSURE_FROM, PRESSURE_RATE, STALL_AFTER, TELEPORT_CLEAR, getFighter } = __modules["src/games/faceoff/content.js"];
+  const { BALL_RADIUS, BIG_BLAST_WIDTH, BLASTER_SPOTS, BLAST_WIDTH, BOX, BUMP_DAMAGE, BUMP_SPREAD, CRUISE, FIGHT_LIMIT, HIT_LOCK, HOMING, LAUNCH_SPEED, PRESSURE_FROM, PRESSURE_RATE, STALL_AFTER, TELEPORT_CLEAR, getFighter } = __modules["src/games/faceoff/content.js"];
 
 /**
  * A Faceoff fight with no screen attached.
@@ -16110,6 +16114,7 @@ function tickRuns(fight, dt) {
         from: blast.from,
         to: blast.to,
         big: Boolean(blast.big),
+        width: blast.width,
         damage: blast.damage,
         left: step.lasts,
         next: run.ability.tick,
@@ -16120,10 +16125,11 @@ function tickRuns(fight, dt) {
   fight.runs = fight.runs.filter((run) => !run.done && run.owner.hp > 0);
 }
 
-/** How far blasters sit in from the walls, and how wide their beams are. */
-const BLASTER_INSET = 24;
-const BEAM_WIDTH = 22;
-const BIG_BEAM = 1.7;
+/** How far blaster spots sit in from the walls: half a beam, so a wall beam runs along the wall. */
+const BLASTER_INSET = BLAST_WIDTH / 2;
+
+/** How thick a blast's beam is. */
+const beamWidth = (blaster) => blaster.width || (blaster.big ? BIG_BLAST_WIDTH : BLAST_WIDTH);
 
 /** Where a spot named in BLASTER_SPOTS is in the box. */
 function blasterSpot(name) {
@@ -16147,7 +16153,7 @@ function onBeam(blaster, who) {
   const dy = end.y - start.y;
   const t = clamp(((who.x - start.x) * dx + (who.y - start.y) * dy) / (dx * dx + dy * dy || 1), 0, 1);
   const gap = Math.hypot(who.x - (start.x + dx * t), who.y - (start.y + dy * t));
-  const half = (BEAM_WIDTH * (blaster.big ? BIG_BEAM : 1)) / 2;
+  const half = beamWidth(blaster) / 2;
   return gap <= BALL_RADIUS + half;
 }
 
@@ -16419,7 +16425,7 @@ function runFight(fight, step = 1 / 30) {
   return fight.over || checkOver(fight);
 }
 
-  return { abilitiesOf, abilityOf, isClock, makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, BLASTER_INSET, BEAM_WIDTH, BIG_BEAM, blasterSpot, beamLine, onBeam, zoneSize, inZone, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
+  return { abilitiesOf, abilityOf, isClock, makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, BLASTER_INSET, beamWidth, blasterSpot, beamLine, onBeam, zoneSize, inZone, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
 })();
 
 // ---- src/games/faceoff/heads.js ----------------------------------
@@ -16912,7 +16918,7 @@ __modules["src/games/faceoff/art.js"] = (function () {
   const { TAU, clamp } = __modules["src/core/utils.js"];
   const { BOX } = __modules["src/games/faceoff/content.js"];
   const { drawHead } = __modules["src/games/faceoff/heads.js"];
-  const { BEAM_WIDTH, BIG_BEAM, abilityOf, abilitiesOf, beamLine, isClock } = __modules["src/games/faceoff/battle.js"];
+  const { abilityOf, abilitiesOf, beamLine, beamWidth, isClock } = __modules["src/games/faceoff/battle.js"];
 
 /**
  * The Undertale battle box, made bigger: black, a thick white border, and
@@ -17204,21 +17210,27 @@ function drawSlash(ctx, slash) {
 /** A Gaster Blaster: a skull on the wall and a white beam across the box. */
 function drawBlaster(ctx, blaster, time = 0) {
   const { start, end, angle } = beamLine(blaster);
-  const size = blaster.big ? BIG_BEAM : 1;
+  const width = beamWidth(blaster);
+  const size = Math.min(width / 26, 3.6);   // the skull grows with its beam, up to a point
   ctx.save();
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);     // the beam stays inside the box
+  ctx.clip();
   const flicker = 0.75 + 0.25 * Math.sin(time * 40);
   ctx.globalAlpha = flicker;
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-  ctx.lineCap = 'round';
-  ctx.lineWidth = BEAM_WIDTH * size;
+  ctx.lineCap = 'butt';
+  ctx.lineWidth = width;
   ctx.beginPath();
-  ctx.moveTo(start.x, start.y);
+  // Start back behind the skull so the beam comes out of the wall (the clip trims it).
+  ctx.moveTo(start.x - Math.cos(angle) * 60, start.y - Math.sin(angle) * 60);
   ctx.lineTo(end.x, end.y);
   ctx.stroke();
   ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 9 * size;
+  ctx.lineWidth = width * 0.55;
   ctx.stroke();
-  ctx.globalAlpha = 1;
+  ctx.restore();
 
   // The skull, pointing along the beam.
   ctx.translate(start.x, start.y);
