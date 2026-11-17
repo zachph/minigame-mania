@@ -657,9 +657,42 @@ function tickBlasters(fight, dt) {
 }
 
 /**
- * Bone Waves sweeping. A wave fills the box, so whoever is in front for the
- * other side takes its damage once a tick until it has passed - Sans dodging
- * it a tick at a time, as he dodges anything.
+ * The Bone Wave's shape: a long row of bones from the floor and the ceiling
+ * sliding across the box, with a gap between them that weaves up and down.
+ * Only a fighter touching a bone is hurt; one in the gap goes untouched.
+ */
+export const BONE_SPACING = 22;          // between one bone and the next
+export const BONE_GAP = 112;             // the gap's height: room for a fighter, just
+export const BONE_TRAIN = 1150;          // how long the row of bones is
+export const BONE_WEAVES = 2.5;          // how many times the gap goes up and down along it
+const BONE_SWING = (BOX.h - BONE_GAP) / 2 - 16;
+
+/** How far the front of the row has come into the box. */
+export const boneHead = (wave) => (1 - wave.left / wave.lasts) * (BOX.w + BONE_TRAIN);
+
+/** How far back along the row the bone at x is, or null where there are no bones. */
+export function boneAt(wave, x) {
+  const along = wave.from === 'left' ? x - BOX.x : BOX.x + BOX.w - x;
+  const back = boneHead(wave) - along;
+  return back >= 0 && back <= BONE_TRAIN ? back : null;
+}
+
+/** Where the middle of the gap is, that far back along the row. */
+export const boneGapAt = (back) => BOX.y + BOX.h / 2 + BONE_SWING * Math.sin((back / BONE_TRAIN) * Math.PI * 2 * BONE_WEAVES);
+
+/** Whether a fighter is touching a bone. */
+export function inBones(wave, who) {
+  for (const dx of [-BALL_RADIUS * 0.8, 0, BALL_RADIUS * 0.8]) {
+    const back = boneAt(wave, who.x + dx);
+    if (back == null) continue;
+    if (Math.abs(who.y - boneGapAt(back)) > BONE_GAP / 2 - BALL_RADIUS) return true;
+  }
+  return false;
+}
+
+/**
+ * Bone Waves sweeping: once a tick, whoever for the other side is touching
+ * a bone takes the damage. Sans dodges each one, as he dodges anything.
  */
 function tickWaves(fight, dt) {
   for (const wave of fight.waves) {
@@ -668,7 +701,7 @@ function tickWaves(fight, dt) {
     const foe = frontOf(fight, other(wave.side));
     while (wave.next <= 1e-9 && wave.left > -1e-9) {
       wave.next += wave.tick;
-      if (foe && foe.hp > 0) hurt(fight, foe, wave.damage * fight.sides[wave.side].scale, { from: wave.owner, kind: 'bones' });
+      if (foe && foe.hp > 0 && inBones(wave, foe)) hurt(fight, foe, wave.damage * fight.sides[wave.side].scale, { from: wave.owner, kind: 'bones' });
     }
   }
   fight.waves = fight.waves.filter((w) => w.left > 1e-9 && w.owner.hp > 0);

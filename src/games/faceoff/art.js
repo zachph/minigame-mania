@@ -1,7 +1,7 @@
 import { TAU, clamp } from '../../core/utils.js';
 import { BOX } from './content.js';
 import { drawHead } from './heads.js';
-import { abilityOf, abilitiesOf, beamLine, beamWidth, isClock } from './battle.js';
+import { BONE_GAP, BONE_SPACING, BONE_TRAIN, abilityOf, abilitiesOf, beamLine, beamWidth, boneGapAt, boneHead, isClock } from './battle.js';
 
 /**
  * The Undertale battle box, made bigger: black, a thick white border, and
@@ -359,25 +359,22 @@ function bone(ctx, x, y1, y2) {
 }
 
 /**
- * A Bone Wave: rows of bones up from the floor and down from the ceiling,
- * rising and falling as they sweep across the box from one side.
+ * A Bone Wave: a long row of bones from the floor and the ceiling sliding
+ * across the box, with a gap between them weaving up and down.
  */
 export function drawBones(ctx, wave) {
-  const progress = 1 - wave.left / wave.lasts;
-  const spacing = 34;
-  const travel = BOX.w + spacing * 8;
-  const shift = progress * travel;
+  const head = boneHead(wave);
   ctx.save();
   ctx.beginPath();
   ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);
   ctx.clip();
-  for (let i = 0; i < 40; i += 1) {
-    const along = i * spacing - spacing * 8 + shift;
+  for (let back = 0; back <= BONE_TRAIN; back += BONE_SPACING) {
+    const along = head - back;
+    if (along < -10 || along > BOX.w + 10) continue;
     const x = wave.from === 'left' ? BOX.x + along : BOX.x + BOX.w - along;
-    if (x < BOX.x - 10 || x > BOX.x + BOX.w + 10) continue;
-    const rise = 40 + 50 * (0.5 + 0.5 * Math.sin(i * 0.9 + progress * 8));
-    bone(ctx, x, BOX.y + BOX.h - 6, BOX.y + BOX.h - rise);
-    bone(ctx, x, BOX.y + 6, BOX.y + 130 - rise);
+    const gap = boneGapAt(back);
+    bone(ctx, x, BOX.y + 4, gap - BONE_GAP / 2);
+    bone(ctx, x, gap + BONE_GAP / 2, BOX.y + BOX.h - 4);
   }
   ctx.restore();
 }
