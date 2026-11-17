@@ -48,6 +48,9 @@ export const abilityOf = (who, kind) => abilitiesOf(who).find((ability) => abili
 /** Abilities that go off on a timer, as opposed to on a hit or always. */
 export const isClock = (ability) => Boolean(ability.every) && ability.kind !== 'burn';
 
+/** Whether a fighter is in the middle of his Last Attack. */
+export const inFinale = (fight, who) => fight.finales.some((f) => f.owner === who);
+
 export function makeFighter(id, { slot = 0, side = 'a' } = {}) {
   const spec = getFighter(id);
   return {
@@ -109,6 +112,8 @@ export function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random
     blasters: [],      // Gaster Blasters, while firing
     runs: [],          // Gaster Blaster runs in progress: which blast is next
     waves: [],         // Bone Waves, while they sweep
+    finales: [],       // Sans's Last Attack, while he does it
+    spikes: [],        // bones jutting from a wall where someone was slammed
     volleys: [],       // Undyne's spears still to throw
     beams: [],         // Kamehameha, while it is firing
     zones: [],         // Hakai squares, while they last
@@ -158,10 +163,13 @@ export function becomeUndying(who) {
  */
 export function hurt(fight, target, amount, { from = null, kind = 'bump' } = {}) {
   if (target.hp <= 0 || amount <= 0) return 0;
+  if (inFinale(fight, target)) return 0;      // nothing touches Sans during his Last Attack
   if (target.dodgesLeft > 0) {
     target.dodgesLeft -= 1;
     target.dodged += 1;
     fight.events.push({ kind: 'miss', uid: target.uid, left: target.dodgesLeft });
+    const finale = abilityOf(target, 'finale');
+    if (finale && !target.finaleUsed && target.dodgesLeft === finale.at) startFinale(fight, target, finale);
     return 0;
   }
   const dealt = Math.round(Math.min(amount, target.hp) * 10) / 10;
@@ -326,6 +334,8 @@ const roll = (fight) => 1 - BUMP_SPREAD + fight.random() * BUMP_SPREAD * 2;
 export function bump(fight, a, b) {
   const { approachA, approachB } = separate(a, b);
   if (a.hitLock > 0 || b.hitLock > 0) return null;
+  // During Sans's Last Attack bumps just bounce: he is busy, and nothing touches him.
+  if (inFinale(fight, a) || inFinale(fight, b)) return null;
   a.hitLock = HIT_LOCK;
   b.hitLock = HIT_LOCK;
 
@@ -374,6 +384,7 @@ function clearSpot(fight, who, foe) {
  */
 function tickAbilities(fight, who, foe, dt) {
   if (who.hp <= 0) return;
+  if (inFinale(fight, who)) return;           // all he is doing is the Last Attack
   for (const ability of abilitiesOf(who)) {
     if (!isClock(ability)) continue;
     // A run of blasts holds the clock: the 8 seconds start when it is over.
@@ -573,6 +584,73 @@ function tickVolleys(fight, dt) {
   fight.volleys = fight.volleys.filter((v) => v.left > 0 && v.owner.hp > 0);
 }
 
+/** How long the bones stay out of a wall after a slam. */
+export const SPIKE_TIME = 0.45;
+
+/** Sans's Last Attack starts: he says so, and the slams begin. */
+function startFinale(fight, who, ability) {
+  who.finaleUsed = true;
+  fight.finales.push({ owner: who, side: who.side, ability, phase: 'slams', left: 0, slams: ability.slams, ring: ability.ring, angle: 0 });
+  fight.events.push({ kind: 'finale', uid: who.uid });
+  announce(fight, who, ability.name);
+}
+
+/**
+ * The Last Attack, a step at a time: first the slams - the enemy thrown
+ * straight at a wall, again and again, bones jutting out where they land -
+ * then a ring of Gaster Blasters round them, firing one after another.
+ * When the last blaster has gone, Sans is tired, and it is over.
+ */
+function tickFinales(fight, dt) {
+  fight.spikes = fight.spikes.filter((spike) => (spike.left -= dt) > 0);
+  for (const finale of fight.finales) {
+    const { ability, owner } = finale;
+    const foe = frontOf(fight, other(finale.side));
+    finale.left -= dt;
+    if (owner.hp <= 0) { finale.done = true; continue; }
+    if (finale.left > 0) continue;
+    if (finale.phase === 'slams') {
+      if (finale.slams <= 0) { finale.phase = 'ring'; finale.angle = fight.random() * Math.PI * 2; continue; }
+      if (!foe || foe.hp <= 0 || foe.launched) { finale.left = 0.05; continue; }
+      const walls = [['left', -1, 0], ['right', 1, 0], ['up', 0, -1], ['down', 0, 1]];
+      const [wall, dx, dy] = walls[Math.floor(fight.random() * walls.length)];
+      foe.dash = null;
+      foe.windup = null;
+      foe.vx = dx * ability.slamSpeed;
+      foe.vy = dy * ability.slamSpeed;
+      foe.launched = { from: owner, damage: ability.slamDamage };
+      foe.slamWall = wall;
+      finale.slams -= 1;
+      finale.left = ability.slamGap;
+    } else if (finale.phase === 'ring') {
+      if (finale.ring <= 0) {
+        if (!fight.blasters.some((b) => b.finale === finale)) {
+          finale.done = true;
+          say(fight, `${owner.name} is tired`, { side: owner.side });
+        } else finale.left = 0.1;
+        continue;
+      }
+      if (!foe || foe.hp <= 0) { finale.left = 0.1; continue; }
+      // Each blaster sits on a circle round the enemy and fires through them.
+      const k = ability.ring - finale.ring;
+      const angle = finale.angle + (k * Math.PI * 2) / ability.ring;
+      const inBox = (x, y) => ({
+        x: clamp(x, BOX.x + BLASTER_INSET, BOX.x + BOX.w - BLASTER_INSET),
+        y: clamp(y, BOX.y + BLASTER_INSET, BOX.y + BOX.h - BLASTER_INSET),
+      });
+      const start = inBox(foe.x + Math.cos(angle) * ability.ringRadius, foe.y + Math.sin(angle) * ability.ringRadius);
+      const end = inBox(foe.x - Math.cos(angle) * ability.ringRadius, foe.y - Math.sin(angle) * ability.ringRadius);
+      fight.blasters.push({
+        side: finale.side, owner, finale, start, end, big: false, width: BLAST_WIDTH,
+        damage: ability.damage, left: ability.ringLasts, next: ability.tick, tick: ability.tick,
+      });
+      finale.ring -= 1;
+      finale.left = ability.ringGap;
+    }
+  }
+  fight.finales = fight.finales.filter((f) => !f.done);
+}
+
 /**
  * A Gaster Blaster run: each step puts its blasts up for its time, then the
  * next step's go up. A run ends with its last step, or with Sans.
@@ -619,8 +697,8 @@ export function blasterSpot(name) {
 
 /** A blast's beam: from its blaster to where it fires, and which way it points. */
 export function beamLine(blaster) {
-  const start = blasterSpot(blaster.from);
-  const end = blasterSpot(blaster.to);
+  const start = blaster.start || blasterSpot(blaster.from);
+  const end = blaster.end || blasterSpot(blaster.to);
   return { start, end, angle: Math.atan2(end.y - start.y, end.x - start.x) };
 }
 
@@ -874,6 +952,7 @@ export function stepFight(fight, dt) {
         who.launched = null;
         setSpeed(who, CRUISE);
         fight.events.push({ kind: 'slam', uid: who.uid, x: who.x, y: who.y });
+        if (who.slamWall) { fight.spikes.push({ wall: who.slamWall, left: SPIKE_TIME }); who.slamWall = null; }
         hurt(fight, who, damage * pressureAt(fight.time), { from, kind: 'slam' });
       }
     }
@@ -894,6 +973,7 @@ export function stepFight(fight, dt) {
     fight.summons = fight.summons.filter((s) => s.left > 0);
     tickVolleys(fight, slice);
     tickShots(fight, slice);
+    tickFinales(fight, slice);
     tickRuns(fight, slice);
     tickBlasters(fight, slice);
     tickWaves(fight, slice);

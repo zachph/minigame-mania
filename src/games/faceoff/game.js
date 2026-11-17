@@ -17,6 +17,7 @@ import {
   drawBench,
   drawBlaster,
   drawBones,
+  drawSpikes,
   drawBox,
   drawInfinity,
   drawShot,
@@ -267,6 +268,7 @@ class FaceoffGame {
     for (const summon of this.fight.summons) drawBall(ctx, { ...summon, spec: { colour: '#9cc4e8' } });
     for (const zone of this.fight.zones) drawZone(ctx, zone, this.clock);
     for (const wave of this.fight.waves) drawBones(ctx, wave);
+    for (const spike of this.fight.spikes) drawSpikes(ctx, spike);
     for (const beam of this.fight.beams) {
       drawBeam(ctx, beam, beam.owner, frontOf(this.fight, beam.side === 'a' ? 'b' : 'a'), this.clock);
     }

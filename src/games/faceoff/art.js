@@ -379,6 +379,37 @@ export function drawBones(ctx, wave) {
   ctx.restore();
 }
 
+/**
+ * Bones jutting out of a wall where Sans slammed someone into it: a row of
+ * them along that wall, shooting out and sinking back.
+ */
+export function drawSpikes(ctx, spike, lasts = 0.45) {
+  const t = clamp(spike.left / lasts, 0, 1);
+  const reach = 60 * Math.sin(t * Math.PI);    // out, then back in
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);
+  ctx.clip();
+  const across = spike.wall === 'left' || spike.wall === 'right';
+  const length = across ? BOX.h : BOX.w;
+  for (let at = 10; at < length; at += 20) {
+    if (spike.wall === 'left') sideBone(ctx, BOX.x + 4, BOX.y + at, BOX.x + reach, BOX.y + at);
+    else if (spike.wall === 'right') sideBone(ctx, BOX.x + BOX.w - 4, BOX.y + at, BOX.x + BOX.w - reach, BOX.y + at);
+    else if (spike.wall === 'up') bone(ctx, BOX.x + at, BOX.y + 4, BOX.y + reach);
+    else bone(ctx, BOX.x + at, BOX.y + BOX.h - 4, BOX.y + BOX.h - reach);
+  }
+  ctx.restore();
+}
+
+/** A bone lying sideways, from (x1, y) to (x2, y). */
+function sideBone(ctx, x1, y, x2) {
+  ctx.save();
+  ctx.translate(x1, y);
+  ctx.rotate(-Math.PI / 2);
+  bone(ctx, 0, 0, x2 - x1);
+  ctx.restore();
+}
+
 /** A fireball: a hot core in a glow, with flame trailing behind it. */
 export function drawFireball(ctx, shot) {
   const r = shot.size || 13;
