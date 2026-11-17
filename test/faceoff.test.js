@@ -45,6 +45,7 @@ test('the first 24 attacks on Sans miss, and the 25th lands', () => {
   for (let i = 0; i < 24; i += 1) {
     assert.equal(hurt(f, sans, 50), 0, `attack ${i + 1} should have missed`);
     assert.equal(sans.hp, 1);
+    f.finales = [];                        // the Last Attack, at one left, has its own tests
   }
   assert.equal(sans.dodgesLeft, 0);
   hurt(f, sans, 50);
@@ -555,8 +556,8 @@ test('the cut draws', async () => {
 
 /* ------------------------------------------------------- Gaster Blaster */
 
-test('Sans has Blue Magic, Gaster Blaster and Bone Wave', () => {
-  assert.deepEqual(getFighter('sans').abilities.map((a) => a.name), ['Blue Magic', 'Gaster Blaster', 'Bone Wave']);
+test('Sans has Blue Magic, Gaster Blaster, Bone Wave and his Last Attack', () => {
+  assert.deepEqual(getFighter('sans').abilities.map((a) => a.name), ['Blue Magic', 'Gaster Blaster', 'Bone Wave', 'Last Attack']);
 });
 
 /** Sans against a Goku who cannot die, held wherever the test puts him. */
@@ -747,6 +748,65 @@ test('Sans dodges a Bone Wave a tick at a time', () => {
   assert.equal(theirs.hp, 1);
   const used = 24 - theirs.dodgesLeft;
   assert.ok(used >= 5 && used <= 8, `${used} dodges`);
+});
+
+/* ---------------------------------------------------------- Last Attack */
+
+/** Sans one dodge from his Last Attack, against a Goku who cannot die. */
+function finaleFight() {
+  const f = fight(['sans'], ['goku']);
+  quiet(f);
+  const [sans, goku] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  for (const kind of ['launch', 'blaster', 'bones']) sans.timers[kind] = -1000;
+  sans.dodgesLeft = 2;
+  sans.hp = sans.maxHp = 1;                // quiet() made everyone unkillable; Sans is back to 1
+  return { f, sans, goku };
+}
+
+test('down to his last dodge, Sans starts his Last Attack - once', () => {
+  const { f, sans } = finaleFight();
+  hurt(f, sans, 5);
+  assert.equal(sans.dodgesLeft, 1);
+  assert.equal(f.finales.length, 1);
+  assert.ok(f.log.some((line) => line.text?.includes('Last Attack')) || f.events.some((e) => e.kind === 'finale'));
+  assert.equal(hurt(f, sans, 50), 0, 'nothing touches him while he does it');
+  assert.equal(sans.dodgesLeft, 1, 'and it does not cost his last dodge');
+  f.finales = [];
+  sans.dodgesLeft = 2;
+  hurt(f, sans, 5);
+  assert.equal(f.finales.length, 0, 'only the once');
+});
+
+test('the Last Attack: twelve slams into the walls, then a ring of eight blasters, then he is tired', () => {
+  const { f, sans, goku } = finaleFight();
+  hurt(f, sans, 5);
+  const blasters = new Set();
+  const walls = new Set();
+  let slams = 0;
+  let spikes = 0;
+  for (let i = 0; i < 30 * 15 && f.finales.length; i += 1) {
+    sans.hitLock = goku.hitLock = 99; f.sinceBump = 0;
+    f.events.length = 0;
+    stepFight(f, 1 / 30);
+    slams += f.events.filter((e) => e.kind === 'slam' && e.uid === goku.uid).length;
+    for (const b of f.blasters) if (b.finale) blasters.add(b);
+    for (const s of f.spikes) walls.add(s.wall);
+    spikes = Math.max(spikes, f.spikes.length);
+  }
+  assert.equal(f.finales.length, 0, 'it ends');
+  assert.equal(slams, 12);
+  assert.ok(walls.size >= 3, `bones came out of ${[...walls].join(', ')}`);
+  assert.equal(blasters.size, 8);
+  assert.ok(goku.taken > 20, `Goku took ${goku.taken}`);
+  assert.equal(sans.dodgesLeft, 1);
+  assert.equal(sans.hp, 1);
+});
+
+test('the wall bones draw on every wall', async () => {
+  const { drawSpikes } = await import('../src/games/faceoff/art.js');
+  const ctx = createFakeContext();
+  for (const wall of ['left', 'right', 'up', 'down']) drawSpikes(ctx, { wall, left: 0.2 });
+  assert.ok(ctx.calls > 40);
 });
 
 test('the bones draw from either side', async () => {

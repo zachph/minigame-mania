@@ -133,6 +133,15 @@ export const FIGHTERS = [
       // Bone Wave: every 20 seconds a row of bones slides across the box for 5,
       // with a gap weaving up and down. Touching a bone does 1 every half second.
       { kind: 'bones', name: 'Bone Wave', every: 20, lasts: 5, damage: 1, tick: 0.5 },
+      // Last Attack: once, when he is down to his last dodge. He slams the
+      // enemy into the walls again and again, bones jutting out where they
+      // land, then rings them with Gaster Blasters. Nothing touches him while
+      // he does it.
+      {
+        kind: 'finale', name: 'Last Attack', at: 1,
+        slams: 12, slamGap: 0.45, slamDamage: 1, slamSpeed: 900,
+        ring: 8, ringGap: 0.3, ringLasts: 1, ringRadius: 210, damage: 1, tick: 0.5,
+      },
     ],
   }),
   // A quarter of his hits set the enemy burning: 1 a second for 15 seconds.
