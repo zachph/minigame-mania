@@ -64,16 +64,20 @@ export const BLASTER_SPOTS = {
   middle: [0.5, 0.5],
 };
 
+/** How thick the beams are: a normal one is about a fighter wide, a big one most of the box. */
+export const BLAST_WIDTH = 64;
+export const BIG_BLAST_WIDTH = 210;
+
 /** A blaster in every corner, all firing at the middle. */
 const CORNERS_AT_MIDDLE = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
-  .map((from) => ({ from, to: 'middle', damage: 1 }));
+  .map((from) => ({ from, to: 'middle', damage: 1, width: BLAST_WIDTH }));
 
 /** A blaster in every corner firing along its wall, round the box like a pinwheel. */
 const ALONG_THE_WALLS = [
-  { from: 'top-left', to: 'bottom-left', damage: 1 },     // down the left wall
-  { from: 'top-right', to: 'top-left', damage: 1 },       // along the top
-  { from: 'bottom-right', to: 'top-right', damage: 1 },   // up the right wall
-  { from: 'bottom-left', to: 'bottom-right', damage: 1 }, // along the bottom
+  { from: 'top-left', to: 'bottom-left', damage: 1, width: BLAST_WIDTH },     // down the left wall
+  { from: 'top-right', to: 'top-left', damage: 1, width: BLAST_WIDTH },       // along the top
+  { from: 'bottom-right', to: 'top-right', damage: 1, width: BLAST_WIDTH },   // up the right wall
+  { from: 'bottom-left', to: 'bottom-right', damage: 1, width: BLAST_WIDTH }, // along the bottom
 ];
 
 export const FIGHTERS = [
@@ -121,8 +125,8 @@ export const FIGHTERS = [
           { lasts: 3, blasts: ALONG_THE_WALLS },
           { lasts: 3, blasts: CORNERS_AT_MIDDLE },
           { lasts: 3, blasts: [
-            { from: 'left', to: 'middle', damage: 1, big: true },
-            { from: 'right', to: 'middle', damage: 1, big: true },
+            { from: 'left', to: 'middle', damage: 1, big: true, width: BIG_BLAST_WIDTH },
+            { from: 'right', to: 'middle', damage: 1, big: true, width: BIG_BLAST_WIDTH },
           ] },
         ],
       },

@@ -1,7 +1,9 @@
 import { clamp } from '../../core/utils.js';
 import {
   BALL_RADIUS,
+  BIG_BLAST_WIDTH,
   BLASTER_SPOTS,
+  BLAST_WIDTH,
   BOX,
   BUMP_DAMAGE,
   BUMP_SPREAD,
@@ -590,6 +592,7 @@ function tickRuns(fight, dt) {
         from: blast.from,
         to: blast.to,
         big: Boolean(blast.big),
+        width: blast.width,
         damage: blast.damage,
         left: step.lasts,
         next: run.ability.tick,
@@ -600,10 +603,11 @@ function tickRuns(fight, dt) {
   fight.runs = fight.runs.filter((run) => !run.done && run.owner.hp > 0);
 }
 
-/** How far blasters sit in from the walls, and how wide their beams are. */
-export const BLASTER_INSET = 24;
-export const BEAM_WIDTH = 22;
-export const BIG_BEAM = 1.7;
+/** How far blaster spots sit in from the walls: half a beam, so a wall beam runs along the wall. */
+export const BLASTER_INSET = BLAST_WIDTH / 2;
+
+/** How thick a blast's beam is. */
+export const beamWidth = (blaster) => blaster.width || (blaster.big ? BIG_BLAST_WIDTH : BLAST_WIDTH);
 
 /** Where a spot named in BLASTER_SPOTS is in the box. */
 export function blasterSpot(name) {
@@ -627,7 +631,7 @@ export function onBeam(blaster, who) {
   const dy = end.y - start.y;
   const t = clamp(((who.x - start.x) * dx + (who.y - start.y) * dy) / (dx * dx + dy * dy || 1), 0, 1);
   const gap = Math.hypot(who.x - (start.x + dx * t), who.y - (start.y + dy * t));
-  const half = (BEAM_WIDTH * (blaster.big ? BIG_BEAM : 1)) / 2;
+  const half = beamWidth(blaster) / 2;
   return gap <= BALL_RADIUS + half;
 }
 

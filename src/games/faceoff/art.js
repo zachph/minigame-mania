@@ -1,7 +1,7 @@
 import { TAU, clamp } from '../../core/utils.js';
 import { BOX } from './content.js';
 import { drawHead } from './heads.js';
-import { BEAM_WIDTH, BIG_BEAM, abilityOf, abilitiesOf, beamLine, isClock } from './battle.js';
+import { abilityOf, abilitiesOf, beamLine, beamWidth, isClock } from './battle.js';
 
 /**
  * The Undertale battle box, made bigger: black, a thick white border, and
@@ -293,21 +293,27 @@ export { beamLine };
 /** A Gaster Blaster: a skull on the wall and a white beam across the box. */
 export function drawBlaster(ctx, blaster, time = 0) {
   const { start, end, angle } = beamLine(blaster);
-  const size = blaster.big ? BIG_BEAM : 1;
+  const width = beamWidth(blaster);
+  const size = Math.min(width / 26, 3.6);   // the skull grows with its beam, up to a point
   ctx.save();
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);     // the beam stays inside the box
+  ctx.clip();
   const flicker = 0.75 + 0.25 * Math.sin(time * 40);
   ctx.globalAlpha = flicker;
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-  ctx.lineCap = 'round';
-  ctx.lineWidth = BEAM_WIDTH * size;
+  ctx.lineCap = 'butt';
+  ctx.lineWidth = width;
   ctx.beginPath();
-  ctx.moveTo(start.x, start.y);
+  // Start back behind the skull so the beam comes out of the wall (the clip trims it).
+  ctx.moveTo(start.x - Math.cos(angle) * 60, start.y - Math.sin(angle) * 60);
   ctx.lineTo(end.x, end.y);
   ctx.stroke();
   ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 9 * size;
+  ctx.lineWidth = width * 0.55;
   ctx.stroke();
-  ctx.globalAlpha = 1;
+  ctx.restore();
 
   // The skull, pointing along the beam.
   ctx.translate(start.x, start.y);
