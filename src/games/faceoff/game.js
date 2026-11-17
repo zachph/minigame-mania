@@ -272,7 +272,7 @@ class FaceoffGame {
     }
     for (const shot of this.fight.shots) drawShot(ctx, shot);
     for (const blaster of this.fight.blasters) {
-      drawBlaster(ctx, blaster, frontOf(this.fight, blaster.side === 'a' ? 'b' : 'a'), this.clock);
+      drawBlaster(ctx, blaster, this.clock);
     }
     for (const [who, foe] of [[a, b], [b, a]]) {
       if (!who) continue;

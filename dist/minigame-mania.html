@@ -15316,6 +15316,32 @@ const fighter = ({ ability, abilities, ...spec }) => {
   return { hp: BASE_HP, dodges: 0, ...spec, abilities: list, ability: list[0] || null };
 };
 
+/**
+ * Where Gaster Blasters sit and fire to, by name. Each is a spot in the box
+ * as a share of its width and height; the engine pulls them in off the walls.
+ */
+const BLASTER_SPOTS = {
+  'top-left': [0, 0],
+  'top-right': [1, 0],
+  'bottom-left': [0, 1],
+  'bottom-right': [1, 1],
+  left: [0, 0.5],
+  right: [1, 0.5],
+  middle: [0.5, 0.5],
+};
+
+/** A blaster in every corner, all firing at the middle. */
+const CORNERS_AT_MIDDLE = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
+  .map((from) => ({ from, to: 'middle', damage: 1 }));
+
+/** A blaster in every corner firing along its wall, round the box like a pinwheel. */
+const ALONG_THE_WALLS = [
+  { from: 'top-left', to: 'bottom-left', damage: 1 },     // down the left wall
+  { from: 'top-right', to: 'top-left', damage: 1 },       // along the top
+  { from: 'bottom-right', to: 'top-right', damage: 1 },   // up the right wall
+  { from: 'bottom-left', to: 'bottom-right', damage: 1 }, // along the bottom
+];
+
 const FIGHTERS = [
   // Infinity: anything that comes within `range` of him moves at half speed.
   // A bump hits as hard as you were moving into it, so a slowed attacker also
@@ -15341,11 +15367,12 @@ const FIGHTERS = [
   }),
   // 1 health, but the first 24 attacks that reach him miss. The 25th does not.
   // Every 10 seconds he throws the enemy at a wall, and the wall does 5.
-  // Gaster Blaster: a run of blasts, one after another, each lasting 3
-  // seconds and locked on, so nobody gets out of the way - diagonal,
-  // horizontal, the other diagonal, then two big ones from the left and right
-  // at once. Sans can still dodge them, as he dodges anything. When the run is
-  // over it waits 8 seconds before the next one starts.
+  // Gaster Blaster: a run of blasts, each set lasting 3 seconds: one in every
+  // corner firing at the middle, then one in every corner firing along its
+  // wall, then the corners at the middle again, then two big ones from the
+  // left and right firing at the middle. The beams stay where they are, so
+  // only whoever is in one gets hit. Sans can still dodge them, as he dodges
+  // anything. When the run is over it waits 8 seconds before the next.
   fighter({
     id: 'sans', name: 'Sans', hp: 1, dodges: 24, colour: '#e8eef8', shade: '#5a6a8a',
     abilities: [
@@ -15356,10 +15383,13 @@ const FIGHTERS = [
         every: 8,          // seconds between one run ending and the next starting
         tick: 0.5,         // every attack Sans has does 1 every half second
         steps: [
-          { lasts: 3, blasts: [{ aim: 'diagonal', damage: 1 }] },
-          { lasts: 3, blasts: [{ aim: 'horizontal', damage: 1 }] },
-          { lasts: 3, blasts: [{ aim: 'other-diagonal', damage: 1 }] },
-          { lasts: 3, blasts: [{ aim: 'left', damage: 1, big: true }, { aim: 'right', damage: 1, big: true }] },
+          { lasts: 3, blasts: CORNERS_AT_MIDDLE },
+          { lasts: 3, blasts: ALONG_THE_WALLS },
+          { lasts: 3, blasts: CORNERS_AT_MIDDLE },
+          { lasts: 3, blasts: [
+            { from: 'left', to: 'middle', damage: 1, big: true },
+            { from: 'right', to: 'middle', damage: 1, big: true },
+          ] },
         ],
       },
       // Bone Wave: every 20 seconds, bones sweep the box for 5, 1 every half second.
@@ -15499,13 +15529,13 @@ const PRESSURE_FROM = 25;
 const PRESSURE_RATE = 0.06;
 const FIGHT_LIMIT = 90;
 
-  return { BOX, BALL_RADIUS, CRUISE, HOMING, STALL_AFTER, HIT_LOCK, BUMP_DAMAGE, BUMP_SPREAD, LAUNCH_SPEED, TELEPORT_CLEAR, BASE_HP, FIGHTERS, FIGHTER_BY_ID, getFighter, TEAM_SIZE, MODES, MODE_BY_ID, TOWER, TOWER_RECOVERY, STORY, STORY_RECOVERY, PRESSURE_FROM, PRESSURE_RATE, FIGHT_LIMIT };
+  return { BOX, BALL_RADIUS, CRUISE, HOMING, STALL_AFTER, HIT_LOCK, BUMP_DAMAGE, BUMP_SPREAD, LAUNCH_SPEED, TELEPORT_CLEAR, BASE_HP, BLASTER_SPOTS, FIGHTERS, FIGHTER_BY_ID, getFighter, TEAM_SIZE, MODES, MODE_BY_ID, TOWER, TOWER_RECOVERY, STORY, STORY_RECOVERY, PRESSURE_FROM, PRESSURE_RATE, FIGHT_LIMIT };
 })();
 
 // ---- src/games/faceoff/battle.js ---------------------------------
 __modules["src/games/faceoff/battle.js"] = (function () {
   const { clamp } = __modules["src/core/utils.js"];
-  const { BALL_RADIUS, BOX, BUMP_DAMAGE, BUMP_SPREAD, CRUISE, FIGHT_LIMIT, HIT_LOCK, HOMING, LAUNCH_SPEED, PRESSURE_FROM, PRESSURE_RATE, STALL_AFTER, TELEPORT_CLEAR, getFighter } = __modules["src/games/faceoff/content.js"];
+  const { BALL_RADIUS, BLASTER_SPOTS, BOX, BUMP_DAMAGE, BUMP_SPREAD, CRUISE, FIGHT_LIMIT, HIT_LOCK, HOMING, LAUNCH_SPEED, PRESSURE_FROM, PRESSURE_RATE, STALL_AFTER, TELEPORT_CLEAR, getFighter } = __modules["src/games/faceoff/content.js"];
 
 /**
  * A Faceoff fight with no screen attached.
@@ -16077,7 +16107,8 @@ function tickRuns(fight, dt) {
       fight.blasters.push({
         side: run.side,
         owner: run.owner,
-        aim: blast.aim,
+        from: blast.from,
+        to: blast.to,
         big: Boolean(blast.big),
         damage: blast.damage,
         left: step.lasts,
@@ -16089,11 +16120,42 @@ function tickRuns(fight, dt) {
   fight.runs = fight.runs.filter((run) => !run.done && run.owner.hp > 0);
 }
 
+/** How far blasters sit in from the walls, and how wide their beams are. */
+const BLASTER_INSET = 24;
+const BEAM_WIDTH = 22;
+const BIG_BEAM = 1.7;
+
+/** Where a spot named in BLASTER_SPOTS is in the box. */
+function blasterSpot(name) {
+  const [fx, fy] = BLASTER_SPOTS[name] || BLASTER_SPOTS.middle;
+  const x = BOX.x + BLASTER_INSET + fx * (BOX.w - 2 * BLASTER_INSET);
+  const y = BOX.y + BLASTER_INSET + fy * (BOX.h - 2 * BLASTER_INSET);
+  return { x, y };
+}
+
+/** A blast's beam: from its blaster to where it fires, and which way it points. */
+function beamLine(blaster) {
+  const start = blasterSpot(blaster.from);
+  const end = blasterSpot(blaster.to);
+  return { start, end, angle: Math.atan2(end.y - start.y, end.x - start.x) };
+}
+
+/** Whether a fighter is touching a blast's beam. */
+function onBeam(blaster, who) {
+  const { start, end } = beamLine(blaster);
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const t = clamp(((who.x - start.x) * dx + (who.y - start.y) * dy) / (dx * dx + dy * dy || 1), 0, 1);
+  const gap = Math.hypot(who.x - (start.x + dx * t), who.y - (start.y + dy * t));
+  const half = (BEAM_WIDTH * (blaster.big ? BIG_BEAM : 1)) / 2;
+  return gap <= BALL_RADIUS + half;
+}
+
 /**
- * Blasts firing. Each keeps its beam on whoever is in front for the other
- * side and does its damage once a tick. Nobody can get out of the way of one,
- * but Sans can dodge any attack, so against him each tick costs a dodge. A
- * blast goes when its time is up, or when Sans does.
+ * Blasts firing. Each beam stays where it was put and does its damage once a
+ * tick to whoever for the other side is in it. Sans can dodge any attack, so
+ * against him each tick that catches him costs a dodge. A blast goes when its
+ * time is up, or when Sans does.
  */
 function tickBlasters(fight, dt) {
   for (const blaster of fight.blasters) {
@@ -16102,7 +16164,7 @@ function tickBlasters(fight, dt) {
     const foe = frontOf(fight, other(blaster.side));
     while (blaster.next <= 1e-9 && blaster.left > -1e-9) {
       blaster.next += blaster.tick;
-      if (foe && foe.hp > 0) {
+      if (foe && foe.hp > 0 && onBeam(blaster, foe)) {
         hurt(fight, foe, blaster.damage * fight.sides[blaster.side].scale, { from: blaster.owner, kind: 'blaster' });
       }
     }
@@ -16357,7 +16419,7 @@ function runFight(fight, step = 1 / 30) {
   return fight.over || checkOver(fight);
 }
 
-  return { abilitiesOf, abilityOf, isClock, makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, zoneSize, inZone, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
+  return { abilitiesOf, abilityOf, isClock, makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, BLASTER_INSET, BEAM_WIDTH, BIG_BEAM, blasterSpot, beamLine, onBeam, zoneSize, inZone, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
 })();
 
 // ---- src/games/faceoff/heads.js ----------------------------------
@@ -16850,7 +16912,7 @@ __modules["src/games/faceoff/art.js"] = (function () {
   const { TAU, clamp } = __modules["src/core/utils.js"];
   const { BOX } = __modules["src/games/faceoff/content.js"];
   const { drawHead } = __modules["src/games/faceoff/heads.js"];
-  const { abilityOf, abilitiesOf, isClock } = __modules["src/games/faceoff/battle.js"];
+  const { BEAM_WIDTH, BIG_BEAM, abilityOf, abilitiesOf, beamLine, isClock } = __modules["src/games/faceoff/battle.js"];
 
 /**
  * The Undertale battle box, made bigger: black, a thick white border, and
@@ -17137,51 +17199,18 @@ function drawSlash(ctx, slash) {
   ctx.restore();
 }
 
-/**
- * Where a blast's beam runs: a line through the target, in the blast's own
- * direction, from one wall of the box to the other. Returns the two ends; the
- * skull sits at the first.
- */
-function beamLine(blaster, target) {
-  const tx = target ? target.x : BOX.x + BOX.w / 2;
-  const ty = target ? target.y : BOX.y + BOX.h / 2;
-  const dir = {
-    diagonal: [1, 1],
-    horizontal: [1, 0],
-    'other-diagonal': [1, -1],
-    left: [1, 0],
-    right: [-1, 0],
-  }[blaster.aim] || [1, 0];
-  const len = Math.hypot(dir[0], dir[1]);
-  const dx = dir[0] / len;
-  const dy = dir[1] / len;
-  // How far back along the line to the wall it comes from, and on to the other.
-  const reach = (sx, sy) => {
-    let t = Infinity;
-    if (sx > 0) t = Math.min(t, (BOX.x + BOX.w - tx) / sx);
-    if (sx < 0) t = Math.min(t, (BOX.x - tx) / sx);
-    if (sy > 0) t = Math.min(t, (BOX.y + BOX.h - ty) / sy);
-    if (sy < 0) t = Math.min(t, (BOX.y - ty) / sy);
-    return Number.isFinite(t) ? t : 0;
-  };
-  const back = reach(-dx, -dy);
-  const on = reach(dx, dy);
-  const start = { x: tx - dx * back, y: ty - dy * back };
-  // The two big ones come from their own walls and stop at the target.
-  const end = blaster.big ? { x: tx, y: ty } : { x: tx + dx * on, y: ty + dy * on };
-  return { start, end, angle: Math.atan2(dy, dx) };
-}
+
 
 /** A Gaster Blaster: a skull on the wall and a white beam across the box. */
-function drawBlaster(ctx, blaster, target, time = 0) {
-  const { start, end, angle } = beamLine(blaster, target);
-  const size = blaster.big ? 1.7 : 1;
+function drawBlaster(ctx, blaster, time = 0) {
+  const { start, end, angle } = beamLine(blaster);
+  const size = blaster.big ? BIG_BEAM : 1;
   ctx.save();
   const flicker = 0.75 + 0.25 * Math.sin(time * 40);
   ctx.globalAlpha = flicker;
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
   ctx.lineCap = 'round';
-  ctx.lineWidth = 22 * size;
+  ctx.lineWidth = BEAM_WIDTH * size;
   ctx.beginPath();
   ctx.moveTo(start.x, start.y);
   ctx.lineTo(end.x, end.y);
@@ -17413,7 +17442,7 @@ function drawZone(ctx, zone, time = 0) {
   ctx.restore();
 }
 
-  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, beamLine, drawBlaster, drawBones, drawFireball, drawSpear, drawBeam, drawTable, drawWindup, drawZone };
+  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, drawBlaster, drawBones, drawFireball, drawSpear, drawBeam, drawTable, drawWindup, drawZone, beamLine };
 })();
 
 // ---- src/games/faceoff/game.js -----------------------------------
@@ -17665,7 +17694,7 @@ class FaceoffGame {
     }
     for (const shot of this.fight.shots) drawShot(ctx, shot);
     for (const blaster of this.fight.blasters) {
-      drawBlaster(ctx, blaster, frontOf(this.fight, blaster.side === 'a' ? 'b' : 'a'), this.clock);
+      drawBlaster(ctx, blaster, this.clock);
     }
     for (const [who, foe] of [[a, b], [b, a]]) {
       if (!who) continue;

@@ -50,6 +50,32 @@ const fighter = ({ ability, abilities, ...spec }) => {
   return { hp: BASE_HP, dodges: 0, ...spec, abilities: list, ability: list[0] || null };
 };
 
+/**
+ * Where Gaster Blasters sit and fire to, by name. Each is a spot in the box
+ * as a share of its width and height; the engine pulls them in off the walls.
+ */
+export const BLASTER_SPOTS = {
+  'top-left': [0, 0],
+  'top-right': [1, 0],
+  'bottom-left': [0, 1],
+  'bottom-right': [1, 1],
+  left: [0, 0.5],
+  right: [1, 0.5],
+  middle: [0.5, 0.5],
+};
+
+/** A blaster in every corner, all firing at the middle. */
+const CORNERS_AT_MIDDLE = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
+  .map((from) => ({ from, to: 'middle', damage: 1 }));
+
+/** A blaster in every corner firing along its wall, round the box like a pinwheel. */
+const ALONG_THE_WALLS = [
+  { from: 'top-left', to: 'bottom-left', damage: 1 },     // down the left wall
+  { from: 'top-right', to: 'top-left', damage: 1 },       // along the top
+  { from: 'bottom-right', to: 'top-right', damage: 1 },   // up the right wall
+  { from: 'bottom-left', to: 'bottom-right', damage: 1 }, // along the bottom
+];
+
 export const FIGHTERS = [
   // Infinity: anything that comes within `range` of him moves at half speed.
   // A bump hits as hard as you were moving into it, so a slowed attacker also
@@ -75,11 +101,12 @@ export const FIGHTERS = [
   }),
   // 1 health, but the first 24 attacks that reach him miss. The 25th does not.
   // Every 10 seconds he throws the enemy at a wall, and the wall does 5.
-  // Gaster Blaster: a run of blasts, one after another, each lasting 3
-  // seconds and locked on, so nobody gets out of the way - diagonal,
-  // horizontal, the other diagonal, then two big ones from the left and right
-  // at once. Sans can still dodge them, as he dodges anything. When the run is
-  // over it waits 8 seconds before the next one starts.
+  // Gaster Blaster: a run of blasts, each set lasting 3 seconds: one in every
+  // corner firing at the middle, then one in every corner firing along its
+  // wall, then the corners at the middle again, then two big ones from the
+  // left and right firing at the middle. The beams stay where they are, so
+  // only whoever is in one gets hit. Sans can still dodge them, as he dodges
+  // anything. When the run is over it waits 8 seconds before the next.
   fighter({
     id: 'sans', name: 'Sans', hp: 1, dodges: 24, colour: '#e8eef8', shade: '#5a6a8a',
     abilities: [
@@ -90,10 +117,13 @@ export const FIGHTERS = [
         every: 8,          // seconds between one run ending and the next starting
         tick: 0.5,         // every attack Sans has does 1 every half second
         steps: [
-          { lasts: 3, blasts: [{ aim: 'diagonal', damage: 1 }] },
-          { lasts: 3, blasts: [{ aim: 'horizontal', damage: 1 }] },
-          { lasts: 3, blasts: [{ aim: 'other-diagonal', damage: 1 }] },
-          { lasts: 3, blasts: [{ aim: 'left', damage: 1, big: true }, { aim: 'right', damage: 1, big: true }] },
+          { lasts: 3, blasts: CORNERS_AT_MIDDLE },
+          { lasts: 3, blasts: ALONG_THE_WALLS },
+          { lasts: 3, blasts: CORNERS_AT_MIDDLE },
+          { lasts: 3, blasts: [
+            { from: 'left', to: 'middle', damage: 1, big: true },
+            { from: 'right', to: 'middle', damage: 1, big: true },
+          ] },
         ],
       },
       // Bone Wave: every 20 seconds, bones sweep the box for 5, 1 every half second.
