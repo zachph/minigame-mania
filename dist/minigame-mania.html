@@ -15354,16 +15354,16 @@ const FIGHTERS = [
         kind: 'blaster',
         name: 'Gaster Blaster',
         every: 8,          // seconds between one run ending and the next starting
-        tick: 1,
+        tick: 0.5,         // every attack Sans has does 1 every half second
         steps: [
-          { lasts: 3, blasts: [{ aim: 'diagonal', damage: 4 }] },
-          { lasts: 3, blasts: [{ aim: 'horizontal', damage: 4 }] },
-          { lasts: 3, blasts: [{ aim: 'other-diagonal', damage: 4 }] },
-          { lasts: 3, blasts: [{ aim: 'left', damage: 3, big: true }, { aim: 'right', damage: 3, big: true }] },
+          { lasts: 3, blasts: [{ aim: 'diagonal', damage: 1 }] },
+          { lasts: 3, blasts: [{ aim: 'horizontal', damage: 1 }] },
+          { lasts: 3, blasts: [{ aim: 'other-diagonal', damage: 1 }] },
+          { lasts: 3, blasts: [{ aim: 'left', damage: 1, big: true }, { aim: 'right', damage: 1, big: true }] },
         ],
       },
-      // Bone Wave: every 20 seconds, bones sweep the box for 5, 1 a second.
-      { kind: 'bones', name: 'Bone Wave', every: 20, lasts: 5, damage: 1, tick: 1 },
+      // Bone Wave: every 20 seconds, bones sweep the box for 5, 1 every half second.
+      { kind: 'bones', name: 'Bone Wave', every: 20, lasts: 5, damage: 1, tick: 0.5 },
     ],
   }),
   // A quarter of his hits set the enemy burning: 1 a second for 15 seconds.
