@@ -759,7 +759,7 @@ test('Undyne has her comeback and her Spears', () => {
   assert.deepEqual(getFighter('undyne').abilities.map((a) => a.name), ['Undyne the Undying', 'Spears']);
 });
 
-test('she throws 10 spears one at a time, and each that lands does 5', () => {
+test('she throws 8 spears one at a time, and each that lands does 5', () => {
   const f = fight(['undyne'], ['garou']);
   quiet(f);
   const [undyne, garou] = [frontOf(f, 'a'), frontOf(f, 'b')];
@@ -777,8 +777,8 @@ test('she throws 10 spears one at a time, and each that lands does 5', () => {
     thrown += Math.max(0, f.shots.length - before);
     most = Math.max(most, f.shots.length);
   }
-  assert.equal(Math.round(garou.taken), 50, 'ten spears, five each');
-  assert.ok(most < 10, 'they were thrown one at a time, never all at once');
+  assert.equal(Math.round(garou.taken), 40, 'eight spears, five each');
+  assert.ok(most < 8, 'they were thrown one at a time, never all at once');
 });
 
 test('the spears stop coming when Undyne goes down', () => {
