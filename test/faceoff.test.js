@@ -582,15 +582,15 @@ test('the run goes diagonal, horizontal, the other diagonal, then two big ones l
   assert.deepEqual(seen, ['diagonal', 'horizontal', 'other-diagonal', 'left+right']);
 });
 
-test('each blast lasts 3 seconds; the small ones do 4 a second, the big ones 3 each', () => {
+test('each blast lasts 3 seconds and does 1 every half second, the big ones 1 each', () => {
   const { f, goku, step } = blasterFight();
   step();                                  // the run starts
   const at = (seconds) => { while (f.time < seconds) step(); return goku.taken; };
   const t0 = f.time;
   const after9 = at(t0 + 9.05);
-  assert.equal(Math.round(after9), 36, 'three small blasts, 3 seconds each at 4 a second');
+  assert.equal(Math.round(after9), 18, 'three small blasts, 3 seconds each at 1 every half second');
   const after12 = at(t0 + 12.05);
-  assert.equal(Math.round(after12 - after9), 18, 'two big ones at 3 a second each for 3 seconds');
+  assert.equal(Math.round(after12 - after9), 12, 'two big ones at 1 every half second each for 3 seconds');
 });
 
 test('Sans can dodge the blasts too, a tick at a time', () => {
@@ -604,7 +604,7 @@ test('Sans can dodge the blasts too, a tick at a time', () => {
   mine.timers.blaster = 7.99;
   for (let i = 0; i < 30 * 3.2 && !f.over; i += 1) { mine.hitLock = theirs.hitLock = 99; f.sinceBump = 0; theirs.x = mine.x + 400; stepFight(f, 1 / 30); }
   assert.equal(theirs.hp, 1, 'he is still standing');
-  assert.equal(theirs.dodgesLeft, 21, 'three ticks, three dodges');
+  assert.equal(theirs.dodgesLeft, 18, 'six ticks, six dodges');
 });
 
 test('the 8 seconds start when a run is over, not when it starts', () => {
@@ -655,7 +655,7 @@ test('every beam runs inside the box, and the blasters draw', async () => {
 
 /* ------------------------------------------------------------ Bone Wave */
 
-test('the Bone Wave comes every 20 seconds and does 1 a second for 5', () => {
+test('the Bone Wave comes every 20 seconds and does 1 every half second for 5', () => {
   const f = fight(['sans', 'garou'], ['goku']);
   quiet(f);
   const [sans, goku] = [frontOf(f, 'a'), frontOf(f, 'b')];
@@ -668,7 +668,7 @@ test('the Bone Wave comes every 20 seconds and does 1 a second for 5', () => {
   sans.timers.bones = -1000;
   const before = goku.taken;
   for (let i = 0; i < 30 * 5.5; i += 1) step();
-  assert.equal(Math.round(goku.taken - before), 5);
+  assert.equal(Math.round(goku.taken - before), 10);
   assert.equal(f.waves.length, 0, 'and it has passed');
 });
 
@@ -680,7 +680,7 @@ test('Sans dodges a Bone Wave a tick at a time', () => {
   mine.timers.bones = 19.99;
   for (let i = 0; i < 30 * 2.2 && !f.over; i += 1) { mine.hitLock = theirs.hitLock = 99; f.sinceBump = 0; theirs.x = mine.x + 400; stepFight(f, 1 / 30); }
   assert.equal(theirs.hp, 1);
-  assert.equal(theirs.dodgesLeft, 22);
+  assert.equal(theirs.dodgesLeft, 20);
 });
 
 test('the bones draw from either side', async () => {
