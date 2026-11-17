@@ -130,7 +130,8 @@ export const FIGHTERS = [
           ] },
         ],
       },
-      // Bone Wave: every 20 seconds, bones sweep the box for 5, 1 every half second.
+      // Bone Wave: every 20 seconds a row of bones slides across the box for 5,
+      // with a gap weaving up and down. Touching a bone does 1 every half second.
       { kind: 'bones', name: 'Bone Wave', every: 20, lasts: 5, damage: 1, tick: 0.5 },
     ],
   }),

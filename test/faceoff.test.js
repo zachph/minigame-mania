@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seededRandom } from '../src/core/utils.js';
 import { BALL_RADIUS, BASE_HP, BOX, CRUISE, FIGHTERS, FIGHT_LIMIT, STORY, TEAM_SIZE, TOWER, getFighter } from '../src/games/faceoff/content.js';
-import { beamLine, bump, onBeam, createFight, frontOf, heal, hurt, isBeaten, pressureAt, runFight, stepFight, strike } from '../src/games/faceoff/battle.js';
+import { BONE_GAP, beamLine, boneAt, boneGapAt, bump, inBones, onBeam, createFight, frontOf, heal, hurt, isBeaten, pressureAt, runFight, stepFight, strike } from '../src/games/faceoff/battle.js';
 import { drawBall, drawBanner, drawBench, drawBox, drawPopup, drawScreen, drawStatus } from '../src/games/faceoff/art.js';
 import { createFakeContext } from './helpers.js';
 
@@ -692,21 +692,44 @@ test('every beam runs inside the box, and the blasters draw', async () => {
 
 /* ------------------------------------------------------------ Bone Wave */
 
-test('the Bone Wave comes every 20 seconds and does 1 every half second for 5', () => {
+test('the Bone Wave comes every 20 seconds, and up against the ceiling it hits while it passes', () => {
   const f = fight(['sans', 'garou'], ['goku']);
   quiet(f);
   const [sans, goku] = [frontOf(f, 'a'), frontOf(f, 'b')];
   sans.timers.launch = -1000;
   sans.timers.blaster = -1000;
   sans.timers.bones = 19.99;
-  const step = () => { goku.hitLock = sans.hitLock = 99; f.sinceBump = 0; goku.x = sans.x + 400; stepFight(f, 1 / 30); };
+  const step = () => {
+    goku.hitLock = sans.hitLock = 99; f.sinceBump = 0;
+    goku.x = BOX.x + BOX.w / 2; goku.y = BOX.y + BALL_RADIUS;   // the gap never comes up this high
+    sans.x = BOX.x + 60; sans.y = BOX.y + BOX.h - 60;
+    stepFight(f, 1 / 30);
+  };
   step();
   assert.equal(f.waves.length, 1);
   sans.timers.bones = -1000;
   const before = goku.taken;
   for (let i = 0; i < 30 * 5.5; i += 1) step();
-  assert.equal(Math.round(goku.taken - before), 10);
+  const hits = Math.round(goku.taken - before);
+  assert.ok(hits >= 5 && hits <= 8, `${hits} hits while the bones went by`);
   assert.equal(f.waves.length, 0, 'and it has passed');
+});
+
+test('in the gap the bones miss; off the row they miss; on a bone they hit', () => {
+  const wave = { from: 'left', left: 2.5, lasts: 5 };
+  const x = BOX.x + BOX.w / 2;
+  const back = boneAt(wave, x);
+  assert.ok(back != null, 'halfway through, the row is over the middle');
+  assert.equal(inBones(wave, { x, y: boneGapAt(back) }), false, 'right in the gap');
+  assert.equal(inBones(wave, { x, y: BOX.y + BALL_RADIUS }), true, 'against the ceiling');
+  assert.equal(inBones(wave, { x, y: BOX.y + BOX.h - BALL_RADIUS }), true, 'on the floor');
+  const early = { from: 'left', left: 4.9, lasts: 5 };
+  assert.equal(boneAt(early, BOX.x + BOX.w - 40), null, 'the far side has not been reached yet');
+  assert.equal(inBones(early, { x: BOX.x + BOX.w - 40, y: BOX.y + BALL_RADIUS }), false);
+  // The gap really weaves.
+  const gaps = [0, 200, 400, 600, 800].map(boneGapAt);
+  assert.ok(Math.max(...gaps) - Math.min(...gaps) > 100);
+  for (const g of gaps) assert.ok(g - BONE_GAP / 2 >= BOX.y && g + BONE_GAP / 2 <= BOX.y + BOX.h, 'the gap stays in the box');
 });
 
 test('Sans dodges a Bone Wave a tick at a time', () => {
@@ -715,9 +738,15 @@ test('Sans dodges a Bone Wave a tick at a time', () => {
   for (const s of [mine, theirs]) { s.timers.launch = -1000; s.timers.blaster = -1000; }
   theirs.timers.bones = -1000;
   mine.timers.bones = 19.99;
-  for (let i = 0; i < 30 * 2.2 && !f.over; i += 1) { mine.hitLock = theirs.hitLock = 99; f.sinceBump = 0; theirs.x = mine.x + 400; stepFight(f, 1 / 30); }
+  for (let i = 0; i < 30 * 5.5 && !f.over; i += 1) {
+    mine.hitLock = theirs.hitLock = 99; f.sinceBump = 0;
+    theirs.x = BOX.x + BOX.w / 2; theirs.y = BOX.y + BALL_RADIUS;
+    mine.x = BOX.x + 60; mine.y = BOX.y + BOX.h - 60;
+    stepFight(f, 1 / 30);
+  }
   assert.equal(theirs.hp, 1);
-  assert.equal(theirs.dodgesLeft, 20);
+  const used = 24 - theirs.dodgesLeft;
+  assert.ok(used >= 5 && used <= 8, `${used} dodges`);
 });
 
 test('the bones draw from either side', async () => {

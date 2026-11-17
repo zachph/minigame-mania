@@ -15396,7 +15396,8 @@ const FIGHTERS = [
           ] },
         ],
       },
-      // Bone Wave: every 20 seconds, bones sweep the box for 5, 1 every half second.
+      // Bone Wave: every 20 seconds a row of bones slides across the box for 5,
+      // with a gap weaving up and down. Touching a bone does 1 every half second.
       { kind: 'bones', name: 'Bone Wave', every: 20, lasts: 5, damage: 1, tick: 0.5 },
     ],
   }),
@@ -16179,9 +16180,42 @@ function tickBlasters(fight, dt) {
 }
 
 /**
- * Bone Waves sweeping. A wave fills the box, so whoever is in front for the
- * other side takes its damage once a tick until it has passed - Sans dodging
- * it a tick at a time, as he dodges anything.
+ * The Bone Wave's shape: a long row of bones from the floor and the ceiling
+ * sliding across the box, with a gap between them that weaves up and down.
+ * Only a fighter touching a bone is hurt; one in the gap goes untouched.
+ */
+const BONE_SPACING = 22;          // between one bone and the next
+const BONE_GAP = 112;             // the gap's height: room for a fighter, just
+const BONE_TRAIN = 1150;          // how long the row of bones is
+const BONE_WEAVES = 2.5;          // how many times the gap goes up and down along it
+const BONE_SWING = (BOX.h - BONE_GAP) / 2 - 16;
+
+/** How far the front of the row has come into the box. */
+const boneHead = (wave) => (1 - wave.left / wave.lasts) * (BOX.w + BONE_TRAIN);
+
+/** How far back along the row the bone at x is, or null where there are no bones. */
+function boneAt(wave, x) {
+  const along = wave.from === 'left' ? x - BOX.x : BOX.x + BOX.w - x;
+  const back = boneHead(wave) - along;
+  return back >= 0 && back <= BONE_TRAIN ? back : null;
+}
+
+/** Where the middle of the gap is, that far back along the row. */
+const boneGapAt = (back) => BOX.y + BOX.h / 2 + BONE_SWING * Math.sin((back / BONE_TRAIN) * Math.PI * 2 * BONE_WEAVES);
+
+/** Whether a fighter is touching a bone. */
+function inBones(wave, who) {
+  for (const dx of [-BALL_RADIUS * 0.8, 0, BALL_RADIUS * 0.8]) {
+    const back = boneAt(wave, who.x + dx);
+    if (back == null) continue;
+    if (Math.abs(who.y - boneGapAt(back)) > BONE_GAP / 2 - BALL_RADIUS) return true;
+  }
+  return false;
+}
+
+/**
+ * Bone Waves sweeping: once a tick, whoever for the other side is touching
+ * a bone takes the damage. Sans dodges each one, as he dodges anything.
  */
 function tickWaves(fight, dt) {
   for (const wave of fight.waves) {
@@ -16190,7 +16224,7 @@ function tickWaves(fight, dt) {
     const foe = frontOf(fight, other(wave.side));
     while (wave.next <= 1e-9 && wave.left > -1e-9) {
       wave.next += wave.tick;
-      if (foe && foe.hp > 0) hurt(fight, foe, wave.damage * fight.sides[wave.side].scale, { from: wave.owner, kind: 'bones' });
+      if (foe && foe.hp > 0 && inBones(wave, foe)) hurt(fight, foe, wave.damage * fight.sides[wave.side].scale, { from: wave.owner, kind: 'bones' });
     }
   }
   fight.waves = fight.waves.filter((w) => w.left > 1e-9 && w.owner.hp > 0);
@@ -16425,7 +16459,7 @@ function runFight(fight, step = 1 / 30) {
   return fight.over || checkOver(fight);
 }
 
-  return { abilitiesOf, abilityOf, isClock, makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, BLASTER_INSET, beamWidth, blasterSpot, beamLine, onBeam, zoneSize, inZone, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
+  return { abilitiesOf, abilityOf, isClock, makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, BLASTER_INSET, beamWidth, blasterSpot, beamLine, onBeam, BONE_SPACING, BONE_GAP, BONE_TRAIN, BONE_WEAVES, boneHead, boneAt, boneGapAt, inBones, zoneSize, inZone, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
 })();
 
 // ---- src/games/faceoff/heads.js ----------------------------------
@@ -16918,7 +16952,7 @@ __modules["src/games/faceoff/art.js"] = (function () {
   const { TAU, clamp } = __modules["src/core/utils.js"];
   const { BOX } = __modules["src/games/faceoff/content.js"];
   const { drawHead } = __modules["src/games/faceoff/heads.js"];
-  const { abilityOf, abilitiesOf, beamLine, beamWidth, isClock } = __modules["src/games/faceoff/battle.js"];
+  const { BONE_GAP, BONE_SPACING, BONE_TRAIN, abilityOf, abilitiesOf, beamLine, beamWidth, boneGapAt, boneHead, isClock } = __modules["src/games/faceoff/battle.js"];
 
 /**
  * The Undertale battle box, made bigger: black, a thick white border, and
@@ -17276,25 +17310,22 @@ function bone(ctx, x, y1, y2) {
 }
 
 /**
- * A Bone Wave: rows of bones up from the floor and down from the ceiling,
- * rising and falling as they sweep across the box from one side.
+ * A Bone Wave: a long row of bones from the floor and the ceiling sliding
+ * across the box, with a gap between them weaving up and down.
  */
 function drawBones(ctx, wave) {
-  const progress = 1 - wave.left / wave.lasts;
-  const spacing = 34;
-  const travel = BOX.w + spacing * 8;
-  const shift = progress * travel;
+  const head = boneHead(wave);
   ctx.save();
   ctx.beginPath();
   ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);
   ctx.clip();
-  for (let i = 0; i < 40; i += 1) {
-    const along = i * spacing - spacing * 8 + shift;
+  for (let back = 0; back <= BONE_TRAIN; back += BONE_SPACING) {
+    const along = head - back;
+    if (along < -10 || along > BOX.w + 10) continue;
     const x = wave.from === 'left' ? BOX.x + along : BOX.x + BOX.w - along;
-    if (x < BOX.x - 10 || x > BOX.x + BOX.w + 10) continue;
-    const rise = 40 + 50 * (0.5 + 0.5 * Math.sin(i * 0.9 + progress * 8));
-    bone(ctx, x, BOX.y + BOX.h - 6, BOX.y + BOX.h - rise);
-    bone(ctx, x, BOX.y + 6, BOX.y + 130 - rise);
+    const gap = boneGapAt(back);
+    bone(ctx, x, BOX.y + 4, gap - BONE_GAP / 2);
+    bone(ctx, x, gap + BONE_GAP / 2, BOX.y + BOX.h - 4);
   }
   ctx.restore();
 }
