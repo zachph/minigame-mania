@@ -1,6 +1,7 @@
 import { clamp } from '../../core/utils.js';
 import {
   BALL_RADIUS,
+  BLASTER_SPOTS,
   BOX,
   BUMP_DAMAGE,
   BUMP_SPREAD,
@@ -586,7 +587,8 @@ function tickRuns(fight, dt) {
       fight.blasters.push({
         side: run.side,
         owner: run.owner,
-        aim: blast.aim,
+        from: blast.from,
+        to: blast.to,
         big: Boolean(blast.big),
         damage: blast.damage,
         left: step.lasts,
@@ -598,11 +600,42 @@ function tickRuns(fight, dt) {
   fight.runs = fight.runs.filter((run) => !run.done && run.owner.hp > 0);
 }
 
+/** How far blasters sit in from the walls, and how wide their beams are. */
+export const BLASTER_INSET = 24;
+export const BEAM_WIDTH = 22;
+export const BIG_BEAM = 1.7;
+
+/** Where a spot named in BLASTER_SPOTS is in the box. */
+export function blasterSpot(name) {
+  const [fx, fy] = BLASTER_SPOTS[name] || BLASTER_SPOTS.middle;
+  const x = BOX.x + BLASTER_INSET + fx * (BOX.w - 2 * BLASTER_INSET);
+  const y = BOX.y + BLASTER_INSET + fy * (BOX.h - 2 * BLASTER_INSET);
+  return { x, y };
+}
+
+/** A blast's beam: from its blaster to where it fires, and which way it points. */
+export function beamLine(blaster) {
+  const start = blasterSpot(blaster.from);
+  const end = blasterSpot(blaster.to);
+  return { start, end, angle: Math.atan2(end.y - start.y, end.x - start.x) };
+}
+
+/** Whether a fighter is touching a blast's beam. */
+export function onBeam(blaster, who) {
+  const { start, end } = beamLine(blaster);
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const t = clamp(((who.x - start.x) * dx + (who.y - start.y) * dy) / (dx * dx + dy * dy || 1), 0, 1);
+  const gap = Math.hypot(who.x - (start.x + dx * t), who.y - (start.y + dy * t));
+  const half = (BEAM_WIDTH * (blaster.big ? BIG_BEAM : 1)) / 2;
+  return gap <= BALL_RADIUS + half;
+}
+
 /**
- * Blasts firing. Each keeps its beam on whoever is in front for the other
- * side and does its damage once a tick. Nobody can get out of the way of one,
- * but Sans can dodge any attack, so against him each tick costs a dodge. A
- * blast goes when its time is up, or when Sans does.
+ * Blasts firing. Each beam stays where it was put and does its damage once a
+ * tick to whoever for the other side is in it. Sans can dodge any attack, so
+ * against him each tick that catches him costs a dodge. A blast goes when its
+ * time is up, or when Sans does.
  */
 function tickBlasters(fight, dt) {
   for (const blaster of fight.blasters) {
@@ -611,7 +644,7 @@ function tickBlasters(fight, dt) {
     const foe = frontOf(fight, other(blaster.side));
     while (blaster.next <= 1e-9 && blaster.left > -1e-9) {
       blaster.next += blaster.tick;
-      if (foe && foe.hp > 0) {
+      if (foe && foe.hp > 0 && onBeam(blaster, foe)) {
         hurt(fight, foe, blaster.damage * fight.sides[blaster.side].scale, { from: blaster.owner, kind: 'blaster' });
       }
     }

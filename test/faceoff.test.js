@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seededRandom } from '../src/core/utils.js';
-import { BASE_HP, BOX, CRUISE, FIGHTERS, FIGHT_LIMIT, STORY, TEAM_SIZE, TOWER, getFighter } from '../src/games/faceoff/content.js';
-import { bump, createFight, frontOf, heal, hurt, isBeaten, pressureAt, runFight, stepFight, strike } from '../src/games/faceoff/battle.js';
+import { BALL_RADIUS, BASE_HP, BOX, CRUISE, FIGHTERS, FIGHT_LIMIT, STORY, TEAM_SIZE, TOWER, getFighter } from '../src/games/faceoff/content.js';
+import { beamLine, bump, createFight, frontOf, heal, hurt, isBeaten, pressureAt, runFight, stepFight, strike } from '../src/games/faceoff/battle.js';
 import { drawBall, drawBanner, drawBench, drawBox, drawPopup, drawScreen, drawStatus } from '../src/games/faceoff/art.js';
 import { createFakeContext } from './helpers.js';
 
@@ -559,7 +559,7 @@ test('Sans has Blue Magic, Gaster Blaster and Bone Wave', () => {
   assert.deepEqual(getFighter('sans').abilities.map((a) => a.name), ['Blue Magic', 'Gaster Blaster', 'Bone Wave']);
 });
 
-/** Sans against a Goku who cannot die and is kept away from him. */
+/** Sans against a Goku who cannot die, held wherever the test puts him. */
 function blasterFight() {
   const f = fight(['sans', 'garou'], ['goku']);
   quiet(f);
@@ -567,30 +567,61 @@ function blasterFight() {
   sans.timers.launch = -1000;              // keep Blue Magic out of it
   sans.timers.bones = -1000;               // and the Bone Wave
   sans.timers.blaster = 7.99;
-  const step = () => { goku.hitLock = sans.hitLock = 99; f.sinceBump = 0; goku.x = sans.x + 400; stepFight(f, 1 / 30); };
-  return { f, sans, goku, step };
+  const spot = { x: BOX.x + BOX.w / 2, y: BOX.y + BOX.h / 2 };
+  const step = () => {
+    goku.hitLock = sans.hitLock = 99; f.sinceBump = 0;
+    goku.x = spot.x; goku.y = spot.y;
+    sans.x = BOX.x + 60; sans.y = BOX.y + BOX.h - 60;
+    stepFight(f, 1 / 30);
+  };
+  return { f, sans, goku, step, spot };
 }
 
-test('the run goes diagonal, horizontal, the other diagonal, then two big ones left and right', () => {
+const shapeOf = (blasters) => blasters.map((b) => `${b.from}>${b.to}`).sort().join(' ');
+
+test('the run goes corners at the middle, corners along the walls, corners again, then two big ones', () => {
   const { f, step } = blasterFight();
   const seen = [];
   for (let i = 0; i < 30 * 13; i += 1) {
     step();
-    const now = f.blasters.map((b) => b.aim).sort().join('+');
+    const now = shapeOf(f.blasters);
     if (now && now !== seen.at(-1)) seen.push(now);
   }
-  assert.deepEqual(seen, ['diagonal', 'horizontal', 'other-diagonal', 'left+right']);
+  const corners = 'bottom-left>middle bottom-right>middle top-left>middle top-right>middle';
+  const walls = 'bottom-left>bottom-right bottom-right>top-right top-left>bottom-left top-right>top-left';
+  assert.deepEqual(seen, [corners, walls, corners, 'left>middle right>middle']);
+  assert.ok(f.time > 12);
 });
 
-test('each blast lasts 3 seconds and does 1 every half second, the big ones 1 each', () => {
+test('in the middle, every corner blast and both big ones hit, 1 every half second each', () => {
   const { f, goku, step } = blasterFight();
   step();                                  // the run starts
   const at = (seconds) => { while (f.time < seconds) step(); return goku.taken; };
   const t0 = f.time;
+  const after3 = at(t0 + 3.05);
+  assert.equal(Math.round(after3), 24, 'four corner blasts, 6 ticks each');
+  const after6 = at(t0 + 6.05);
+  assert.equal(Math.round(after6 - after3), 0, 'the wall blasts miss the middle');
   const after9 = at(t0 + 9.05);
-  assert.equal(Math.round(after9), 18, 'three small blasts, 3 seconds each at 1 every half second');
+  assert.equal(Math.round(after9 - after6), 24);
   const after12 = at(t0 + 12.05);
-  assert.equal(Math.round(after12 - after9), 12, 'two big ones at 1 every half second each for 3 seconds');
+  assert.equal(Math.round(after12 - after9), 12, 'two big ones, 6 ticks each');
+});
+
+test('out of every beam, nothing hits', () => {
+  const { f, goku, step, spot } = blasterFight();
+  spot.y = BOX.y + BOX.h / 2 - 75;         // above the middle: off the diagonals, the big beams and the top wall
+  for (let i = 0; i < 30 * 13; i += 1) step();
+  assert.equal(goku.taken, 0);
+  assert.ok(f.time > 12);
+});
+
+test('along a wall, only that wall\'s beam hits', () => {
+  const { goku, step, spot } = blasterFight();
+  spot.x = BOX.x + BOX.w / 2;
+  spot.y = BOX.y + BOX.h - BALL_RADIUS;    // against the bottom wall, under the middle
+  for (let i = 0; i < 30 * 6.05; i += 1) step();
+  assert.equal(Math.round(goku.taken), 6, 'one beam, 6 ticks');
 });
 
 test('Sans can dodge the blasts too, a tick at a time', () => {
@@ -602,7 +633,14 @@ test('Sans can dodge the blasts too, a tick at a time', () => {
   theirs.timers.blaster = -1000;
   theirs.timers.bones = -1000;
   mine.timers.blaster = 7.99;
-  for (let i = 0; i < 30 * 3.2 && !f.over; i += 1) { mine.hitLock = theirs.hitLock = 99; f.sinceBump = 0; theirs.x = mine.x + 400; stepFight(f, 1 / 30); }
+  // Halfway down the top-left corner's beam, clear of the others.
+  const { start, end } = beamLine({ from: 'top-left', to: 'middle' });
+  for (let i = 0; i < 30 * 3.2 && !f.over; i += 1) {
+    mine.hitLock = theirs.hitLock = 99; f.sinceBump = 0;
+    theirs.x = (start.x + end.x) / 2; theirs.y = (start.y + end.y) / 2;
+    mine.x = BOX.x + BOX.w - 80; mine.y = BOX.y + BOX.h / 2 + 60;
+    stepFight(f, 1 / 30);
+  }
   assert.equal(theirs.hp, 1, 'he is still standing');
   assert.equal(theirs.dodgesLeft, 18, 'six ticks, six dodges');
 });
@@ -636,20 +674,17 @@ test('the run and its blasts go when Sans does', () => {
 });
 
 test('every beam runs inside the box, and the blasters draw', async () => {
-  const { beamLine, drawBlaster } = await import('../src/games/faceoff/art.js');
+  const { drawBlaster } = await import('../src/games/faceoff/art.js');
   const ctx = createFakeContext();
-  const target = { x: 500, y: 250 };
-  for (const aim of ['diagonal', 'horizontal', 'other-diagonal', 'left', 'right']) {
-    const big = aim === 'left' || aim === 'right';
-    const { start, end } = beamLine({ aim, big }, target);
-    for (const p of [start, end]) {
-      assert.ok(p.x >= BOX.x - 1 && p.x <= BOX.x + BOX.w + 1 && p.y >= BOX.y - 1 && p.y <= BOX.y + BOX.h + 1, `${aim} leaves the box`);
+  for (const step of getFighter('sans').abilities.find((a) => a.kind === 'blaster').steps) {
+    for (const blast of step.blasts) {
+      const { start, end } = beamLine(blast);
+      for (const p of [start, end]) {
+        assert.ok(p.x > BOX.x && p.x < BOX.x + BOX.w && p.y > BOX.y && p.y < BOX.y + BOX.h, `${blast.from} leaves the box`);
+      }
+      drawBlaster(ctx, blast, 1.3);
     }
-    drawBlaster(ctx, { aim, big }, target, 1.3);
   }
-  const left = beamLine({ aim: 'left', big: true }, target);
-  const right = beamLine({ aim: 'right', big: true }, target);
-  assert.ok(left.start.x < target.x && right.start.x > target.x, 'the big ones come from either side');
   assert.ok(ctx.calls > 20);
 });
 
