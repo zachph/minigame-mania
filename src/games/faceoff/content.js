@@ -114,11 +114,11 @@ export const FIGHTERS = [
   // the Undying, with 355 health instead of 250.
   fighter({
     id: 'undyne', name: 'Undyne', colour: '#6ab4ff', shade: '#1f3f7a',
-    // Spears: every 10 seconds, 10 spears thrown one after another, 5 each.
+    // Spears: every 10 seconds, 8 spears thrown one after another, 5 each.
     abilities: [
       { kind: 'undying', name: 'Undyne the Undying', chance: 0.2, hp: 355 },
       {
-        kind: 'volley', name: 'Spears', every: 10, count: 10, gap: 0.3,
+        kind: 'volley', name: 'Spears', every: 10, count: 8, gap: 0.3,
         shot: { damage: 5, speed: 560, length: 46, size: 6, style: 'spear', colour: '#6ab4ff' },
       },
     ],
