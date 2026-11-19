@@ -15363,6 +15363,12 @@ const FIGHTERS = [
     abilities: [
       { kind: 'infinity', name: 'Infinity', range: 170, slow: 0.5 },
       { kind: 'shot', name: 'Reversal Red', every: 12, damage: 25, speed: 620, length: 90, colour: '#ff2a2a' },
+      // When Sukuna lands the hit that would knock him out, he takes off his
+      // blindfold instead, once. 75%: Domain Expansion - everything freezes and
+      // the player is asked how many possible games of chess there are. Right,
+      // and Sukuna is beaten on the spot; wrong, and Gojo heals to full. The
+      // other 25%: "Nice match", and he stays in on 1.
+      { kind: 'domain', name: 'Domain Expansion: Infinite Void', against: 'sukuna', chance: 0.75 },
     ],
   }),
   // Heals a quarter of his health every 15 seconds he spends in the box.
@@ -15577,7 +15583,24 @@ const PRESSURE_FROM = 25;
 const PRESSURE_RATE = 0.06;
 const FIGHT_LIMIT = 90;
 
-  return { BOX, BALL_RADIUS, CRUISE, HOMING, STALL_AFTER, HIT_LOCK, BUMP_DAMAGE, BUMP_SPREAD, LAUNCH_SPEED, TELEPORT_CLEAR, BASE_HP, BLASTER_SPOTS, SANS_TICK, BLAST_WIDTH, BIG_BLAST_WIDTH, FIGHTERS, HELPERS, FIGHTER_BY_ID, getFighter, TEAM_SIZE, MODES, MODE_BY_ID, TOWER, TOWER_RECOVERY, STORY, STORY_RECOVERY, PRESSURE_FROM, PRESSURE_RATE, FIGHT_LIMIT };
+/** The question Gojo's Domain Expansion asks. */
+const CHESS_QUESTION = 'How many possible games of chess are there?';
+const CHESS_ANSWER = 'About 10^120 - the Shannon number';
+
+/**
+ * Whether a typed answer is the Shannon number, about 10^120, however it is
+ * written: 10^120, 10**120, 10 to the 120, 10 to the power of 120, 1e120, a 1
+ * with 120 zeros, or just "the Shannon number".
+ */
+function isChessAnswer(text) {
+  const t = String(text || '').toLowerCase().replace(/[\s,_]/g, '');
+  if (t.includes('shannon')) return true;
+  if (/^(about|around|roughly|~)?10(\^|\*\*|x|to(the)?(powerof)?|e)\+?120(th)?$/.test(t)) return true;
+  if (/^(about|around|roughly|~)?1e\+?120$/.test(t)) return true;
+  return /^10{120}$/.test(t);
+}
+
+  return { BOX, BALL_RADIUS, CRUISE, HOMING, STALL_AFTER, HIT_LOCK, BUMP_DAMAGE, BUMP_SPREAD, LAUNCH_SPEED, TELEPORT_CLEAR, BASE_HP, BLASTER_SPOTS, SANS_TICK, BLAST_WIDTH, BIG_BLAST_WIDTH, FIGHTERS, HELPERS, FIGHTER_BY_ID, getFighter, TEAM_SIZE, MODES, MODE_BY_ID, TOWER, TOWER_RECOVERY, STORY, STORY_RECOVERY, PRESSURE_FROM, PRESSURE_RATE, FIGHT_LIMIT, CHESS_QUESTION, CHESS_ANSWER, isChessAnswer };
 })();
 
 // ---- src/games/faceoff/battle.js ---------------------------------
@@ -15666,10 +15689,14 @@ function place(fight, who) {
   who.entered = true;
 }
 
-function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random, limit = FIGHT_LIMIT } = {}) {
+function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random, limit = FIGHT_LIMIT, asks = false } = {}) {
   const fight = {
     random,
     limit,
+    // Whether a player is there to answer Gojo's question. With nobody to
+    // ask - simulations, tests - the answer counts as wrong.
+    asks,
+    pending: null,     // Gojo's Domain Expansion, waiting on the player's answer
     time: 0,
     sides: {
       a: { team: makeTeam(a, 'a'), front: 0, scale: scaleA },
@@ -15761,6 +15788,41 @@ function goUltra(fight, who, ability) {
   say(fight, `${who.name} survives on 1 - Ultra Instinct`, { side: who.side });
 }
 
+/**
+ * Sukuna would have knocked Gojo out: off comes the blindfold. Most of the
+ * time it is his Domain Expansion - the fight freezes until the player
+ * answers. Otherwise he calls it a nice match and stays in on 1.
+ */
+function takeOffBlindfold(fight, gojo, foe, domain) {
+  gojo.blindfoldOff = true;
+  gojo.hp = 1;
+  fight.events.push({ kind: 'blindfold', uid: gojo.uid });
+  if (fight.random() < domain.chance) {
+    fight.pending = { kind: 'domain', gojo, foe };
+    fight.events.push({ kind: 'domain', uid: gojo.uid });
+    announce(fight, gojo, domain.name);
+    if (!fight.asks) resolveDomain(fight, false);
+  } else {
+    fight.events.push({ kind: 'heal', uid: gojo.uid, amount: 1 });
+    say(fight, `${gojo.name}: "Nice match."`, { side: gojo.side });
+  }
+}
+
+/** The player's answer is in: right beats Sukuna outright, wrong heals Gojo to full. */
+function resolveDomain(fight, correct) {
+  const pending = fight.pending;
+  if (!pending) return;
+  fight.pending = null;
+  const { gojo, foe } = pending;
+  fight.events.push({ kind: 'domain-over', uid: gojo.uid, correct });
+  if (correct && foe.hp > 0) {
+    foe.dodgesLeft = 0;
+    hurt(fight, foe, foe.hp + 100000, { from: null, kind: 'domain' });
+  } else if (!correct) {
+    heal(fight, gojo, gojo.maxHp);
+  }
+}
+
 function hurt(fight, target, amount, { from = null, kind = 'bump' } = {}) {
   if (target.hp <= 0 || amount <= 0) return 0;
   amount *= powerOf(from);
@@ -15779,6 +15841,11 @@ function hurt(fight, target, amount, { from = null, kind = 'bump' } = {}) {
   if (from) from.dealt += dealt;
   fight.events.push({ kind: 'damage', uid: target.uid, amount: dealt, source: kind });
 
+  const domain = abilityOf(target, 'domain');
+  if (target.hp <= 0 && domain && !target.blindfoldOff && from?.id === domain.against) {
+    takeOffBlindfold(fight, target, from, domain);
+    return dealt;
+  }
   const forms = abilityOf(target, 'forms');
   if (target.hp <= 0 && forms && target.formLevel < forms.forms.length) {
     goUltra(fight, target, forms);
@@ -16561,9 +16628,11 @@ function tickHelpers(fight, dt) {
 
 function stepFight(fight, dt) {
   if (fight.over) return fight;
+  // Frozen in the Domain until the player answers.
+  if (fight.pending) { fight.events.length = 0; return fight; }
   fight.events.length = 0;
   let left = dt;
-  while (left > 1e-9 && !fight.over) {
+  while (left > 1e-9 && !fight.over && !fight.pending) {
     const slice = Math.min(left, MAX_SUB_STEP);
     left -= slice;
     fight.time += slice;
@@ -16667,11 +16736,15 @@ function checkOver(fight) {
 
 function runFight(fight, step = 1 / 30) {
   let guard = 0;
-  while (!fight.over && guard < 100000) { stepFight(fight, step); guard += 1; }
+  while (!fight.over && guard < 100000) {
+    if (fight.pending) resolveDomain(fight, false);
+    stepFight(fight, step);
+    guard += 1;
+  }
   return fight.over || checkOver(fight);
 }
 
-  return { abilitiesOf, abilityOf, isClock, inFinale, makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, powerOf, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, SPIKE_TIME, BLASTER_INSET, beamWidth, blasterSpot, beamLine, onBeam, BONE_SPACING, BONE_GAP, BONE_TRAIN, BONE_WEAVES, boneHead, boneAt, boneGapAt, inBones, zoneSize, inZone, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
+  return { abilitiesOf, abilityOf, isClock, inFinale, makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, powerOf, resolveDomain, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, SPIKE_TIME, BLASTER_INSET, beamWidth, blasterSpot, beamLine, onBeam, BONE_SPACING, BONE_GAP, BONE_TRAIN, BONE_WEAVES, boneHead, boneAt, boneGapAt, inBones, zoneSize, inZone, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
 })();
 
 // ---- src/games/faceoff/heads.js ----------------------------------
@@ -16950,6 +17023,26 @@ const HEADS = {
     circle(ctx, 0.74, 0.35, 0.1, '#e8b830');
     mouth(ctx, 0.52, 0.15);
   },
+};
+
+HEADS['gojo-eyes'] = (ctx) => {
+  // The blindfold is off: bright blue eyes under the white hair.
+  circle(ctx, 0, 0.12, 0.72, SKIN);
+  for (const side of [-1, 1]) {
+    circle(ctx, side * 0.27, 0.27, 0.15, '#fff');
+    circle(ctx, side * 0.27, 0.27, 0.11, '#3ab0ff');
+    circle(ctx, side * 0.27, 0.27, 0.05, '#e8f8ff');
+  }
+  hair(ctx, {
+    fill: '#f4f6ff',
+    outline: '#9aa3b8',
+    outer: 1.02,
+    inner: 0.8,
+    count: 13,
+    fringe: [[0.66, -0.02], [0.48, 0.1], [0.32, -0.06], [0.14, 0.09], [-0.04, -0.06],
+      [-0.22, 0.09], [-0.4, -0.06], [-0.56, 0.08], [-0.7, -0.04]],
+  });
+  mouth(ctx, 0.64, 0.16);
 };
 
 HEADS.vegeta = (ctx) => {
@@ -17253,7 +17346,7 @@ function drawBall(ctx, who, { flash = 0, trail = [] } = {}) {
   ctx.beginPath();
   ctx.arc(who.x, who.y, who.radius, 0, TAU);
   ctx.fill();
-  const head = who.undying ? 'undying' : who.kind === 'whis' ? 'whis' : who.form ? `${who.id}-${who.form.id}` : who.id;
+  const head = who.undying ? 'undying' : who.kind === 'whis' ? 'whis' : who.form ? `${who.id}-${who.form.id}` : who.blindfoldOff ? `${who.id}-eyes` : who.id;
   drawHead(ctx, head, who.x, who.y, who.radius * 0.95);
   // A dash leaves streaks of water behind it.
   if (who.dash) {
@@ -17635,6 +17728,52 @@ function sideBone(ctx, x1, y, x2) {
   ctx.restore();
 }
 
+/**
+ * Infinite Void: the box becomes endless space - stars, a bright ring in the
+ * middle - while the fight is frozen. After the answer, how it went.
+ */
+function drawVoid(ctx, time, text = '') {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);
+  ctx.clip();
+  const cx = BOX.x + BOX.w / 2;
+  const cy = BOX.y + BOX.h / 2;
+  const space = ctx.createRadialGradient(cx, cy, 10, cx, cy, BOX.w * 0.6);
+  space.addColorStop(0, '#2a3a8a');
+  space.addColorStop(0.35, '#120a3a');
+  space.addColorStop(1, '#020208');
+  ctx.fillStyle = space;
+  ctx.fillRect(BOX.x, BOX.y, BOX.w, BOX.h);
+  // Stars streaming out from the middle.
+  for (let i = 0; i < 140; i += 1) {
+    const angle = i * 2.399;
+    const reach = ((i * 37 + time * 60) % 520) / 520;
+    const x = cx + Math.cos(angle) * reach * BOX.w * 0.6;
+    const y = cy + Math.sin(angle) * reach * BOX.w * 0.6;
+    ctx.globalAlpha = 0.3 + reach * 0.7;
+    ctx.fillStyle = i % 5 === 0 ? '#9fd8ff' : '#fff';
+    ctx.fillRect(x, y, 1 + reach * 2, 1 + reach * 2);
+  }
+  ctx.globalAlpha = 0.8;
+  ctx.strokeStyle = '#cfe8ff';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 46 + Math.sin(time * 3) * 4, 0, TAU);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#9fd8ff';
+  ctx.font = `bold 16px ${FONT}`;
+  ctx.fillText('DOMAIN EXPANSION: INFINITE VOID', cx, BOX.y + 26);
+  if (text) {
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold 15px ${FONT}`;
+    ctx.fillText(text, cx, BOX.y + BOX.h - 22);
+  }
+  ctx.restore();
+}
+
 /** A fireball: a hot core in a glow, with flame trailing behind it. */
 function drawFireball(ctx, shot) {
   const r = shot.size || 13;
@@ -17790,16 +17929,16 @@ function drawZone(ctx, zone, time = 0) {
   ctx.restore();
 }
 
-  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, drawBlaster, drawBones, drawSpikes, drawFireball, drawSpear, drawBeam, drawTable, drawWindup, drawZone, beamLine };
+  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, drawBlaster, drawBones, drawSpikes, drawVoid, drawFireball, drawSpear, drawBeam, drawTable, drawWindup, drawZone, beamLine };
 })();
 
 // ---- src/games/faceoff/game.js -----------------------------------
 __modules["src/games/faceoff/game.js"] = (function () {
   const { clamp, seededRandom } = __modules["src/core/utils.js"];
-  const { BOX, FIGHTERS, MODE_BY_ID, STORY, STORY_RECOVERY, TOWER, TOWER_RECOVERY } = __modules["src/games/faceoff/content.js"];
-  const { createFight, frontOf, healthShare, inInfinity, pressureAt, stepFight } = __modules["src/games/faceoff/battle.js"];
+  const { BOX, CHESS_ANSWER, CHESS_QUESTION, FIGHTERS, MODE_BY_ID, STORY, STORY_RECOVERY, TOWER, TOWER_RECOVERY, isChessAnswer } = __modules["src/games/faceoff/content.js"];
+  const { createFight, frontOf, healthShare, inInfinity, pressureAt, resolveDomain, stepFight } = __modules["src/games/faceoff/battle.js"];
   const { SelectPanel } = __modules["src/games/faceoff/select.js"];
-  const { drawBall, drawBeam, drawBanner, drawBench, drawBlaster, drawBones, drawSpikes, drawBox, drawInfinity, drawShot, drawSlash, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawWindup, drawZone, drawText } = __modules["src/games/faceoff/art.js"];
+  const { drawBall, drawBeam, drawBanner, drawBench, drawBlaster, drawBones, drawSpikes, drawBox, drawVoid, drawInfinity, drawShot, drawSlash, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawWindup, drawZone, drawText } = __modules["src/games/faceoff/art.js"];
 
 const GAME_ID = 'faceoff';
 
@@ -17866,7 +18005,11 @@ class FaceoffGame {
       b: this.foe.team,
       scaleB: this.foe.scale,
       random: seededRandom(Math.floor(Math.random() * 1e9)),
+      asks: true,         // Gojo's Domain Expansion asks the player
     });
+    this.closeQuestion();
+    this.voidLeft = 0;
+    this.voidText = '';
     // Tower and story carry wounds from one fight to the next.
     if (this.carry) {
       const lane = this.fight.sides.a;
@@ -17888,6 +18031,13 @@ class FaceoffGame {
     this.clock += dt;
     this.decay(dt);
     if (this.stage === 'select') return;
+    this.voidLeft = Math.max(0, (this.voidLeft || 0) - dt);
+    // Inside Gojo's Domain everything waits on the player's answer.
+    if (this.fight?.pending) {
+      this.ask();
+      return;
+    }
+    if (this.voidLeft > 0) return;   // a moment to read how it went
     if (input?.justPressed || input?.wasKeyPressed('Space')) {
       this.speed = SPEEDS[(SPEEDS.indexOf(this.speed) + 1) % SPEEDS.length];
     }
@@ -18045,6 +18195,7 @@ class FaceoffGame {
     for (const blaster of this.fight.blasters) {
       drawBlaster(ctx, blaster, this.clock);
     }
+    if (this.fight.pending || this.voidLeft > 0) drawVoid(ctx, this.clock, this.fight.pending ? '' : this.voidText);
     for (const helper of this.fight.helpers) drawBall(ctx, helper, { flash: this.flash[helper.uid] || 0 });
     for (const [who, foe] of [[a, b], [b, a]]) {
       if (!who) continue;
@@ -18070,7 +18221,66 @@ class FaceoffGame {
     }
   }
 
+  /** Gojo's question, over the frozen fight: type an answer, press Enter. */
+  ask() {
+    if (this.question) return;
+    const { gojo, foe } = this.fight.pending;
+    const root = document.createElement('div');
+    root.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,90%);'
+      + 'background:#05050f;border:3px solid #fff;padding:18px 20px;color:#fff;font:16px "Courier New",monospace;'
+      + 'text-align:center;z-index:5;box-shadow:0 0 40px rgba(120,160,255,.5)';
+    const title = document.createElement('div');
+    title.textContent = 'DOMAIN EXPANSION: INFINITE VOID';
+    title.style.cssText = 'color:#9fd8ff;font-weight:bold;margin-bottom:10px;letter-spacing:1px';
+    const lead = document.createElement('div');
+    lead.textContent = `${foe.name} is frozen. Get it right and ${foe.name} is beaten. Get it wrong and ${gojo.name} heals to full.`;
+    lead.style.cssText = 'font-size:13px;color:#bbc;margin-bottom:12px';
+    const q = document.createElement('div');
+    q.textContent = CHESS_QUESTION;
+    q.style.cssText = 'font-weight:bold;margin-bottom:12px';
+    const form = document.createElement('form');
+    const field = document.createElement('input');
+    field.type = 'text';
+    field.placeholder = 'Your answer';
+    field.autocomplete = 'off';
+    field.style.cssText = 'width:100%;box-sizing:border-box;padding:8px;font:16px "Courier New",monospace;background:#000;color:#fff;border:2px solid #9fd8ff;margin-bottom:10px';
+    const go = document.createElement('button');
+    go.type = 'submit';
+    go.textContent = 'Answer';
+    go.className = 'btn btn--primary';
+    form.append(field, go);
+    // Keys typed here are for the answer, not the game.
+    for (const kind of ['keydown', 'keyup']) form.addEventListener(kind, (event) => event.stopPropagation());
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      this.answer(field.value);
+    });
+    root.append(title, lead, q, form);
+    this.context.ui.append(root);
+    this.question = root;
+    setTimeout(() => field.focus(), 0);
+  }
+
+  answer(text) {
+    if (!this.fight?.pending) return;
+    const { gojo, foe } = this.fight.pending;
+    const correct = isChessAnswer(text);
+    resolveDomain(this.fight, correct);
+    this.absorb();
+    this.closeQuestion();
+    this.voidLeft = 2.6;
+    this.voidText = correct
+      ? `Correct! ${foe.name} is beaten.`
+      : `Wrong - it's ${CHESS_ANSWER.toLowerCase()}. ${gojo.name} heals to full.`;
+  }
+
+  closeQuestion() {
+    this.question?.remove();
+    this.question = null;
+  }
+
   destroy() {
+    this.closeQuestion();
     this.panel?.destroy();
     this.panel = null;
   }

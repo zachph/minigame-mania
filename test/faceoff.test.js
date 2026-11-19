@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seededRandom } from '../src/core/utils.js';
-import { BALL_RADIUS, BASE_HP, BOX, CRUISE, FIGHTERS, FIGHT_LIMIT, STORY, TEAM_SIZE, TOWER, getFighter } from '../src/games/faceoff/content.js';
-import { BONE_GAP, beamLine, boneAt, boneGapAt, bump, inBones, onBeam, createFight, frontOf, heal, hurt, isBeaten, pressureAt, runFight, stepFight, strike } from '../src/games/faceoff/battle.js';
+import { BALL_RADIUS, BASE_HP, BOX, isChessAnswer, CRUISE, FIGHTERS, FIGHT_LIMIT, STORY, TEAM_SIZE, TOWER, getFighter } from '../src/games/faceoff/content.js';
+import { BONE_GAP, beamLine, resolveDomain, boneAt, boneGapAt, bump, inBones, onBeam, createFight, frontOf, heal, hurt, isBeaten, pressureAt, runFight, stepFight, strike } from '../src/games/faceoff/battle.js';
 import { drawBall, drawBanner, drawBench, drawBox, drawPopup, drawScreen, drawStatus } from '../src/games/faceoff/art.js';
 import { createFakeContext } from './helpers.js';
 
@@ -459,8 +459,91 @@ test('full fights with every ability still finish, without draws piling up', () 
 
 /* ------------------------------------------------------- Reversal Red */
 
-test('Gojo has both of his abilities', () => {
-  assert.deepEqual(getFighter('gojo').abilities.map((a) => a.name), ['Infinity', 'Reversal Red']);
+test('Gojo has his abilities', () => {
+  assert.deepEqual(getFighter('gojo').abilities.map((a) => a.name), ['Infinity', 'Reversal Red', 'Domain Expansion: Infinite Void']);
+});
+
+/* ------------------------------------------------------- Infinite Void */
+
+/** Gojo against Sukuna, with the roll fixed: below 0.75 is the Domain. */
+const domainFight = (roll, asks = true) => {
+  const f = createFight({ a: ['gojo'], b: ['sukuna'], random: () => roll, asks });
+  return { f, gojo: f.sides.a.team[0], sukuna: f.sides.b.team[0] };
+};
+
+test('Sukuna knocking Gojo out takes off the blindfold: 75% of the time, Domain Expansion freezes the fight', () => {
+  const { f, gojo, sukuna } = domainFight(0.5);
+  hurt(f, gojo, 1000, { from: sukuna });
+  assert.equal(gojo.hp, 1, 'still standing');
+  assert.ok(gojo.blindfoldOff);
+  assert.equal(f.pending?.kind, 'domain');
+  const [gx, sx, t] = [gojo.x, sukuna.x, f.time];
+  for (let i = 0; i < 60; i += 1) stepFight(f, 1 / 30);
+  assert.deepEqual([gojo.x, sukuna.x, f.time], [gx, sx, t], 'frozen until the answer');
+});
+
+test('right answer: Sukuna is beaten on the spot', () => {
+  const { f, gojo, sukuna } = domainFight(0.5);
+  hurt(f, gojo, 1000, { from: sukuna });
+  resolveDomain(f, true);
+  assert.equal(sukuna.hp, 0);
+  assert.equal(f.pending, null);
+  stepFight(f, 1 / 30);
+  assert.equal(f.over?.winner, 'a');
+});
+
+test('wrong answer: Gojo heals back to full', () => {
+  const { f, gojo, sukuna } = domainFight(0.5);
+  hurt(f, gojo, 1000, { from: sukuna });
+  resolveDomain(f, false);
+  assert.equal(gojo.hp, gojo.maxHp);
+  assert.ok(sukuna.hp > 0);
+});
+
+test('the other 25%: "nice match", and he stays in on 1', () => {
+  const { f, gojo, sukuna } = domainFight(0.9);
+  hurt(f, gojo, 1000, { from: sukuna });
+  assert.equal(gojo.hp, 1);
+  assert.equal(f.pending, null);
+  assert.ok(f.log.some((line) => (line.text || line).includes('Nice match')));
+});
+
+test('only Sukuna, and only once', () => {
+  const other = createFight({ a: ['gojo'], b: ['garou'], random: () => 0.5, asks: true });
+  hurt(other, other.sides.a.team[0], 1000, { from: other.sides.b.team[0] });
+  assert.equal(other.sides.a.team[0].hp, 0, 'Garou just knocks him out');
+
+  const { f, gojo, sukuna } = domainFight(0.5);
+  hurt(f, gojo, 1000, { from: sukuna });
+  resolveDomain(f, false);
+  hurt(f, gojo, 1000, { from: sukuna });
+  assert.equal(gojo.hp, 0, 'the second time is the last');
+});
+
+test('with nobody to ask, the answer counts as wrong and the fight goes on', () => {
+  const { f, gojo, sukuna } = domainFight(0.5, false);
+  hurt(f, gojo, 1000, { from: sukuna });
+  assert.equal(f.pending, null);
+  assert.equal(gojo.hp, gojo.maxHp);
+});
+
+test('the chess answer: about 10^120, however it is written', () => {
+  for (const yes of ['10^120', '10 ^ 120', '10**120', '1e120', '1E+120', '10 to the 120', '10 to the power of 120', 'about 10^120', 'the Shannon number', `1${'0'.repeat(120)}`]) {
+    assert.ok(isChessAnswer(yes), yes);
+  }
+  for (const no of ['', '120', '10^80', '10^12', 'infinite', '1000000', '10^1200', `1${'0'.repeat(119)}`]) {
+    assert.equal(isChessAnswer(no), false, no);
+  }
+});
+
+test('the Void and Gojo without his blindfold draw', async () => {
+  const { drawVoid } = await import('../src/games/faceoff/art.js');
+  const ctx = createFakeContext();
+  drawVoid(ctx, 1.2, 'Correct!');
+  const { gojo } = domainFight(0.5);
+  gojo.blindfoldOff = true;
+  drawBall(ctx, gojo);
+  assert.ok(ctx.calls > 100);
 });
 
 test('a fighter written with a single ability still has it listed', () => {

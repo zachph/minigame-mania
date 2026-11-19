@@ -274,6 +274,26 @@ export const HEADS = {
   },
 };
 
+HEADS['gojo-eyes'] = (ctx) => {
+  // The blindfold is off: bright blue eyes under the white hair.
+  circle(ctx, 0, 0.12, 0.72, SKIN);
+  for (const side of [-1, 1]) {
+    circle(ctx, side * 0.27, 0.27, 0.15, '#fff');
+    circle(ctx, side * 0.27, 0.27, 0.11, '#3ab0ff');
+    circle(ctx, side * 0.27, 0.27, 0.05, '#e8f8ff');
+  }
+  hair(ctx, {
+    fill: '#f4f6ff',
+    outline: '#9aa3b8',
+    outer: 1.02,
+    inner: 0.8,
+    count: 13,
+    fringe: [[0.66, -0.02], [0.48, 0.1], [0.32, -0.06], [0.14, 0.09], [-0.04, -0.06],
+      [-0.22, 0.09], [-0.4, -0.06], [-0.56, 0.08], [-0.7, -0.04]],
+  });
+  mouth(ctx, 0.64, 0.16);
+};
+
 HEADS.vegeta = (ctx) => {
   // Hair standing straight up in a tall flame, with a sharp widow's peak.
   poly(ctx, [[-0.7, 0.1], [-0.85, -0.5], [-0.6, -0.4], [-0.6, -1.0], [-0.3, -0.6], [-0.15, -1.15], [0.05, -0.65], [0.25, -1.12], [0.35, -0.6], [0.62, -1.0], [0.6, -0.4], [0.85, -0.5], [0.7, 0.1]], INK);

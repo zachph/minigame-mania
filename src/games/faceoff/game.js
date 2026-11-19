@@ -1,14 +1,17 @@
 import { clamp, seededRandom } from '../../core/utils.js';
 import {
   BOX,
+  CHESS_ANSWER,
+  CHESS_QUESTION,
   FIGHTERS,
   MODE_BY_ID,
   STORY,
   STORY_RECOVERY,
   TOWER,
   TOWER_RECOVERY,
+  isChessAnswer,
 } from './content.js';
-import { createFight, frontOf, healthShare, inInfinity, pressureAt, stepFight } from './battle.js';
+import { createFight, frontOf, healthShare, inInfinity, pressureAt, resolveDomain, stepFight } from './battle.js';
 import { SelectPanel } from './select.js';
 import {
   drawBall,
@@ -19,6 +22,7 @@ import {
   drawBones,
   drawSpikes,
   drawBox,
+  drawVoid,
   drawInfinity,
   drawShot,
   drawSlash,
@@ -97,7 +101,11 @@ class FaceoffGame {
       b: this.foe.team,
       scaleB: this.foe.scale,
       random: seededRandom(Math.floor(Math.random() * 1e9)),
+      asks: true,         // Gojo's Domain Expansion asks the player
     });
+    this.closeQuestion();
+    this.voidLeft = 0;
+    this.voidText = '';
     // Tower and story carry wounds from one fight to the next.
     if (this.carry) {
       const lane = this.fight.sides.a;
@@ -119,6 +127,13 @@ class FaceoffGame {
     this.clock += dt;
     this.decay(dt);
     if (this.stage === 'select') return;
+    this.voidLeft = Math.max(0, (this.voidLeft || 0) - dt);
+    // Inside Gojo's Domain everything waits on the player's answer.
+    if (this.fight?.pending) {
+      this.ask();
+      return;
+    }
+    if (this.voidLeft > 0) return;   // a moment to read how it went
     if (input?.justPressed || input?.wasKeyPressed('Space')) {
       this.speed = SPEEDS[(SPEEDS.indexOf(this.speed) + 1) % SPEEDS.length];
     }
@@ -276,6 +291,7 @@ class FaceoffGame {
     for (const blaster of this.fight.blasters) {
       drawBlaster(ctx, blaster, this.clock);
     }
+    if (this.fight.pending || this.voidLeft > 0) drawVoid(ctx, this.clock, this.fight.pending ? '' : this.voidText);
     for (const helper of this.fight.helpers) drawBall(ctx, helper, { flash: this.flash[helper.uid] || 0 });
     for (const [who, foe] of [[a, b], [b, a]]) {
       if (!who) continue;
@@ -301,7 +317,66 @@ class FaceoffGame {
     }
   }
 
+  /** Gojo's question, over the frozen fight: type an answer, press Enter. */
+  ask() {
+    if (this.question) return;
+    const { gojo, foe } = this.fight.pending;
+    const root = document.createElement('div');
+    root.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,90%);'
+      + 'background:#05050f;border:3px solid #fff;padding:18px 20px;color:#fff;font:16px "Courier New",monospace;'
+      + 'text-align:center;z-index:5;box-shadow:0 0 40px rgba(120,160,255,.5)';
+    const title = document.createElement('div');
+    title.textContent = 'DOMAIN EXPANSION: INFINITE VOID';
+    title.style.cssText = 'color:#9fd8ff;font-weight:bold;margin-bottom:10px;letter-spacing:1px';
+    const lead = document.createElement('div');
+    lead.textContent = `${foe.name} is frozen. Get it right and ${foe.name} is beaten. Get it wrong and ${gojo.name} heals to full.`;
+    lead.style.cssText = 'font-size:13px;color:#bbc;margin-bottom:12px';
+    const q = document.createElement('div');
+    q.textContent = CHESS_QUESTION;
+    q.style.cssText = 'font-weight:bold;margin-bottom:12px';
+    const form = document.createElement('form');
+    const field = document.createElement('input');
+    field.type = 'text';
+    field.placeholder = 'Your answer';
+    field.autocomplete = 'off';
+    field.style.cssText = 'width:100%;box-sizing:border-box;padding:8px;font:16px "Courier New",monospace;background:#000;color:#fff;border:2px solid #9fd8ff;margin-bottom:10px';
+    const go = document.createElement('button');
+    go.type = 'submit';
+    go.textContent = 'Answer';
+    go.className = 'btn btn--primary';
+    form.append(field, go);
+    // Keys typed here are for the answer, not the game.
+    for (const kind of ['keydown', 'keyup']) form.addEventListener(kind, (event) => event.stopPropagation());
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      this.answer(field.value);
+    });
+    root.append(title, lead, q, form);
+    this.context.ui.append(root);
+    this.question = root;
+    setTimeout(() => field.focus(), 0);
+  }
+
+  answer(text) {
+    if (!this.fight?.pending) return;
+    const { gojo, foe } = this.fight.pending;
+    const correct = isChessAnswer(text);
+    resolveDomain(this.fight, correct);
+    this.absorb();
+    this.closeQuestion();
+    this.voidLeft = 2.6;
+    this.voidText = correct
+      ? `Correct! ${foe.name} is beaten.`
+      : `Wrong - it's ${CHESS_ANSWER.toLowerCase()}. ${gojo.name} heals to full.`;
+  }
+
+  closeQuestion() {
+    this.question?.remove();
+    this.question = null;
+  }
+
   destroy() {
+    this.closeQuestion();
     this.panel?.destroy();
     this.panel = null;
   }

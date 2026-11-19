@@ -100,10 +100,14 @@ export function place(fight, who) {
   who.entered = true;
 }
 
-export function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random, limit = FIGHT_LIMIT } = {}) {
+export function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random, limit = FIGHT_LIMIT, asks = false } = {}) {
   const fight = {
     random,
     limit,
+    // Whether a player is there to answer Gojo's question. With nobody to
+    // ask - simulations, tests - the answer counts as wrong.
+    asks,
+    pending: null,     // Gojo's Domain Expansion, waiting on the player's answer
     time: 0,
     sides: {
       a: { team: makeTeam(a, 'a'), front: 0, scale: scaleA },
@@ -195,6 +199,41 @@ function goUltra(fight, who, ability) {
   say(fight, `${who.name} survives on 1 - Ultra Instinct`, { side: who.side });
 }
 
+/**
+ * Sukuna would have knocked Gojo out: off comes the blindfold. Most of the
+ * time it is his Domain Expansion - the fight freezes until the player
+ * answers. Otherwise he calls it a nice match and stays in on 1.
+ */
+function takeOffBlindfold(fight, gojo, foe, domain) {
+  gojo.blindfoldOff = true;
+  gojo.hp = 1;
+  fight.events.push({ kind: 'blindfold', uid: gojo.uid });
+  if (fight.random() < domain.chance) {
+    fight.pending = { kind: 'domain', gojo, foe };
+    fight.events.push({ kind: 'domain', uid: gojo.uid });
+    announce(fight, gojo, domain.name);
+    if (!fight.asks) resolveDomain(fight, false);
+  } else {
+    fight.events.push({ kind: 'heal', uid: gojo.uid, amount: 1 });
+    say(fight, `${gojo.name}: "Nice match."`, { side: gojo.side });
+  }
+}
+
+/** The player's answer is in: right beats Sukuna outright, wrong heals Gojo to full. */
+export function resolveDomain(fight, correct) {
+  const pending = fight.pending;
+  if (!pending) return;
+  fight.pending = null;
+  const { gojo, foe } = pending;
+  fight.events.push({ kind: 'domain-over', uid: gojo.uid, correct });
+  if (correct && foe.hp > 0) {
+    foe.dodgesLeft = 0;
+    hurt(fight, foe, foe.hp + 100000, { from: null, kind: 'domain' });
+  } else if (!correct) {
+    heal(fight, gojo, gojo.maxHp);
+  }
+}
+
 export function hurt(fight, target, amount, { from = null, kind = 'bump' } = {}) {
   if (target.hp <= 0 || amount <= 0) return 0;
   amount *= powerOf(from);
@@ -213,6 +252,11 @@ export function hurt(fight, target, amount, { from = null, kind = 'bump' } = {})
   if (from) from.dealt += dealt;
   fight.events.push({ kind: 'damage', uid: target.uid, amount: dealt, source: kind });
 
+  const domain = abilityOf(target, 'domain');
+  if (target.hp <= 0 && domain && !target.blindfoldOff && from?.id === domain.against) {
+    takeOffBlindfold(fight, target, from, domain);
+    return dealt;
+  }
   const forms = abilityOf(target, 'forms');
   if (target.hp <= 0 && forms && target.formLevel < forms.forms.length) {
     goUltra(fight, target, forms);
@@ -995,9 +1039,11 @@ function tickHelpers(fight, dt) {
 
 export function stepFight(fight, dt) {
   if (fight.over) return fight;
+  // Frozen in the Domain until the player answers.
+  if (fight.pending) { fight.events.length = 0; return fight; }
   fight.events.length = 0;
   let left = dt;
-  while (left > 1e-9 && !fight.over) {
+  while (left > 1e-9 && !fight.over && !fight.pending) {
     const slice = Math.min(left, MAX_SUB_STEP);
     left -= slice;
     fight.time += slice;
@@ -1101,6 +1147,10 @@ export function checkOver(fight) {
 
 export function runFight(fight, step = 1 / 30) {
   let guard = 0;
-  while (!fight.over && guard < 100000) { stepFight(fight, step); guard += 1; }
+  while (!fight.over && guard < 100000) {
+    if (fight.pending) resolveDomain(fight, false);
+    stepFight(fight, step);
+    guard += 1;
+  }
   return fight.over || checkOver(fight);
 }

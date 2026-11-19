@@ -97,6 +97,12 @@ export const FIGHTERS = [
     abilities: [
       { kind: 'infinity', name: 'Infinity', range: 170, slow: 0.5 },
       { kind: 'shot', name: 'Reversal Red', every: 12, damage: 25, speed: 620, length: 90, colour: '#ff2a2a' },
+      // When Sukuna lands the hit that would knock him out, he takes off his
+      // blindfold instead, once. 75%: Domain Expansion - everything freezes and
+      // the player is asked how many possible games of chess there are. Right,
+      // and Sukuna is beaten on the spot; wrong, and Gojo heals to full. The
+      // other 25%: "Nice match", and he stays in on 1.
+      { kind: 'domain', name: 'Domain Expansion: Infinite Void', against: 'sukuna', chance: 0.75 },
     ],
   }),
   // Heals a quarter of his health every 15 seconds he spends in the box.
@@ -310,3 +316,20 @@ export const STORY_RECOVERY = 0.6;
 export const PRESSURE_FROM = 25;
 export const PRESSURE_RATE = 0.06;
 export const FIGHT_LIMIT = 90;
+
+/** The question Gojo's Domain Expansion asks. */
+export const CHESS_QUESTION = 'How many possible games of chess are there?';
+export const CHESS_ANSWER = 'About 10^120 - the Shannon number';
+
+/**
+ * Whether a typed answer is the Shannon number, about 10^120, however it is
+ * written: 10^120, 10**120, 10 to the 120, 10 to the power of 120, 1e120, a 1
+ * with 120 zeros, or just "the Shannon number".
+ */
+export function isChessAnswer(text) {
+  const t = String(text || '').toLowerCase().replace(/[\s,_]/g, '');
+  if (t.includes('shannon')) return true;
+  if (/^(about|around|roughly|~)?10(\^|\*\*|x|to(the)?(powerof)?|e)\+?120(th)?$/.test(t)) return true;
+  if (/^(about|around|roughly|~)?1e\+?120$/.test(t)) return true;
+  return /^10{120}$/.test(t);
+}
