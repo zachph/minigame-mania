@@ -17918,6 +17918,1253 @@ registerGame({
   return {  };
 })();
 
+// ---- src/games/duckmate/rules.js ---------------------------------
+__modules["src/games/duckmate/rules.js"] = (function () {
+/**
+ * Duckmate rules. Pure logic - no canvas, no DOM, no randomness.
+ *
+ * An 8x8 chess board, Red against Blue, four pieces each: a Fish, a Dog, a
+ * Bird and a Duck. It is rock-paper-scissors on a board:
+ *   Fish take Dogs. Dogs take Birds. Birds take Fish.
+ *   Ducks take anything, and nothing takes a Duck except another Duck.
+ * Every piece moves one square in any of the eight directions. A piece may
+ * not land on one it cannot take. Capture the enemy Duck to win.
+ *
+ * Red starts in the top-right corner (Duck h8, Fish g8, Dog h7, Bird g7) and
+ * Blue in the bottom-left (Duck a1, Fish b1, Dog a2, Bird b2).
+ *
+ * State is treated as immutable: `applyMove` returns a new state, which keeps
+ * the search in `ai.js` and the move history honest.
+ */
+
+const BOARD_SIZE = 8;
+const SQUARES = BOARD_SIZE * BOARD_SIZE;
+
+const SIDES = {
+  red: { id: 'red', name: 'Red', color: '#e2564a', light: '#ff8a7d', dark: '#8f2016' },
+  blue: { id: 'blue', name: 'Blue', color: '#4a8fe2', light: '#8ec2ff', dark: '#16508f' },
+};
+const SIDE_IDS = ['red', 'blue'];
+
+const PIECES = {
+  duck: { id: 'duck', name: 'Duck', takes: ['fish', 'dog', 'bird', 'duck'], value: 1000, blurb: 'Takes anything. Only a Duck can take a Duck.' },
+  fish: { id: 'fish', name: 'Fish', takes: ['dog'], value: 100, blurb: 'Can only take Dogs.' },
+  dog: { id: 'dog', name: 'Dog', takes: ['bird'], value: 100, blurb: 'Can only take Birds.' },
+  bird: { id: 'bird', name: 'Bird', takes: ['fish'], value: 100, blurb: 'Can only take Fish.' },
+};
+const PIECE_ORDER = ['duck', 'fish', 'dog', 'bird'];
+
+/** Every piece steps one square any way: up, down, sideways or diagonally. */
+const DIRECTIONS = [[0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+
+/** Moves (both sides counted) without a capture before the match is called a draw: 30 turns each. */
+const STALE_LIMIT = 60;
+
+const indexOf = (col, row) => row * BOARD_SIZE + col;
+const colOf = (index) => index % BOARD_SIZE;
+const rowOf = (index) => Math.floor(index / BOARD_SIZE);
+const onBoard = (col, row) => col >= 0 && col < BOARD_SIZE && row >= 0 && row < BOARD_SIZE;
+
+/** Chess name for a square, e.g. 7 -> "h8". Row 0 is the 8th rank. */
+function squareName(index) {
+  return `${'abcdefgh'[colOf(index)]}${BOARD_SIZE - rowOf(index)}`;
+}
+
+/** The square a chess name points at, e.g. "a1" -> 56. */
+function squareFrom(name) {
+  return indexOf('abcdefgh'.indexOf(name[0]), BOARD_SIZE - Number(name.slice(1)));
+}
+
+const opponentOf = (side) => (side === 'red' ? 'blue' : 'red');
+
+/** Whether a piece of type `attacker` may take one of type `target`. */
+const canTake = (attacker, target) => PIECES[attacker].takes.includes(target);
+
+const START = {
+  red: { duck: 'h8', dog: 'h7', fish: 'g8', bird: 'g7' },
+  blue: { duck: 'a1', dog: 'a2', fish: 'b1', bird: 'b2' },
+};
+
+function createBoard() {
+  const board = new Array(SQUARES).fill(null);
+  for (const side of SIDE_IDS) {
+    for (const [type, square] of Object.entries(START[side])) {
+      board[squareFrom(square)] = { id: `${side}-${type}`, side, type };
+    }
+  }
+  return board;
+}
+
+function createGame() {
+  return {
+    board: createBoard(),
+    turn: 'red',
+    moveNumber: 1,
+    movesSinceCapture: 0,
+    captured: { red: [], blue: [] }, // pieces each side has lost
+    lastMove: null,
+    over: false,
+    winner: null,
+    reason: null,
+  };
+}
+
+function piecesOf(state, side) {
+  const pieces = [];
+  for (let index = 0; index < SQUARES; index += 1) {
+    const piece = state.board[index];
+    if (piece && piece.side === side) pieces.push({ ...piece, index });
+  }
+  return pieces;
+}
+
+function materialOf(state, side) {
+  return piecesOf(state, side).reduce((total, piece) => total + PIECES[piece.type].value, 0);
+}
+
+/** Every move the piece on `index` can make: one step, onto an empty square or something it can take. */
+function movesFrom(state, index) {
+  const piece = state.board[index];
+  if (!piece) return [];
+  const col = colOf(index);
+  const row = rowOf(index);
+  const moves = [];
+  for (const [dx, dy] of DIRECTIONS) {
+    if (!onBoard(col + dx, row + dy)) continue;
+    const to = indexOf(col + dx, row + dy);
+    const occupant = state.board[to];
+    if (!occupant) moves.push({ from: index, to, piece: piece.type, side: piece.side, captured: null });
+    else if (occupant.side !== piece.side && canTake(piece.type, occupant.type)) {
+      moves.push({ from: index, to, piece: piece.type, side: piece.side, captured: occupant.type });
+    }
+  }
+  return moves;
+}
+
+function legalMoves(state, side = state.turn) {
+  if (state.over) return [];
+  const moves = [];
+  for (const piece of piecesOf(state, side)) moves.push(...movesFrom(state, piece.index));
+  return moves;
+}
+
+function isLegal(state, move) {
+  return movesFrom(state, move.from).some((option) => option.to === move.to);
+}
+
+/** Applies a move and returns the new state, including any end-of-game verdict. */
+function applyMove(state, move) {
+  const piece = state.board[move.from];
+  if (!piece) throw new Error(`No piece on ${squareName(move.from)}`);
+  if (piece.side !== state.turn) throw new Error(`It is ${state.turn}'s turn`);
+  if (!isLegal(state, move)) throw new Error(`Illegal move ${squareName(move.from)}-${squareName(move.to)}`);
+
+  const board = state.board.slice();
+  const target = board[move.to];
+  board[move.to] = piece;
+  board[move.from] = null;
+
+  const captured = { red: [...state.captured.red], blue: [...state.captured.blue] };
+  if (target) captured[target.side].push(target.type);
+
+  const next = {
+    ...state,
+    board,
+    captured,
+    turn: opponentOf(state.turn),
+    moveNumber: state.moveNumber + 1,
+    movesSinceCapture: target ? 0 : state.movesSinceCapture + 1,
+    lastMove: { from: move.from, to: move.to, side: piece.side, piece: piece.type, captured: target ? target.type : null },
+  };
+  return applyVerdict(next);
+}
+
+/** Decides whether the game is over after a move. */
+function applyVerdict(state) {
+  const mover = opponentOf(state.turn); // the side that just moved
+  const defender = state.turn;
+
+  if (state.lastMove?.captured === 'duck') {
+    return { ...state, over: true, winner: mover, reason: `${SIDES[mover].name}'s Duck took the other Duck` };
+  }
+  if (legalMoves(state, defender).length === 0) {
+    return { ...state, over: true, winner: mover, reason: `${SIDES[defender].name} has no move` };
+  }
+  if (state.movesSinceCapture >= STALE_LIMIT) {
+    return { ...state, over: true, winner: null, reason: `a draw: nothing taken for ${STALE_LIMIT / 2} turns` };
+  }
+  return state;
+}
+
+/** Short move notation for the log, e.g. "Fish g8-f7 takes Dog". */
+function describeMove(move) {
+  const piece = PIECES[move.piece].name;
+  const capture = move.captured ? ` takes ${PIECES[move.captured].name}` : '';
+  return `${piece} ${squareName(move.from)}-${squareName(move.to)}${capture}`;
+}
+
+  return { BOARD_SIZE, SQUARES, SIDES, SIDE_IDS, PIECES, PIECE_ORDER, STALE_LIMIT, indexOf, colOf, rowOf, onBoard, squareName, squareFrom, opponentOf, canTake, START, createBoard, createGame, piecesOf, materialOf, movesFrom, legalMoves, isLegal, applyMove, describeMove };
+})();
+
+// ---- src/games/duckmate/ai.js ------------------------------------
+__modules["src/games/duckmate/ai.js"] = (function () {
+  const { BOARD_SIZE, PIECES, applyMove, canTake, colOf, legalMoves, opponentOf, piecesOf, rowOf } = __modules["src/games/duckmate/rules.js"];
+
+/**
+ * The computer opponent: alpha-beta minimax over the move tree, with captures
+ * searched first so cut-offs happen early.
+ *
+ * The search deepens one ply at a time and keeps the best move from the last
+ * depth it finished, so a crowded position costs a shallower search rather than a frozen screen.
+ *
+ * Difficulties differ only in how deep they are allowed to look and how long
+ * they may spend; the same evaluation drives all of them.
+ */
+const DIFFICULTIES = {
+  easy: { id: 'easy', name: 'Easy', depth: 1, budgetMs: 80, jitter: 90, blurb: 'Looks one move ahead.' },
+  normal: { id: 'normal', name: 'Normal', depth: 3, budgetMs: 60, jitter: 90, blurb: 'Looks three moves ahead, but not for long, and it is not fussy about which good move it takes.' },
+  hard: { id: 'hard', name: 'Hard', depth: 4, budgetMs: 900, jitter: 0, blurb: 'Looks four moves ahead and takes no chances.' },
+};
+
+const WIN_SCORE = 100000;
+
+/** Distance from the middle of the board, 0 in the centre. */
+function centreDistance(index) {
+  const middle = (BOARD_SIZE - 1) / 2;
+  return Math.abs(colOf(index) - middle) + Math.abs(rowOf(index) - middle);
+}
+
+/** King-steps between two squares. */
+const steps = (a, b) => Math.max(Math.abs(colOf(a) - colOf(b)), Math.abs(rowOf(a) - rowOf(b)));
+
+/** Positive numbers favour `side`. */
+function evaluate(state, side) {
+  if (state.over) {
+    if (!state.winner) return 0;
+    return state.winner === side ? WIN_SCORE : -WIN_SCORE;
+  }
+
+  let score = 0;
+  for (const owner of [side, opponentOf(side)]) {
+    const sign = owner === side ? 1 : -1;
+    const enemies = piecesOf(state, opponentOf(owner));
+    for (const piece of piecesOf(state, owner)) {
+      let value = PIECES[piece.type].value + (6 - centreDistance(piece.index)) * 2;
+      // Close in on what it can take: the nearer its prey, the better.
+      for (const enemy of enemies) {
+        if (enemy.type !== 'duck' && canTake(piece.type, enemy.type)) value += (8 - steps(piece.index, enemy.index)) * 3;
+      }
+      score += sign * value;
+    }
+  }
+  score += (legalMoves(state, side).length - legalMoves(state, opponentOf(side)).length) * 3;
+  return score;
+}
+
+/** Captures first, biggest first: better ordering means more alpha-beta cut-offs. */
+function orderMoves(moves) {
+  return [...moves].sort((a, b) => {
+    const av = a.captured ? PIECES[a.captured].value : 0;
+    const bv = b.captured ? PIECES[b.captured].value : 0;
+    return bv - av;
+  });
+}
+
+/** Set while a search is running; a deepening pass that trips it is discarded. */
+let deadline = Infinity;
+let nodeCount = 0;
+let ranOut = false;
+
+function outOfTime() {
+  if (ranOut) return true;
+  nodeCount += 1;
+  if ((nodeCount & 1023) === 0 && performance.now() > deadline) ranOut = true;
+  return ranOut;
+}
+
+function search(state, depth, alpha, beta, side) {
+  if (outOfTime()) return evaluate(state, side);
+  if (state.over || depth === 0) return evaluate(state, side);
+  const maximizing = state.turn === side;
+  const moves = orderMoves(legalMoves(state, state.turn));
+  if (moves.length === 0) return evaluate(state, side);
+
+  let best = maximizing ? -Infinity : Infinity;
+  for (const move of moves) {
+    const score = search(applyMove(state, move), depth - 1, alpha, beta, side);
+    if (maximizing) {
+      best = Math.max(best, score);
+      alpha = Math.max(alpha, score);
+    } else {
+      best = Math.min(best, score);
+      beta = Math.min(beta, score);
+    }
+    if (beta <= alpha) break;
+  }
+  return best;
+}
+
+/** One full-width pass at a fixed depth. Returns null if the clock ran out. */
+function searchRoot(state, depth, moves, side, jitter, random) {
+  let best = null;
+  let bestScore = -Infinity;
+  let alpha = -Infinity;
+  for (const move of moves) {
+    const raw = search(applyMove(state, move), depth - 1, alpha, Infinity, side);
+    if (ranOut) return null;
+    const score = raw + (jitter ? (random() - 0.5) * jitter : 0);
+    if (score > bestScore) {
+      bestScore = score;
+      best = move;
+      alpha = Math.max(alpha, raw);
+    }
+  }
+  return best;
+}
+
+/**
+ * Picks a move for `state.turn`. `random` is injectable so tests can pin the
+ * jitter that keeps the easier levels from being perfectly repeatable.
+ */
+function chooseMove(state, difficulty = 'normal', random = Math.random) {
+  const level = DIFFICULTIES[difficulty] || DIFFICULTIES.normal;
+  const side = state.turn;
+  const moves = orderMoves(legalMoves(state, side));
+  if (moves.length === 0) return null;
+
+  deadline = performance.now() + level.budgetMs;
+  nodeCount = 0;
+  ranOut = false;
+
+  let best = moves[0]; // captures are ordered first, so this is never terrible
+  for (let depth = 1; depth <= level.depth; depth += 1) {
+    const move = searchRoot(state, depth, moves, side, level.jitter, random);
+    if (!move) break; // out of time: keep the best move from the last full pass
+    best = move;
+  }
+  deadline = Infinity;
+  return best;
+}
+
+  return { DIFFICULTIES, evaluate, chooseMove };
+})();
+
+// ---- src/games/duckmate/render.js --------------------------------
+__modules["src/games/duckmate/render.js"] = (function () {
+  const { TAU, clamp, roundedRect } = __modules["src/core/utils.js"];
+  const { BOARD_SIZE, PIECES, SIDES, colOf, rowOf } = __modules["src/games/duckmate/rules.js"];
+
+/**
+ * Board and piece drawing. Pieces are drawn from code - a duck, a fish, a dog
+ * and a bird - each in the colour of the side that owns them.
+ */
+
+const BOARD = { x: 54, y: 54, square: 54 };
+const BOARD_PX = BOARD.square * BOARD_SIZE;
+
+const LIGHT_SQUARE = '#c9d0ea';
+const DARK_SQUARE = '#5b6699';
+const EDGE = '#2b3358';
+
+const squareCentre = (index) => ({
+  x: BOARD.x + colOf(index) * BOARD.square + BOARD.square / 2,
+  y: BOARD.y + rowOf(index) * BOARD.square + BOARD.square / 2,
+});
+
+/** The square under a canvas point, or null when the point is off the board. */
+function squareAt(x, y) {
+  const col = Math.floor((x - BOARD.x) / BOARD.square);
+  const row = Math.floor((y - BOARD.y) / BOARD.square);
+  if (col < 0 || col >= BOARD_SIZE || row < 0 || row >= BOARD_SIZE) return null;
+  return row * BOARD_SIZE + col;
+}
+
+function drawBackdrop(ctx, width, height, time) {
+  const sky = ctx.createLinearGradient(0, 0, width, height);
+  sky.addColorStop(0, '#161c38');
+  sky.addColorStop(1, '#0d1024');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, width, height);
+
+  // Slow drifting field furrows behind the board, so the page is not flat black.
+  ctx.save();
+  ctx.globalAlpha = 0.08;
+  ctx.strokeStyle = '#8ea0ff';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 14; i += 1) {
+    const offset = ((time * 8 + i * 46) % (height + 120)) - 60;
+    ctx.beginPath();
+    ctx.moveTo(0, offset);
+    ctx.lineTo(width, offset - 80);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawBoard(ctx, state, view) {
+  ctx.save();
+  ctx.fillStyle = EDGE;
+  roundedRect(ctx, BOARD.x - 10, BOARD.y - 10, BOARD_PX + 20, BOARD_PX + 20, 12);
+  ctx.fill();
+
+  for (let index = 0; index < BOARD_SIZE * BOARD_SIZE; index += 1) {
+    const col = colOf(index);
+    const row = rowOf(index);
+    ctx.fillStyle = (col + row) % 2 === 0 ? LIGHT_SQUARE : DARK_SQUARE;
+    ctx.fillRect(BOARD.x + col * BOARD.square, BOARD.y + row * BOARD.square, BOARD.square, BOARD.square);
+  }
+
+  if (state.lastMove) {
+    for (const index of [state.lastMove.from, state.lastMove.to]) {
+      ctx.fillStyle = 'rgba(255, 209, 102, 0.28)';
+      ctx.fillRect(BOARD.x + colOf(index) * BOARD.square, BOARD.y + rowOf(index) * BOARD.square, BOARD.square, BOARD.square);
+    }
+  }
+
+  drawCoordinates(ctx);
+  ctx.restore();
+}
+
+function drawCoordinates(ctx) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(214, 221, 255, 0.55)';
+  ctx.font = '600 12px "Trebuchet MS", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < BOARD_SIZE; i += 1) {
+    ctx.fillText('abcdefgh'[i], BOARD.x + i * BOARD.square + BOARD.square / 2, BOARD.y + BOARD_PX + 20);
+    ctx.fillText(String(BOARD_SIZE - i), BOARD.x - 20, BOARD.y + i * BOARD.square + BOARD.square / 2);
+  }
+  ctx.restore();
+}
+
+/** Selection ring, legal-move dots and capture rings. */
+function drawHints(ctx, { selected, moves, cursor, time }) {
+  ctx.save();
+  if (selected != null) {
+    const { x, y } = squareCentre(selected);
+    ctx.strokeStyle = '#ffd166';
+    ctx.lineWidth = 3;
+    roundedRect(ctx, x - BOARD.square / 2 + 3, y - BOARD.square / 2 + 3, BOARD.square - 6, BOARD.square - 6, 8);
+    ctx.stroke();
+  }
+
+  const pulse = 0.55 + Math.sin(time * 4) * 0.12;
+  for (const move of moves) {
+    const { x, y } = squareCentre(move.to);
+    if (move.captured) {
+      ctx.strokeStyle = `rgba(255, 122, 122, ${pulse + 0.2})`;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(x, y, BOARD.square / 2 - 5, 0, TAU);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = `rgba(255, 245, 214, ${pulse})`;
+      ctx.beginPath();
+      ctx.arc(x, y, 7, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  if (cursor != null) {
+    const { x, y } = squareCentre(cursor);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.setLineDash([6, 5]);
+    ctx.lineWidth = 2;
+    roundedRect(ctx, x - BOARD.square / 2 + 4, y - BOARD.square / 2 + 4, BOARD.square - 8, BOARD.square - 8, 7);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+}
+
+/* ------------------------------------------------------------------ pieces */
+
+function drawPiece(ctx, piece, x, y, scale = 1, alpha = 1) {
+  const side = SIDES[piece.side];
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = 'rgba(10, 12, 26, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(0, 18, 17, 6, 0, 0, TAU);
+  ctx.fill();
+
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = 'rgba(14, 16, 32, 0.9)';
+  if (piece.type === 'duck') drawDuck(ctx, side);
+  else if (piece.type === 'fish') drawFish(ctx, side);
+  else if (piece.type === 'dog') drawDog(ctx, side);
+  else drawBird(ctx, side);
+  ctx.restore();
+}
+
+const BEAK = '#f4b33d';
+const INK = '#14162a';
+
+function eye(ctx, x, y, r = 1.8) {
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(x, y, r + 1.2, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.arc(x + 0.4, y, r, 0, TAU);
+  ctx.fill();
+}
+
+/** A sitting duck, side on, with a gold crown so it reads as the piece that matters. */
+function drawDuck(ctx, side) {
+  // Body
+  ctx.fillStyle = side.color;
+  ctx.beginPath();
+  ctx.moveTo(-16, 4);
+  ctx.quadraticCurveTo(-20, -4, -13, -3);   // tail tip
+  ctx.quadraticCurveTo(-6, 0, 2, 0);
+  ctx.quadraticCurveTo(16, 0, 15, 9);
+  ctx.quadraticCurveTo(12, 17, 0, 17);
+  ctx.quadraticCurveTo(-14, 17, -16, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Wing
+  ctx.fillStyle = side.dark;
+  ctx.beginPath();
+  ctx.moveTo(-9, 6);
+  ctx.quadraticCurveTo(-1, 1, 7, 7);
+  ctx.quadraticCurveTo(-1, 13, -9, 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Head
+  ctx.fillStyle = side.light;
+  ctx.beginPath();
+  ctx.arc(7, -9, 8, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+  // Bill
+  ctx.fillStyle = BEAK;
+  ctx.beginPath();
+  ctx.moveTo(13, -9);
+  ctx.quadraticCurveTo(22, -10, 22, -6);
+  ctx.quadraticCurveTo(19, -3, 13, -5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  eye(ctx, 9, -11);
+  // Crown
+  ctx.fillStyle = '#ffd34d';
+  ctx.beginPath();
+  ctx.moveTo(1, -16);
+  ctx.lineTo(2, -24);
+  ctx.lineTo(5, -19);
+  ctx.lineTo(8, -25);
+  ctx.lineTo(10, -19);
+  ctx.lineTo(13, -23);
+  ctx.lineTo(13, -15);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+/** A fish, side on, swimming right. */
+function drawFish(ctx, side) {
+  // Tail
+  ctx.fillStyle = side.dark;
+  ctx.beginPath();
+  ctx.moveTo(-10, 0);
+  ctx.lineTo(-21, -10);
+  ctx.quadraticCurveTo(-17, 0, -21, 10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Body
+  ctx.fillStyle = side.color;
+  ctx.beginPath();
+  ctx.moveTo(-12, 0);
+  ctx.quadraticCurveTo(0, -16, 18, 0);
+  ctx.quadraticCurveTo(0, 16, -12, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Fins and a stripe
+  ctx.fillStyle = side.light;
+  ctx.beginPath();
+  ctx.moveTo(-2, -9);
+  ctx.quadraticCurveTo(2, -17, 8, -8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = side.light;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(1, -8);
+  ctx.quadraticCurveTo(-2, 0, 1, 8);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(14, 16, 32, 0.9)';
+  ctx.lineWidth = 2.5;
+  eye(ctx, 10, -2);
+  // Mouth
+  ctx.beginPath();
+  ctx.moveTo(18, 0);
+  ctx.lineTo(14, 2);
+  ctx.stroke();
+}
+
+/** A dog's head, facing out, with floppy ears. */
+function drawDog(ctx, side) {
+  // Ears behind the head
+  ctx.fillStyle = side.dark;
+  for (const dir of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(dir * 8, -14);
+    ctx.quadraticCurveTo(dir * 22, -14, dir * 18, 4);
+    ctx.quadraticCurveTo(dir * 13, 6, dir * 11, -4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  // Head
+  ctx.fillStyle = side.color;
+  ctx.beginPath();
+  ctx.ellipse(0, -2, 12, 14, 0, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+  // Muzzle
+  ctx.fillStyle = side.light;
+  ctx.beginPath();
+  ctx.ellipse(0, 6, 8, 6.5, 0, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+  // Nose and mouth
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.ellipse(0, 3, 3.5, 2.5, 0, 0, TAU);
+  ctx.fill();
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(0, 5);
+  ctx.lineTo(0, 8);
+  ctx.moveTo(-3.5, 9.5);
+  ctx.quadraticCurveTo(0, 11, 3.5, 9.5);
+  ctx.stroke();
+  // Tongue
+  ctx.fillStyle = '#ff7a9a';
+  ctx.beginPath();
+  ctx.ellipse(1.5, 12, 2.2, 3, 0, 0, TAU);
+  ctx.fill();
+  eye(ctx, -5, -6);
+  eye(ctx, 5, -6);
+}
+
+/** A small bird in flight, wings up. */
+function drawBird(ctx, side) {
+  // Wings
+  ctx.fillStyle = side.light;
+  for (const dir of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(dir * 3, -2);
+    ctx.quadraticCurveTo(dir * 14, -22, dir * 22, -16);
+    ctx.quadraticCurveTo(dir * 16, -12, dir * 15, -6);
+    ctx.quadraticCurveTo(dir * 10, -4, dir * 3, 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  // Tail
+  ctx.fillStyle = side.dark;
+  ctx.beginPath();
+  ctx.moveTo(-4, 12);
+  ctx.lineTo(0, 20);
+  ctx.lineTo(4, 12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Body
+  ctx.fillStyle = side.color;
+  ctx.beginPath();
+  ctx.ellipse(0, 4, 7.5, 10, 0, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+  // Head
+  ctx.beginPath();
+  ctx.arc(0, -8, 6.5, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+  // Beak
+  ctx.fillStyle = BEAK;
+  ctx.beginPath();
+  ctx.moveTo(-2.5, -6);
+  ctx.lineTo(0, -1);
+  ctx.lineTo(2.5, -6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  eye(ctx, -2.6, -9.5, 1.4);
+  eye(ctx, 2.6, -9.5, 1.4);
+}
+
+/** Piece portrait for the DOM panels (captured lists, rules key). */
+function drawPieceIcon(ctx, type, sideId, size) {
+  ctx.save();
+  ctx.translate(size / 2, size * 0.62);
+  ctx.scale(size / 52, size / 52);
+  drawPiece(ctx, { type, side: sideId }, 0, 0, 1, 1);
+  ctx.restore();
+}
+
+function drawBanner(ctx, width, text, subtext, alpha) {
+  if (!text || alpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = clamp(alpha, 0, 1);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 44px "Trebuchet MS", system-ui, sans-serif';
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = 'rgba(10, 12, 26, 0.85)';
+  ctx.strokeText(text, width / 2, 210);
+  ctx.fillStyle = '#ffe07a';
+  ctx.fillText(text, width / 2, 210);
+  if (subtext) {
+    ctx.font = '600 18px "Trebuchet MS", system-ui, sans-serif';
+    ctx.lineWidth = 5;
+    ctx.strokeText(subtext, width / 2, 248);
+    ctx.fillStyle = '#e7ecff';
+    ctx.fillText(subtext, width / 2, 248);
+  }
+  ctx.restore();
+}
+
+const PIECE_NAMES = Object.fromEntries(
+  Object.values(PIECES).map((piece) => [piece.id, piece.name])
+);
+
+  return { BOARD, BOARD_PX, squareCentre, squareAt, drawBackdrop, drawBoard, drawHints, drawPiece, drawPieceIcon, drawBanner, PIECE_NAMES };
+})();
+
+// ---- src/games/duckmate/ui.js ------------------------------------
+__modules["src/games/duckmate/ui.js"] = (function () {
+  const { PIECES, PIECE_ORDER, SIDES, describeMove } = __modules["src/games/duckmate/rules.js"];
+  const { DIFFICULTIES } = __modules["src/games/duckmate/ai.js"];
+  const { drawPieceIcon } = __modules["src/games/duckmate/render.js"];
+
+/**
+ * The DOM side of Duckmate: the pre-game options and the panel beside the board
+ * (whose turn it is, what has been taken, the move log).
+ */
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
+function icon(type, sideId, size) {
+  const canvas = el('canvas', 'np-icon');
+  const scale = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = size * scale;
+  canvas.height = size * scale;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  drawPieceIcon(ctx, type, sideId, size);
+  return canvas;
+}
+
+/* ------------------------------------------------------------ setup screen */
+
+class SetupPanel {
+  constructor(container, { onStart }) {
+    this.onStart = onStart;
+    this.mode = 'computer';
+    this.difficulty = 'normal';
+    this.root = el('div', 'np-setup');
+    container.append(this.root);
+    this._build();
+  }
+
+  _build() {
+    const card = el('div', 'np-setup-card');
+    card.append(el('h2', null, 'Duckmate'));
+    card.append(el('p', 'np-setup-lede', 'Red and Blue, four pieces each. Fish take Dogs, Dogs take Birds, Birds take Fish - and Ducks take anything.'));
+
+    const key = el('div', 'np-key');
+    for (const piece of PIECE_ORDER.map((id) => PIECES[id])) {
+      const row = el('div', 'np-key-row');
+      row.append(icon(piece.id, 'red', 40));
+      const meta = el('div', 'np-key-meta');
+      meta.append(el('strong', null, piece.name));
+      meta.append(el('span', null, piece.blurb));
+      row.append(meta);
+      key.append(row);
+    }
+    card.append(key);
+
+    card.append(this._choice('Opponent', [
+      { id: 'computer', label: 'Play the computer' },
+      { id: 'hotseat', label: 'Two players, one screen' },
+    ], (id) => {
+      this.mode = id;
+      this.difficultyRow.hidden = id !== 'computer';
+    }, () => this.mode));
+
+    this.difficultyRow = this._choice('Difficulty',
+      Object.values(DIFFICULTIES).map((level) => ({ id: level.id, label: level.name, title: level.blurb })),
+      (id) => { this.difficulty = id; },
+      () => this.difficulty);
+    card.append(this.difficultyRow);
+
+    const start = el('button', 'btn btn--primary np-start', 'Start the match');
+    start.type = 'button';
+    start.addEventListener('click', () => this.onStart({ mode: this.mode, difficulty: this.difficulty }));
+    card.append(start);
+
+    card.append(el('p', 'np-setup-foot', 'Every piece moves one square any way. Take the enemy Duck to win. Red moves first.'));
+    this.root.append(card);
+  }
+
+  _choice(label, options, onPick, current) {
+    const row = el('div', 'np-choice');
+    row.append(el('span', 'np-choice-label', label));
+    const group = el('div', 'np-choice-options');
+    const buttons = [];
+    for (const option of options) {
+      const button = el('button', 'np-option', option.label);
+      button.type = 'button';
+      if (option.title) button.title = option.title;
+      button.classList.toggle('is-active', option.id === current());
+      button.addEventListener('click', () => {
+        onPick(option.id);
+        for (const other of buttons) other.button.classList.toggle('is-active', other.id === current());
+      });
+      buttons.push({ id: option.id, button });
+      group.append(button);
+    }
+    row.append(group);
+    return row;
+  }
+
+  destroy() {
+    this.root.remove();
+  }
+}
+
+/* ----------------------------------------------------------- in-game panel */
+
+class BoardPanel {
+  constructor(container, { onResign }) {
+    this.root = el('div', 'np-panel');
+
+    this.turnCard = el('div', 'np-turn');
+    this.root.append(this.turnCard);
+
+    this.armies = el('div', 'np-armies');
+    this.root.append(this.armies);
+
+    this.root.append(el('h3', 'np-heading', 'Moves'));
+    this.log = el('ol', 'np-log');
+    this.root.append(this.log);
+
+    const resign = el('button', 'btn btn--ghost np-resign', 'Resign');
+    resign.type = 'button';
+    resign.addEventListener('click', onResign);
+    this.root.append(resign);
+
+    container.append(this.root);
+  }
+
+  /** Whose turn, and what they are waiting on. */
+  setTurn(state, { thinking, mode, playerSide }) {
+    this.turnCard.replaceChildren();
+    const side = SIDES[state.turn];
+    this.turnCard.style.setProperty('--side', side.color);
+
+    const label = el('span', 'np-turn-label', state.over ? 'Match over' : `${side.name} to move`);
+    this.turnCard.append(label);
+
+    let hint = '';
+    if (state.over) hint = state.winner ? `${SIDES[state.winner].name} wins - ${state.reason}` : state.reason;
+    else if (thinking) hint = 'Thinking...';
+    else if (mode === 'hotseat') hint = 'Pick up a piece, then choose a square.';
+    else hint = state.turn === playerSide ? 'Your move.' : 'Waiting on the computer.';
+    this.turnCard.append(el('span', 'np-turn-hint', hint));
+    this.turnCard.append(el('span', 'np-turn-count', `Turn ${Math.ceil(state.moveNumber / 2)}`));
+  }
+
+  /** Pieces each side still has, with what it has lost greyed out beside them. */
+  setArmies(state, counts) {
+    this.armies.replaceChildren();
+    for (const sideId of ['red', 'blue']) {
+      const side = SIDES[sideId];
+      const card = el('div', 'np-army');
+      card.style.setProperty('--side', side.color);
+
+      const head = el('div', 'np-army-head');
+      head.append(el('strong', null, side.name));
+      head.append(el('span', 'np-army-count', `${counts[sideId].alive} left`));
+      card.append(head);
+
+      const row = el('div', 'np-army-pieces');
+      for (const type of PIECE_ORDER) {
+        const lost = state.captured[sideId].includes(type);
+        const chip = icon(type, sideId, 26);
+        if (lost) chip.classList.add('is-lost');
+        chip.title = `${PIECES[type].name}${lost ? ' (taken)' : ''}`;
+        row.append(chip);
+      }
+      card.append(row);
+      this.armies.append(card);
+    }
+  }
+
+  setLog(moves) {
+    this.log.replaceChildren();
+    for (const move of moves.slice(-8)) {
+      const item = el('li', `np-log-line np-log-line--${move.side}`, describeMove(move));
+      this.log.append(item);
+    }
+    this.log.scrollTop = this.log.scrollHeight;
+  }
+
+  destroy() {
+    this.root.remove();
+  }
+}
+
+  return { SetupPanel, BoardPanel };
+})();
+
+// ---- src/games/duckmate/game.js ----------------------------------
+__modules["src/games/duckmate/game.js"] = (function () {
+  const { clamp } = __modules["src/core/utils.js"];
+  const { BOARD_SIZE, PIECES, SIDES, applyMove, createGame, legalMoves, movesFrom, opponentOf, piecesOf } = __modules["src/games/duckmate/rules.js"];
+  const { chooseMove } = __modules["src/games/duckmate/ai.js"];
+  const { BoardPanel, SetupPanel } = __modules["src/games/duckmate/ui.js"];
+  const { drawBackdrop, drawBanner, drawBoard, drawHints, drawPiece, squareAt, squareCentre } = __modules["src/games/duckmate/render.js"];
+
+const GAME_ID = 'duckmate';
+
+const MOVE_ANIMATION = 0.24;   // seconds a piece takes to slide
+const THINK_DELAY = 0.45;      // pause before the computer commits, so it reads as a turn
+
+class DuckmateGame {
+  constructor(context) {
+    this.context = context;
+    this.time = 0;
+    this.phase = 'setup';
+    this.state = createGame();
+    this.mode = 'computer';
+    this.difficulty = 'normal';
+    this.playerSide = 'red';
+
+    this.selected = null;
+    this.moveHints = [];
+    this.cursor = 7; // h8, Red's Duck, so the keyboard has somewhere to start
+    this.history = [];
+    this.animation = null;
+    this.thinkTimer = 0;
+    this.thinking = false;
+    this.banner = { text: '', subtext: '', life: 0 };
+    this.finished = false;
+    this.panel = null;
+
+    this.setup = new SetupPanel(context.ui, {
+      onStart: (options) => this._begin(options),
+    });
+  }
+
+  _begin({ mode, difficulty }) {
+    this.setup.destroy();
+    this.setup = null;
+    this.mode = mode;
+    this.difficulty = difficulty;
+    this.phase = 'play';
+    this.state = createGame();
+    this.history = [];
+    this.panel = new BoardPanel(this.context.ui, { onResign: () => this._resign() });
+    this._refreshPanel();
+  }
+
+  /* ------------------------------------------------------------- helpers */
+
+  get controlsCurrentSide() {
+    if (this.state.over || this.animation || this.thinking) return false;
+    return this.mode === 'hotseat' || this.state.turn === this.playerSide;
+  }
+
+  _refreshPanel() {
+    if (!this.panel) return;
+    const counts = {
+      red: { alive: piecesOf(this.state, 'red').length },
+      blue: { alive: piecesOf(this.state, 'blue').length },
+    };
+    this.panel.setTurn(this.state, {
+      thinking: this.thinking,
+      mode: this.mode,
+      playerSide: this.playerSide,
+    });
+    this.panel.setArmies(this.state, counts);
+    this.panel.setLog(this.history);
+  }
+
+  _select(index) {
+    const piece = this.state.board[index];
+    if (!piece || piece.side !== this.state.turn) return false;
+    this.selected = index;
+    this.moveHints = movesFrom(this.state, index);
+    return true;
+  }
+
+  _clearSelection() {
+    this.selected = null;
+    this.moveHints = [];
+  }
+
+  /** Starts the slide animation; the move is applied to state immediately. */
+  _play(move) {
+    const piece = this.state.board[move.from];
+    const target = this.state.board[move.to];
+    const next = applyMove(this.state, move);
+    this.history.push(next.lastMove);
+    this.animation = {
+      piece,
+      from: squareCentre(move.from),
+      to: squareCentre(move.to),
+      captured: target ? { piece: target, at: squareCentre(move.to) } : null,
+      t: 0,
+    };
+    this.state = next;
+    this._clearSelection();
+    this._refreshPanel();
+  }
+
+  _resign() {
+    if (this.state.over || this.finished) return;
+    const loser = this.mode === 'hotseat' ? this.state.turn : this.playerSide;
+    this.state = {
+      ...this.state,
+      over: true,
+      winner: opponentOf(loser),
+      reason: `${SIDES[loser].name} resigned`,
+    };
+    this._refreshPanel();
+    this._announceEnd();
+  }
+
+  _announceEnd() {
+    const { winner, reason } = this.state;
+    this.banner = {
+      text: winner ? `${SIDES[winner].name} wins!` : 'Draw',
+      subtext: reason || '',
+      life: 2.6,
+    };
+  }
+
+  /* --------------------------------------------------------------- input */
+
+  update(dt, input) {
+    this.time += dt;
+    if (this.banner.life > 0) this.banner.life -= dt;
+    if (this.phase !== 'play') return;
+
+    if (this.animation) {
+      this.animation.t += dt / MOVE_ANIMATION;
+      if (this.animation.t >= 1) {
+        this.animation = null;
+        if (this.state.over) this._finishIfNeeded();
+      }
+      return;
+    }
+
+    if (this.state.over) {
+      this._finishIfNeeded();
+      return;
+    }
+
+    this._handlePointer(input);
+    this._handleKeyboard(input);
+    this._maybeThink(dt);
+  }
+
+  _handlePointer(input) {
+    if (!input.justPressed || !this.controlsCurrentSide) return;
+    const index = squareAt(input.x, input.y);
+    if (index == null) {
+      this._clearSelection();
+      return;
+    }
+    this.cursor = index;
+    const move = this.moveHints.find((option) => option.to === index);
+    if (move) {
+      this._play(move);
+      return;
+    }
+    if (!this._select(index)) this._clearSelection();
+  }
+
+  _handleKeyboard(input) {
+    if (!this.controlsCurrentSide) return;
+    const col = this.cursor % BOARD_SIZE;
+    const row = Math.floor(this.cursor / BOARD_SIZE);
+    let dx = 0;
+    let dy = 0;
+    if (input.wasKeyPressed('ArrowLeft', 'KeyA')) dx -= 1;
+    if (input.wasKeyPressed('ArrowRight', 'KeyD')) dx += 1;
+    if (input.wasKeyPressed('ArrowUp', 'KeyW')) dy -= 1;
+    if (input.wasKeyPressed('ArrowDown', 'KeyS')) dy += 1;
+    if (dx || dy) {
+      const nextCol = clamp(col + dx, 0, BOARD_SIZE - 1);
+      const nextRow = clamp(row + dy, 0, BOARD_SIZE - 1);
+      this.cursor = nextRow * BOARD_SIZE + nextCol;
+    }
+    if (input.wasKeyPressed('Space', 'Enter')) {
+      const move = this.moveHints.find((option) => option.to === this.cursor);
+      if (move) this._play(move);
+      else if (!this._select(this.cursor)) this._clearSelection();
+    }
+    if (input.wasKeyPressed('Backspace', 'Delete')) this._clearSelection();
+  }
+
+  /** Runs the computer's turn, one beat after it becomes its move. */
+  _maybeThink(dt) {
+    if (this.mode !== 'computer' || this.state.turn === this.playerSide) return;
+    if (!this.thinking) {
+      this.thinking = true;
+      this.thinkTimer = THINK_DELAY;
+      this._clearSelection();
+      this._refreshPanel(); // paint "Thinking..." before the search blocks the frame
+      return;
+    }
+    this.thinkTimer -= dt;
+    if (this.thinkTimer > 0) return;
+    const move = chooseMove(this.state, this.difficulty);
+    this.thinking = false;
+    if (move) this._play(move);
+    else this._refreshPanel();
+  }
+
+  _finishIfNeeded() {
+    if (this.finished) return;
+    this.finished = true;
+    this._announceEnd();
+
+    const { winner, reason } = this.state;
+    const survivors = piecesOf(this.state, this.playerSide);
+    const enemyLosses = this.state.captured[opponentOf(this.playerSide)];
+    const turns = Math.ceil(this.state.moveNumber / 2);
+    const playerWon = this.mode === 'hotseat' ? Boolean(winner) : winner === this.playerSide;
+
+    let score = 0;
+    if (this.mode === 'hotseat') {
+      score = enemyLosses.length * 120;
+    } else if (playerWon) {
+      score = Math.round(1200 + survivors.length * 200 + Math.max(0, (40 - turns) * 20));
+    } else {
+      score = enemyLosses.length * 90;
+    }
+
+    const title = this.mode === 'hotseat'
+      ? winner ? `${SIDES[winner].name} wins!` : 'A draw'
+      : playerWon ? 'You win!' : winner ? 'Beaten' : 'A draw';
+
+    const counts = {};
+    for (const type of enemyLosses) counts[type] = (counts[type] || 0) + 1;
+
+    this.context.finish({
+      score,
+      title,
+      detailTitle: `${reason} - ${turns} turn${turns === 1 ? '' : 's'}`,
+      collected: Object.entries(counts).map(([type, count]) => ({
+        name: `${PIECES[type].name}s taken`,
+        color: SIDES[opponentOf(this.playerSide)].color,
+        count,
+        label: `x${count}`,
+      })),
+      emptyText: 'No captures this match.',
+    });
+  }
+
+  /* ------------------------------------------------------------- drawing */
+
+  render(ctx) {
+    const { width, height } = this.context;
+    drawBackdrop(ctx, width, height, this.time);
+    if (this.phase === 'setup') return;
+
+    drawBoard(ctx, this.state, this);
+    drawHints(ctx, {
+      selected: this.selected,
+      moves: this.controlsCurrentSide ? this.moveHints : [],
+      cursor: this.controlsCurrentSide ? this.cursor : null,
+      time: this.time,
+    });
+
+    const moving = this.animation;
+    for (let index = 0; index < BOARD_SIZE * BOARD_SIZE; index += 1) {
+      const piece = this.state.board[index];
+      if (!piece) continue;
+      if (moving && piece === moving.piece) continue; // drawn along its path below
+      const { x, y } = squareCentre(index);
+      drawPiece(ctx, piece, x, y);
+    }
+
+    if (moving) {
+      if (moving.captured) {
+        const fade = 1 - clamp(moving.t * 1.4, 0, 1);
+        drawPiece(ctx, moving.captured.piece, moving.captured.at.x, moving.captured.at.y, 0.6 + fade * 0.4, fade);
+      }
+      const ease = moving.t < 0.5 ? 2 * moving.t * moving.t : 1 - ((-2 * moving.t + 2) ** 2) / 2;
+      const x = moving.from.x + (moving.to.x - moving.from.x) * ease;
+      const y = moving.from.y + (moving.to.y - moving.from.y) * ease;
+      const lift = Math.sin(Math.PI * moving.t) * 6;
+      drawPiece(ctx, moving.piece, x, y - lift, 1.08);
+    }
+
+    drawBanner(ctx, width, this.banner.text, this.banner.subtext, clamp(this.banner.life, 0, 1));
+  }
+
+  destroy() {
+    this.setup?.destroy();
+    this.panel?.destroy();
+  }
+}
+
+function createDuckmate(context) {
+  return new DuckmateGame(context);
+}
+
+  return { GAME_ID, createDuckmate, DuckmateGame };
+})();
+
+// ---- src/games/duckmate/index.js ---------------------------------
+__modules["src/games/duckmate/index.js"] = (function () {
+  const { registerGame } = __modules["src/core/registry.js"];
+  const { createDuckmate, GAME_ID } = __modules["src/games/duckmate/game.js"];
+
+registerGame({
+  id: GAME_ID,
+  name: 'Duckmate',
+  tagline: 'Red against Blue: a Fish, a Dog, a Bird and a Duck apiece.',
+  description: 'Rock-paper-scissors on a chess board. Fish take Dogs, Dogs take Birds, Birds take Fish - and Ducks take anything.',
+  howTo: [
+    '<strong>Fish</strong> can only take <strong>Dogs</strong>. <strong>Dogs</strong> can only take <strong>Birds</strong>. <strong>Birds</strong> can only take <strong>Fish</strong>.',
+    '<strong>Ducks</strong> can take anything, and <strong>nothing can take a Duck except another Duck</strong>.',
+    'Every piece moves <strong>one square in any direction</strong>, diagonals too. You cannot land on a piece you cannot take.',
+    'Red starts in the top-right corner, Blue in the bottom-left. Red moves first.',
+    'Click a piece, then a highlighted square - or use the arrow keys and <strong>Enter</strong>.',
+    'Win by <strong>taking the enemy Duck</strong>. A side with no move left loses; 30 turns with nothing taken is a draw.',
+  ],
+  create: createDuckmate,
+});
+
+  return {  };
+})();
+
 // ---- src/main.js -------------------------------------------------
 __modules["src/main.js"] = (function () {
   const { Shell } = __modules["src/core/shell.js"];
