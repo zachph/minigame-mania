@@ -104,7 +104,7 @@ export function drawBall(ctx, who, { flash = 0, trail = [] } = {}) {
  * The Undertale health line: NAME  HP [yellow on red]  n / max. For a fighter
  * with dodges left, the count shows where the bar would be no use.
  */
-export function drawStatus(ctx, who, x, y, align = 'left') {
+export function drawStatus(ctx, who, x, y, align = 'left', helper = null) {
   if (!who) return;
   const w = 330;
   const left = align === 'right' ? x - w : x;
@@ -122,11 +122,29 @@ export function drawStatus(ctx, who, x, y, align = 'left') {
   ctx.fillStyle = '#c00';
   ctx.fillRect(barX, y - 9, barW, 18);
   ctx.fillStyle = '#ff0';
-  ctx.fillRect(barX, y - 9, barW * clamp(who.hp / who.maxHp, 0, 1), 18);
+  if (helper) {
+    // One bar shared: the fighter's half on the left, the helper's on the right.
+    const half = barW / 2;
+    ctx.fillRect(barX, y - 9, half * clamp(who.hp / who.maxHp, 0, 1), 18);
+    ctx.fillStyle = helper.spec.colour;
+    ctx.fillRect(barX + half, y - 9, half * clamp(helper.hp / helper.maxHp, 0, 1), 18);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(barX + half - 1, y - 9, 2, 18);
+  } else {
+    ctx.fillRect(barX, y - 9, barW * clamp(who.hp / who.maxHp, 0, 1), 18);
+  }
 
   ctx.fillStyle = '#fff';
   ctx.font = `bold 15px ${FONT}`;
-  ctx.fillText(`${Math.ceil(who.hp)} / ${who.maxHp}`, barX + barW + 10, y);
+  const hpText = helper
+    ? `${Math.ceil(who.hp)}+${Math.ceil(helper.hp)} / ${who.maxHp + helper.maxHp}`
+    : `${Math.ceil(who.hp)} / ${who.maxHp}`;
+  ctx.fillText(hpText, barX + barW + 10, y);
+  if (helper) {
+    ctx.font = `bold 11px ${FONT}`;
+    ctx.fillStyle = helper.spec.colour;
+    ctx.fillText(`+ ${helper.name.toUpperCase()}`, left, y - 18);
+  }
   if (who.dodgesLeft > 0) {
     ctx.font = `bold 12px ${FONT}`;
     ctx.fillStyle = '#9be8ff';

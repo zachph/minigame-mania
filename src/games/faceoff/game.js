@@ -276,6 +276,7 @@ class FaceoffGame {
     for (const blaster of this.fight.blasters) {
       drawBlaster(ctx, blaster, this.clock);
     }
+    for (const helper of this.fight.helpers) drawBall(ctx, helper, { flash: this.flash[helper.uid] || 0 });
     for (const [who, foe] of [[a, b], [b, a]]) {
       if (!who) continue;
       drawBall(ctx, who, { flash: this.flash[who.uid] || 0, trail: this.trails[who.uid] || [] });
@@ -286,8 +287,9 @@ class FaceoffGame {
     for (const slash of this.slashes || []) drawSlash(ctx, slash);
     for (const p of this.popups) drawPopup(ctx, p);
 
-    drawStatus(ctx, frontOf(this.fight, 'a'), BOX.x, BOX.y + BOX.h + 34, 'left');
-    drawStatus(ctx, frontOf(this.fight, 'b'), BOX.x + BOX.w, BOX.y + BOX.h + 34, 'right');
+    const helperOf = (side) => this.fight.helpers.find((h) => h.side === side && h.hp > 0) || null;
+    drawStatus(ctx, frontOf(this.fight, 'a'), BOX.x, BOX.y + BOX.h + 34, 'left', helperOf('a'));
+    drawStatus(ctx, frontOf(this.fight, 'b'), BOX.x + BOX.w, BOX.y + BOX.h + 34, 'right', helperOf('b'));
     drawBench(ctx, this.fight.sides.a, BOX.x, BOX.y + BOX.h + 92, 'left');
     drawBench(ctx, this.fight.sides.b, BOX.x + BOX.w, BOX.y + BOX.h + 92, 'right');
 

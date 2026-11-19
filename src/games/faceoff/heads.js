@@ -274,6 +274,28 @@ export const HEADS = {
   },
 };
 
+HEADS.vegeta = (ctx) => {
+  // Hair standing straight up in a tall flame, with a sharp widow's peak.
+  poly(ctx, [[-0.7, 0.1], [-0.85, -0.5], [-0.6, -0.4], [-0.6, -1.0], [-0.3, -0.6], [-0.15, -1.15], [0.05, -0.65], [0.25, -1.12], [0.35, -0.6], [0.62, -1.0], [0.6, -0.4], [0.85, -0.5], [0.7, 0.1]], INK);
+  ctx.strokeStyle = '#6a6a7a';
+  ctx.lineWidth = 0.06;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  circle(ctx, 0, 0.25, 0.6, SKIN);
+  poly(ctx, [[-0.5, -0.2], [0, 0.08], [0.5, -0.2], [0.4, -0.35], [-0.4, -0.35]], INK);
+  // A frown: slanted brows and a flat mouth.
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.08;
+  ctx.beginPath();
+  ctx.moveTo(-0.42, 0.1); ctx.lineTo(-0.12, 0.2);
+  ctx.moveTo(0.42, 0.1); ctx.lineTo(0.12, 0.2);
+  ctx.stroke();
+  eyes(ctx, 0.27, 0.3, 0.07);
+  ctx.beginPath();
+  ctx.moveTo(-0.14, 0.58); ctx.lineTo(0.14, 0.55);
+  ctx.stroke();
+};
+
 HEADS.whis = (ctx) => {
   // A tall white crest of hair and a halo ring around the neck.
   poly(ctx, [[-0.35, -0.2], [-0.2, -1.05], [0.0, -0.4], [0.2, -1.05], [0.35, -0.2]], '#f4f6ff');

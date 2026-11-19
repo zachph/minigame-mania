@@ -206,6 +206,7 @@ export const FIGHTERS = [
   // enemy, 3 every 0.8 seconds for 8 seconds.
   fighter({
     id: 'goku', name: 'Goku', colour: '#ffb15a', shade: '#9a4a10',
+    helper: 'vegeta',   // when Goku is knocked out, Vegeta comes to help whoever is next
     abilities: [
       { kind: 'teleport', name: 'Instant Transmission', every: 20 },
       { kind: 'beam', name: 'Kamehameha', every: 11, lasts: 8, damage: 3, tick: 0.8, colour: '#6ac8ff' },
@@ -240,7 +241,22 @@ export const FIGHTERS = [
   }),
 ];
 
-export const FIGHTER_BY_ID = new Map(FIGHTERS.map((f) => [f.id, f]));
+/**
+ * Fighters who only ever come in to help, never picked. Vegeta arrives when
+ * Goku is knocked out: Goku's moves without the transformations, 125 health,
+ * and half Goku's damage. The fighter he comes in with is halved to 125 too.
+ */
+export const HELPERS = [
+  fighter({
+    id: 'vegeta', name: 'Vegeta', hp: 125, power: 0.5, colour: '#5a7aff', shade: '#1a2a7a',
+    abilities: [
+      { kind: 'teleport', name: 'Instant Transmission', every: 20 },
+      { kind: 'beam', name: 'Kamehameha', every: 11, lasts: 8, damage: 3, tick: 0.8, colour: '#6ac8ff' },
+    ],
+  }),
+];
+
+export const FIGHTER_BY_ID = new Map([...FIGHTERS, ...HELPERS].map((f) => [f.id, f]));
 export const getFighter = (id) => {
   const found = FIGHTER_BY_ID.get(id);
   if (!found) throw new Error(`Unknown fighter: ${id}`);

@@ -110,6 +110,7 @@ export function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random
       b: { team: makeTeam(b, 'b'), front: 0, scale: scaleB },
     },
     summons: [],       // Whis, while he is here
+    helpers: [],       // Vegeta, once Goku is out: a second fighter for that side
     shots: [],         // Reversal Red, while in flight
     blasters: [],      // Gaster Blasters, while firing
     runs: [],          // Gaster Blaster runs in progress: which blast is next
@@ -164,7 +165,7 @@ export function becomeUndying(who) {
  * Undyne rolls, once, to come back undying.
  */
 /** How hard a fighter's attacks land: Goku's forms multiply everything he does. */
-export const powerOf = (who) => who?.form?.power || 1;
+export const powerOf = (who) => who?.form?.power || who?.spec?.power || 1;
 
 /** Goku moves up to whichever form his health has reached - never back down. */
 function checkForms(fight, who) {
@@ -942,12 +943,54 @@ function sendNext(fight, side) {
   const next = frontOf(fight, side);
   if (next && !next.entered) {
     place(fight, next);
+    const before = lane.team[lane.front - 1];
+    if (before?.spec.helper && before.hp <= 0) bringHelper(fight, before, next);
     fight.sinceBump = 0;
     fight.events.push({ kind: 'enter', uid: next.uid, side });
     say(fight, `${next.name} steps in`, { side });
   }
   // Whis leaves with Beerus.
   fight.summons = fight.summons.filter((s) => s.owner.hp > 0);
+  fight.helpers = fight.helpers.filter((h) => h.hp > 0 && !isBeaten(fight.sides[h.side]));
+}
+
+/**
+ * Goku is out: Vegeta comes to help whoever stepped in. They split one
+ * fighter's health - the newcomer drops to half, Vegeta has the other half.
+ * Sans keeps his 1. Only one Vegeta at a time.
+ */
+function bringHelper(fight, gone, next) {
+  if (fight.helpers.some((h) => h.side === next.side && h.hp > 0)) return;
+  if (next.maxHp > 1) {
+    next.maxHp = Math.round(next.maxHp / 2);
+    next.hp = Math.min(next.hp, next.maxHp);
+  }
+  const helper = makeFighter(gone.spec.helper, { slot: `${gone.slot}h`, side: next.side });
+  helper.helps = next;
+  const foe = frontOf(fight, other(next.side));
+  Object.assign(helper, clearSpot(fight, helper, foe));
+  setSpeed(helper, CRUISE);
+  helper.entered = true;
+  fight.helpers.push(helper);
+  fight.events.push({ kind: 'enter', uid: helper.uid, side: next.side });
+  say(fight, `${helper.name} comes to help`, { side: next.side });
+}
+
+/** Helpers fight beside the front fighter: their own clocks, moving, bumping the enemy. */
+function tickHelpers(fight, dt) {
+  for (const helper of fight.helpers) {
+    if (helper.hp <= 0) continue;
+    const foe = frontOf(fight, other(helper.side));
+    if (!foe || foe.hp <= 0) continue;
+    helper.hitLock = Math.max(0, helper.hitLock - dt);
+    tickAbilities(fight, helper, foe, dt);
+    tickBurn(fight, helper, dt);
+    move(helper, foe, dt);
+    const touching = Math.hypot(foe.x - helper.x, foe.y - helper.y) <= helper.radius + foe.radius;
+    if (touching && foe.dash) dashHit(fight, foe, helper);
+    else if (touching && !foe.launched) bump(fight, helper, foe);
+  }
+  fight.helpers = fight.helpers.filter((h) => h.hp > 0);
 }
 
 export function stepFight(fight, dt) {
@@ -1004,6 +1047,9 @@ export function stepFight(fight, dt) {
     else if (touching && fb.dash && !fa.dash) dashHit(fight, fb, fa);
     // A thrown ball is out of the fight until it lands.
     else if (touching && !fa.launched && !fb.launched && !fa.dash && !fb.dash) bump(fight, fa, fb);
+
+    tickHelpers(fight, slice);
+    if (checkOver(fight)) break;
 
     for (const summon of fight.summons) {
       summon.left -= slice;
