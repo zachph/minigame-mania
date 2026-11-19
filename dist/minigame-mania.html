@@ -15475,6 +15475,18 @@ const FIGHTERS = [
     abilities: [
       { kind: 'teleport', name: 'Instant Transmission', every: 20 },
       { kind: 'beam', name: 'Kamehameha', every: 11, lasts: 8, damage: 3, tick: 0.8, colour: '#6ac8ff' },
+      // Transformations, as he gets hurt - and he never goes back down. Each
+      // one hits harder and heals more, every 1.5 seconds. The hit that would
+      // knock him out leaves him on 1 instead, and he goes Ultra Instinct.
+      {
+        kind: 'forms', name: 'Transformations', every: 1.5,
+        forms: [
+          { id: 'ssj', name: 'Super Saiyan', below: 0.75, power: 1.25, regen: 3, colour: '#ffd84a' },
+          { id: 'god', name: 'Super Saiyan God', below: 0.5, power: 1.5, regen: 5, colour: '#ff4a5a' },
+          { id: 'blue', name: 'Super Saiyan Blue', below: 0.25, power: 1.75, regen: 7, colour: '#3ac8ff' },
+        ],
+        last: { id: 'ui', name: 'Ultra Instinct', power: 2, regen: 10, dodges: 5, colour: '#dfe6f4' },
+      },
     ],
   }),
   // Every 15 seconds Whis joins in for 5: a second ball on Beerus's side that
@@ -15613,6 +15625,8 @@ function makeFighter(id, { slot = 0, side = 'a' } = {}) {
     windup: null,      // Saitama holding still: { left, hold, spec }
     undying: false,    // Undyne after she has come back
     undyingRolled: false,
+    form: null,        // Goku's transformation: { id, name, power, regen, colour }
+    formLevel: -1,     // how far up his forms he has gone; Ultra Instinct is past the end
     dealt: 0,
     taken: 0,
     dodged: 0,
@@ -15699,8 +15713,40 @@ function becomeUndying(who) {
  * that come at him go nowhere. A fighter that runs out may get one more go:
  * Undyne rolls, once, to come back undying.
  */
+/** How hard a fighter's attacks land: Goku's forms multiply everything he does. */
+const powerOf = (who) => who?.form?.power || 1;
+
+/** Goku moves up to whichever form his health has reached - never back down. */
+function checkForms(fight, who) {
+  const ability = abilityOf(who, 'forms');
+  if (!ability || who.hp <= 0) return;
+  ability.forms.forEach((form, level) => {
+    if (level > who.formLevel && who.hp <= who.maxHp * form.below) {
+      who.formLevel = level;
+      who.form = form;
+    }
+  });
+  if (who.form && who.form !== who.announcedForm) {
+    who.announcedForm = who.form;
+    fight.events.push({ kind: 'form', uid: who.uid, form: who.form.id });
+    say(fight, `${who.name} goes ${who.form.name}`, { side: who.side });
+  }
+}
+
+/** The hit that would have knocked Goku out leaves him on 1: Ultra Instinct. */
+function goUltra(fight, who, ability) {
+  who.hp = 1;
+  who.formLevel = ability.forms.length;
+  who.form = ability.last;
+  who.announcedForm = ability.last;
+  who.dodgesLeft = ability.last.dodges;
+  fight.events.push({ kind: 'form', uid: who.uid, form: ability.last.id });
+  say(fight, `${who.name} survives on 1 - Ultra Instinct`, { side: who.side });
+}
+
 function hurt(fight, target, amount, { from = null, kind = 'bump' } = {}) {
   if (target.hp <= 0 || amount <= 0) return 0;
+  amount *= powerOf(from);
   if (inFinale(fight, target)) return 0;      // nothing touches Sans during his Last Attack
   if (target.dodgesLeft > 0) {
     target.dodgesLeft -= 1;
@@ -15715,6 +15761,13 @@ function hurt(fight, target, amount, { from = null, kind = 'bump' } = {}) {
   target.taken += dealt;
   if (from) from.dealt += dealt;
   fight.events.push({ kind: 'damage', uid: target.uid, amount: dealt, source: kind });
+
+  const forms = abilityOf(target, 'forms');
+  if (target.hp <= 0 && forms && target.formLevel < forms.forms.length) {
+    goUltra(fight, target, forms);
+    return dealt;
+  }
+  if (target.hp > 0) checkForms(fight, target);
 
   if (target.hp <= 0) {
     const ability = abilityOf(target, 'undying');
@@ -15936,7 +15989,9 @@ function tickAbilities(fight, who, foe, dt) {
 
 /** One clock ability going off. */
 function useAbility(fight, who, foe, ability) {
-  if (ability.kind === 'regen') {
+  if (ability.kind === 'forms') {
+    if (who.form) heal(fight, who, who.form.regen);
+  } else if (ability.kind === 'regen') {
     const given = heal(fight, who, who.maxHp * ability.share);
     if (given > 0) say(fight, `${who.name} heals ${Math.round(given)}`, { side: who.side });
   } else if (ability.kind === 'launch' && foe && foe.hp > 0 && !foe.launched) {
@@ -16554,7 +16609,7 @@ function runFight(fight, step = 1 / 30) {
   return fight.over || checkOver(fight);
 }
 
-  return { abilitiesOf, abilityOf, isClock, inFinale, makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, SPIKE_TIME, BLASTER_INSET, beamWidth, blasterSpot, beamLine, onBeam, BONE_SPACING, BONE_GAP, BONE_TRAIN, BONE_WEAVES, boneHead, boneAt, boneGapAt, inBones, zoneSize, inZone, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
+  return { abilitiesOf, abilityOf, isClock, inFinale, makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, powerOf, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, SPIKE_TIME, BLASTER_INSET, beamWidth, blasterSpot, beamLine, onBeam, BONE_SPACING, BONE_GAP, BONE_TRAIN, BONE_WEAVES, boneHead, boneAt, boneGapAt, inBones, zoneSize, inZone, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
 })();
 
 // ---- src/games/faceoff/heads.js ----------------------------------
@@ -16808,20 +16863,7 @@ const HEADS = {
     ctx.stroke();
   },
 
-  goku(ctx) {
-    // The hair is most of him. Outlined, or black hair vanishes into the dark
-    // disc every fighter sits on.
-    poly(ctx, [[-0.95, 0.15], [-1.0, -0.4], [-0.7, -0.2], [-0.85, -0.85], [-0.4, -0.45], [-0.3, -1.1], [0.0, -0.55], [0.3, -1.08], [0.4, -0.45], [0.85, -0.9], [0.72, -0.2], [1.02, -0.38], [0.92, 0.15]], INK);
-    ctx.strokeStyle = '#6a6a7a';
-    ctx.lineWidth = 0.06;
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-    circle(ctx, 0, 0.22, 0.64, SKIN);
-    // A fringe of spikes over the forehead.
-    poly(ctx, [[-0.6, -0.15], [-0.3, 0.12], [-0.15, -0.15], [0.05, 0.15], [0.2, -0.15], [0.4, 0.1], [0.6, -0.15], [0.3, -0.4], [-0.3, -0.4]], INK);
-    eyes(ctx, 0.28, 0.25, 0.08);
-    mouth(ctx, 0.58, 0.14);
-  },
+  goku(ctx) { gokuHead(ctx, INK, '#6a6a7a'); },
 
   beerus(ctx) {
     // Tall pointed ears.
@@ -16874,6 +16916,28 @@ HEADS.undying = (ctx) => {
 };
 
 /** Draws `id`'s head centred on x, y with radius r. */
+/** Goku, with his hair in whatever colour his form gives it. */
+function gokuHead(ctx, hair, outline) {
+  // The hair is most of him. Outlined, or black hair vanishes into the dark
+  // disc every fighter sits on.
+  poly(ctx, [[-0.95, 0.15], [-1.0, -0.4], [-0.7, -0.2], [-0.85, -0.85], [-0.4, -0.45], [-0.3, -1.1], [0.0, -0.55], [0.3, -1.08], [0.4, -0.45], [0.85, -0.9], [0.72, -0.2], [1.02, -0.38], [0.92, 0.15]], hair);
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 0.06;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  circle(ctx, 0, 0.22, 0.64, SKIN);
+  // A fringe of spikes over the forehead.
+  poly(ctx, [[-0.6, -0.15], [-0.3, 0.12], [-0.15, -0.15], [0.05, 0.15], [0.2, -0.15], [0.4, 0.1], [0.6, -0.15], [0.3, -0.4], [-0.3, -0.4]], hair);
+  eyes(ctx, 0.28, 0.25, 0.08);
+  mouth(ctx, 0.58, 0.14);
+}
+
+// Goku's forms: Super Saiyan gold, God red, Blue blue, Ultra Instinct silver.
+HEADS['goku-ssj'] = (ctx) => gokuHead(ctx, '#ffd84a', '#a07a10');
+HEADS['goku-god'] = (ctx) => gokuHead(ctx, '#e83a4a', '#7a1020');
+HEADS['goku-blue'] = (ctx) => gokuHead(ctx, '#3ac8ff', '#10608a');
+HEADS['goku-ui'] = (ctx) => gokuHead(ctx, '#dfe6f4', '#7a8296');
+
 function drawHead(ctx, id, x, y, r) {
   ctx.save();
   ctx.translate(x, y);
@@ -17089,11 +17153,24 @@ function drawBall(ctx, who, { flash = 0, trail = [] } = {}) {
 
   // The head is the fighter. A dark disc behind it and a white ring around it
   // keep the edge you are watching for collisions easy to see.
+  // Goku's form glows around him in its own colour.
+  if (who.form) {
+    const glow = ctx.createRadialGradient(who.x, who.y, who.radius * 0.8, who.x, who.y, who.radius * 1.7);
+    glow.addColorStop(0, who.form.colour);
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.globalAlpha = 0.65;
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(who.x, who.y, who.radius * 1.7, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
   ctx.fillStyle = '#1a1a22';
   ctx.beginPath();
   ctx.arc(who.x, who.y, who.radius, 0, TAU);
   ctx.fill();
-  drawHead(ctx, who.undying ? 'undying' : who.kind === 'whis' ? 'whis' : who.id, who.x, who.y, who.radius * 0.95);
+  const head = who.undying ? 'undying' : who.kind === 'whis' ? 'whis' : who.form ? `${who.id}-${who.form.id}` : who.id;
+  drawHead(ctx, head, who.x, who.y, who.radius * 0.95);
   // A dash leaves streaks of water behind it.
   if (who.dash) {
     ctx.strokeStyle = 'rgba(150, 210, 255, 0.7)';
