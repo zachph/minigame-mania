@@ -15472,6 +15472,7 @@ const FIGHTERS = [
   // enemy, 3 every 0.8 seconds for 8 seconds.
   fighter({
     id: 'goku', name: 'Goku', colour: '#ffb15a', shade: '#9a4a10',
+    helper: 'vegeta',   // when Goku is knocked out, Vegeta comes to help whoever is next
     abilities: [
       { kind: 'teleport', name: 'Instant Transmission', every: 20 },
       { kind: 'beam', name: 'Kamehameha', every: 11, lasts: 8, damage: 3, tick: 0.8, colour: '#6ac8ff' },
@@ -15506,7 +15507,22 @@ const FIGHTERS = [
   }),
 ];
 
-const FIGHTER_BY_ID = new Map(FIGHTERS.map((f) => [f.id, f]));
+/**
+ * Fighters who only ever come in to help, never picked. Vegeta arrives when
+ * Goku is knocked out: Goku's moves without the transformations, 125 health,
+ * and half Goku's damage. The fighter he comes in with is halved to 125 too.
+ */
+const HELPERS = [
+  fighter({
+    id: 'vegeta', name: 'Vegeta', hp: 125, power: 0.5, colour: '#5a7aff', shade: '#1a2a7a',
+    abilities: [
+      { kind: 'teleport', name: 'Instant Transmission', every: 20 },
+      { kind: 'beam', name: 'Kamehameha', every: 11, lasts: 8, damage: 3, tick: 0.8, colour: '#6ac8ff' },
+    ],
+  }),
+];
+
+const FIGHTER_BY_ID = new Map([...FIGHTERS, ...HELPERS].map((f) => [f.id, f]));
 const getFighter = (id) => {
   const found = FIGHTER_BY_ID.get(id);
   if (!found) throw new Error(`Unknown fighter: ${id}`);
@@ -15561,7 +15577,7 @@ const PRESSURE_FROM = 25;
 const PRESSURE_RATE = 0.06;
 const FIGHT_LIMIT = 90;
 
-  return { BOX, BALL_RADIUS, CRUISE, HOMING, STALL_AFTER, HIT_LOCK, BUMP_DAMAGE, BUMP_SPREAD, LAUNCH_SPEED, TELEPORT_CLEAR, BASE_HP, BLASTER_SPOTS, SANS_TICK, BLAST_WIDTH, BIG_BLAST_WIDTH, FIGHTERS, FIGHTER_BY_ID, getFighter, TEAM_SIZE, MODES, MODE_BY_ID, TOWER, TOWER_RECOVERY, STORY, STORY_RECOVERY, PRESSURE_FROM, PRESSURE_RATE, FIGHT_LIMIT };
+  return { BOX, BALL_RADIUS, CRUISE, HOMING, STALL_AFTER, HIT_LOCK, BUMP_DAMAGE, BUMP_SPREAD, LAUNCH_SPEED, TELEPORT_CLEAR, BASE_HP, BLASTER_SPOTS, SANS_TICK, BLAST_WIDTH, BIG_BLAST_WIDTH, FIGHTERS, HELPERS, FIGHTER_BY_ID, getFighter, TEAM_SIZE, MODES, MODE_BY_ID, TOWER, TOWER_RECOVERY, STORY, STORY_RECOVERY, PRESSURE_FROM, PRESSURE_RATE, FIGHT_LIMIT };
 })();
 
 // ---- src/games/faceoff/battle.js ---------------------------------
@@ -15660,6 +15676,7 @@ function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random, limit
       b: { team: makeTeam(b, 'b'), front: 0, scale: scaleB },
     },
     summons: [],       // Whis, while he is here
+    helpers: [],       // Vegeta, once Goku is out: a second fighter for that side
     shots: [],         // Reversal Red, while in flight
     blasters: [],      // Gaster Blasters, while firing
     runs: [],          // Gaster Blaster runs in progress: which blast is next
@@ -15714,7 +15731,7 @@ function becomeUndying(who) {
  * Undyne rolls, once, to come back undying.
  */
 /** How hard a fighter's attacks land: Goku's forms multiply everything he does. */
-const powerOf = (who) => who?.form?.power || 1;
+const powerOf = (who) => who?.form?.power || who?.spec?.power || 1;
 
 /** Goku moves up to whichever form his health has reached - never back down. */
 function checkForms(fight, who) {
@@ -16492,12 +16509,54 @@ function sendNext(fight, side) {
   const next = frontOf(fight, side);
   if (next && !next.entered) {
     place(fight, next);
+    const before = lane.team[lane.front - 1];
+    if (before?.spec.helper && before.hp <= 0) bringHelper(fight, before, next);
     fight.sinceBump = 0;
     fight.events.push({ kind: 'enter', uid: next.uid, side });
     say(fight, `${next.name} steps in`, { side });
   }
   // Whis leaves with Beerus.
   fight.summons = fight.summons.filter((s) => s.owner.hp > 0);
+  fight.helpers = fight.helpers.filter((h) => h.hp > 0 && !isBeaten(fight.sides[h.side]));
+}
+
+/**
+ * Goku is out: Vegeta comes to help whoever stepped in. They split one
+ * fighter's health - the newcomer drops to half, Vegeta has the other half.
+ * Sans keeps his 1. Only one Vegeta at a time.
+ */
+function bringHelper(fight, gone, next) {
+  if (fight.helpers.some((h) => h.side === next.side && h.hp > 0)) return;
+  if (next.maxHp > 1) {
+    next.maxHp = Math.round(next.maxHp / 2);
+    next.hp = Math.min(next.hp, next.maxHp);
+  }
+  const helper = makeFighter(gone.spec.helper, { slot: `${gone.slot}h`, side: next.side });
+  helper.helps = next;
+  const foe = frontOf(fight, other(next.side));
+  Object.assign(helper, clearSpot(fight, helper, foe));
+  setSpeed(helper, CRUISE);
+  helper.entered = true;
+  fight.helpers.push(helper);
+  fight.events.push({ kind: 'enter', uid: helper.uid, side: next.side });
+  say(fight, `${helper.name} comes to help`, { side: next.side });
+}
+
+/** Helpers fight beside the front fighter: their own clocks, moving, bumping the enemy. */
+function tickHelpers(fight, dt) {
+  for (const helper of fight.helpers) {
+    if (helper.hp <= 0) continue;
+    const foe = frontOf(fight, other(helper.side));
+    if (!foe || foe.hp <= 0) continue;
+    helper.hitLock = Math.max(0, helper.hitLock - dt);
+    tickAbilities(fight, helper, foe, dt);
+    tickBurn(fight, helper, dt);
+    move(helper, foe, dt);
+    const touching = Math.hypot(foe.x - helper.x, foe.y - helper.y) <= helper.radius + foe.radius;
+    if (touching && foe.dash) dashHit(fight, foe, helper);
+    else if (touching && !foe.launched) bump(fight, helper, foe);
+  }
+  fight.helpers = fight.helpers.filter((h) => h.hp > 0);
 }
 
 function stepFight(fight, dt) {
@@ -16554,6 +16613,9 @@ function stepFight(fight, dt) {
     else if (touching && fb.dash && !fa.dash) dashHit(fight, fb, fa);
     // A thrown ball is out of the fight until it lands.
     else if (touching && !fa.launched && !fb.launched && !fa.dash && !fb.dash) bump(fight, fa, fb);
+
+    tickHelpers(fight, slice);
+    if (checkOver(fight)) break;
 
     for (const summon of fight.summons) {
       summon.left -= slice;
@@ -16890,6 +16952,28 @@ const HEADS = {
   },
 };
 
+HEADS.vegeta = (ctx) => {
+  // Hair standing straight up in a tall flame, with a sharp widow's peak.
+  poly(ctx, [[-0.7, 0.1], [-0.85, -0.5], [-0.6, -0.4], [-0.6, -1.0], [-0.3, -0.6], [-0.15, -1.15], [0.05, -0.65], [0.25, -1.12], [0.35, -0.6], [0.62, -1.0], [0.6, -0.4], [0.85, -0.5], [0.7, 0.1]], INK);
+  ctx.strokeStyle = '#6a6a7a';
+  ctx.lineWidth = 0.06;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  circle(ctx, 0, 0.25, 0.6, SKIN);
+  poly(ctx, [[-0.5, -0.2], [0, 0.08], [0.5, -0.2], [0.4, -0.35], [-0.4, -0.35]], INK);
+  // A frown: slanted brows and a flat mouth.
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.08;
+  ctx.beginPath();
+  ctx.moveTo(-0.42, 0.1); ctx.lineTo(-0.12, 0.2);
+  ctx.moveTo(0.42, 0.1); ctx.lineTo(0.12, 0.2);
+  ctx.stroke();
+  eyes(ctx, 0.27, 0.3, 0.07);
+  ctx.beginPath();
+  ctx.moveTo(-0.14, 0.58); ctx.lineTo(0.14, 0.55);
+  ctx.stroke();
+};
+
 HEADS.whis = (ctx) => {
   // A tall white crest of hair and a halo ring around the neck.
   poly(ctx, [[-0.35, -0.2], [-0.2, -1.05], [0.0, -0.4], [0.2, -1.05], [0.35, -0.2]], '#f4f6ff');
@@ -17214,7 +17298,7 @@ function drawBall(ctx, who, { flash = 0, trail = [] } = {}) {
  * The Undertale health line: NAME  HP [yellow on red]  n / max. For a fighter
  * with dodges left, the count shows where the bar would be no use.
  */
-function drawStatus(ctx, who, x, y, align = 'left') {
+function drawStatus(ctx, who, x, y, align = 'left', helper = null) {
   if (!who) return;
   const w = 330;
   const left = align === 'right' ? x - w : x;
@@ -17232,11 +17316,29 @@ function drawStatus(ctx, who, x, y, align = 'left') {
   ctx.fillStyle = '#c00';
   ctx.fillRect(barX, y - 9, barW, 18);
   ctx.fillStyle = '#ff0';
-  ctx.fillRect(barX, y - 9, barW * clamp(who.hp / who.maxHp, 0, 1), 18);
+  if (helper) {
+    // One bar shared: the fighter's half on the left, the helper's on the right.
+    const half = barW / 2;
+    ctx.fillRect(barX, y - 9, half * clamp(who.hp / who.maxHp, 0, 1), 18);
+    ctx.fillStyle = helper.spec.colour;
+    ctx.fillRect(barX + half, y - 9, half * clamp(helper.hp / helper.maxHp, 0, 1), 18);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(barX + half - 1, y - 9, 2, 18);
+  } else {
+    ctx.fillRect(barX, y - 9, barW * clamp(who.hp / who.maxHp, 0, 1), 18);
+  }
 
   ctx.fillStyle = '#fff';
   ctx.font = `bold 15px ${FONT}`;
-  ctx.fillText(`${Math.ceil(who.hp)} / ${who.maxHp}`, barX + barW + 10, y);
+  const hpText = helper
+    ? `${Math.ceil(who.hp)}+${Math.ceil(helper.hp)} / ${who.maxHp + helper.maxHp}`
+    : `${Math.ceil(who.hp)} / ${who.maxHp}`;
+  ctx.fillText(hpText, barX + barW + 10, y);
+  if (helper) {
+    ctx.font = `bold 11px ${FONT}`;
+    ctx.fillStyle = helper.spec.colour;
+    ctx.fillText(`+ ${helper.name.toUpperCase()}`, left, y - 18);
+  }
   if (who.dodgesLeft > 0) {
     ctx.font = `bold 12px ${FONT}`;
     ctx.fillStyle = '#9be8ff';
@@ -17943,6 +18045,7 @@ class FaceoffGame {
     for (const blaster of this.fight.blasters) {
       drawBlaster(ctx, blaster, this.clock);
     }
+    for (const helper of this.fight.helpers) drawBall(ctx, helper, { flash: this.flash[helper.uid] || 0 });
     for (const [who, foe] of [[a, b], [b, a]]) {
       if (!who) continue;
       drawBall(ctx, who, { flash: this.flash[who.uid] || 0, trail: this.trails[who.uid] || [] });
@@ -17953,8 +18056,9 @@ class FaceoffGame {
     for (const slash of this.slashes || []) drawSlash(ctx, slash);
     for (const p of this.popups) drawPopup(ctx, p);
 
-    drawStatus(ctx, frontOf(this.fight, 'a'), BOX.x, BOX.y + BOX.h + 34, 'left');
-    drawStatus(ctx, frontOf(this.fight, 'b'), BOX.x + BOX.w, BOX.y + BOX.h + 34, 'right');
+    const helperOf = (side) => this.fight.helpers.find((h) => h.side === side && h.hp > 0) || null;
+    drawStatus(ctx, frontOf(this.fight, 'a'), BOX.x, BOX.y + BOX.h + 34, 'left', helperOf('a'));
+    drawStatus(ctx, frontOf(this.fight, 'b'), BOX.x + BOX.w, BOX.y + BOX.h + 34, 'right', helperOf('b'));
     drawBench(ctx, this.fight.sides.a, BOX.x, BOX.y + BOX.h + 92, 'left');
     drawBench(ctx, this.fight.sides.b, BOX.x + BOX.w, BOX.y + BOX.h + 92, 'right');
 

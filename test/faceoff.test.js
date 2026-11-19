@@ -1040,6 +1040,84 @@ test('every form draws', async () => {
   assert.ok(ctx.calls > 40);
 });
 
+/* --------------------------------------------------------------- Vegeta */
+
+/** Puts Goku down for good, past Ultra Instinct. */
+const knockOut = (f, goku) => { goku.formLevel = 99; goku.dodgesLeft = 0; hurt(f, goku, 100000); };
+
+test('when Goku is out, Vegeta comes to help the next one, and they split the health', () => {
+  const f = fight(['goku', 'garou'], ['beerus']);
+  knockOut(f, f.sides.a.team[0]);
+  stepFight(f, 1 / 60);
+  const garou = frontOf(f, 'a');
+  assert.equal(garou.name, 'Garou');
+  assert.equal(garou.maxHp, 125);
+  assert.equal(garou.hp, 125);
+  assert.equal(f.helpers.length, 1);
+  const vegeta = f.helpers[0];
+  assert.equal(vegeta.name, 'Vegeta');
+  assert.equal(vegeta.side, 'a');
+  assert.equal(vegeta.hp, 125);
+  assert.deepEqual(vegeta.spec.abilities.map((a) => a.name), ['Instant Transmission', 'Kamehameha']);
+  assert.equal(vegeta.form, null);
+});
+
+test('Vegeta does half what Goku does', () => {
+  const f = fight(['goku', 'garou'], ['beerus']);
+  knockOut(f, f.sides.a.team[0]);
+  stepFight(f, 1 / 60);
+  const [vegeta, beerus] = [f.helpers[0], frontOf(f, 'b')];
+  assert.equal(hurt(f, beerus, 10, { from: vegeta }), 5);
+});
+
+test('Vegeta fights: he bumps, fires his Kamehameha, and goes when he is beaten', () => {
+  const f = fight(['goku', 'garou'], ['beerus']);
+  quiet(f);
+  knockOut(f, f.sides.a.team[0]);
+  stepFight(f, 1 / 60);
+  const vegeta = f.helpers[0];
+  vegeta.hp = vegeta.maxHp = 125;
+  vegeta.timers.beam = 11 - 1e-6;
+  const beerus = frontOf(f, 'b');
+  const before = beerus.taken;
+  let beamed = false;
+  for (let i = 0; i < 60 * 20; i += 1) {
+    stepFight(f, 1 / 60);
+    if (f.beams.some((b) => b.owner === vegeta)) beamed = true;
+  }
+  assert.ok(beamed, 'his Kamehameha');
+  assert.ok(beerus.taken > before, 'and it all hurt');
+  vegeta.dodgesLeft = 0;
+  hurt(f, vegeta, 1000);
+  stepFight(f, 1 / 60);
+  assert.equal(f.helpers.length, 0);
+});
+
+test('no Vegeta if Goku was the last one, and Sans keeps his 1', () => {
+  const f = fight(['goku'], ['beerus']);
+  knockOut(f, f.sides.a.team[0]);
+  stepFight(f, 1 / 60);
+  assert.equal(f.helpers.length, 0);
+  assert.ok(f.over);
+
+  const g = fight(['goku', 'sans'], ['beerus']);
+  knockOut(g, g.sides.a.team[0]);
+  stepFight(g, 1 / 60);
+  assert.equal(frontOf(g, 'a').maxHp, 1);
+  assert.equal(g.helpers.length, 1);
+});
+
+test('Vegeta and the shared health bar draw', async () => {
+  const { drawStatus } = await import('../src/games/faceoff/art.js');
+  const f = fight(['goku', 'garou'], ['beerus']);
+  knockOut(f, f.sides.a.team[0]);
+  stepFight(f, 1 / 60);
+  const ctx = createFakeContext();
+  drawBall(ctx, f.helpers[0]);
+  drawStatus(ctx, frontOf(f, 'a'), 100, 400, 'left', f.helpers[0]);
+  assert.ok(ctx.calls > 20);
+});
+
 test('the Kamehameha draws', async () => {
   const { drawBeam } = await import('../src/games/faceoff/art.js');
   const ctx = createFakeContext();
