@@ -6,7 +6,8 @@
  *   Fish take Dogs. Dogs take Birds. Birds take Fish.
  *   Ducks take anything, and nothing takes a Duck except another Duck.
  * Every piece moves one square in any of the eight directions. A piece may
- * not land on one it cannot take. Capture the enemy Duck to win.
+ * not land on one it cannot take. Win by taking the enemy Duck, or by taking
+ * every enemy piece that is not a Duck.
  *
  * Red starts in the top-right corner (Duck h8, Fish g8, Dog h7, Bird g7) and
  * Blue in the bottom-left (Duck a1, Fish b1, Dog a2, Bird b2).
@@ -164,6 +165,9 @@ function applyVerdict(state) {
 
   if (state.lastMove?.captured === 'duck') {
     return { ...state, over: true, winner: mover, reason: `${SIDES[mover].name}'s Duck took the other Duck` };
+  }
+  if (!piecesOf(state, defender).some((piece) => piece.type !== 'duck')) {
+    return { ...state, over: true, winner: mover, reason: `${SIDES[mover].name} took every ${SIDES[defender].name} animal but the Duck` };
   }
   if (legalMoves(state, defender).length === 0) {
     return { ...state, over: true, winner: mover, reason: `${SIDES[defender].name} has no move` };

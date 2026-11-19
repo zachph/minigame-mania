@@ -12,7 +12,7 @@ registerGame({
     'Every piece moves <strong>one square in any direction</strong>, diagonals too. You cannot land on a piece you cannot take.',
     'Red starts in the top-right corner, Blue in the bottom-left. Red moves first.',
     'Click a piece, then a highlighted square - or use the arrow keys and <strong>Enter</strong>.',
-    'Win by <strong>taking the enemy Duck</strong>. A side with no move left loses; 30 turns with nothing taken is a draw.',
+    'Win by <strong>taking the enemy Duck</strong>, or by <strong>taking their Fish, Dog and Bird</strong>. A side with no move left loses; 30 turns with nothing taken is a draw.',
   ],
   create: createDuckmate,
 });

@@ -75,7 +75,7 @@ export class SetupPanel {
     start.addEventListener('click', () => this.onStart({ mode: this.mode, difficulty: this.difficulty }));
     card.append(start);
 
-    card.append(el('p', 'np-setup-foot', 'Every piece moves one square any way. Take the enemy Duck to win. Red moves first.'));
+    card.append(el('p', 'np-setup-foot', 'Every piece moves one square any way. Take the enemy Duck, or all their other pieces, to win. Red moves first.'));
     this.root.append(card);
   }
 
