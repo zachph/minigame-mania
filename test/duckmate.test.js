@@ -59,6 +59,18 @@ test('taking the enemy duck wins', () => {
   assert.equal(after.winner, 'red');
 });
 
+test('taking every piece that is not a duck wins too', () => {
+  const s = empty();
+  put(s, 'd4', 'red', 'duck');
+  put(s, 'e5', 'blue', 'bird');
+  put(s, 'a1', 'blue', 'duck');
+  put(s, 'h8', 'red', 'fish');
+  const after = move(s, 'd4', 'e5');
+  assert.equal(after.over, true);
+  assert.equal(after.winner, 'red');
+  assert.match(after.reason, /every Blue animal/);
+});
+
 test('nothing but a duck can touch a duck', () => {
   const s = empty();
   put(s, 'd4', 'blue', 'duck');

@@ -17928,7 +17928,8 @@ __modules["src/games/duckmate/rules.js"] = (function () {
  *   Fish take Dogs. Dogs take Birds. Birds take Fish.
  *   Ducks take anything, and nothing takes a Duck except another Duck.
  * Every piece moves one square in any of the eight directions. A piece may
- * not land on one it cannot take. Capture the enemy Duck to win.
+ * not land on one it cannot take. Win by taking the enemy Duck, or by taking
+ * every enemy piece that is not a Duck.
  *
  * Red starts in the top-right corner (Duck h8, Fish g8, Dog h7, Bird g7) and
  * Blue in the bottom-left (Duck a1, Fish b1, Dog a2, Bird b2).
@@ -18086,6 +18087,9 @@ function applyVerdict(state) {
 
   if (state.lastMove?.captured === 'duck') {
     return { ...state, over: true, winner: mover, reason: `${SIDES[mover].name}'s Duck took the other Duck` };
+  }
+  if (!piecesOf(state, defender).some((piece) => piece.type !== 'duck')) {
+    return { ...state, over: true, winner: mover, reason: `${SIDES[mover].name} took every ${SIDES[defender].name} animal but the Duck` };
   }
   if (legalMoves(state, defender).length === 0) {
     return { ...state, over: true, winner: mover, reason: `${SIDES[defender].name} has no move` };
@@ -18724,7 +18728,7 @@ class SetupPanel {
     start.addEventListener('click', () => this.onStart({ mode: this.mode, difficulty: this.difficulty }));
     card.append(start);
 
-    card.append(el('p', 'np-setup-foot', 'Every piece moves one square any way. Take the enemy Duck to win. Red moves first.'));
+    card.append(el('p', 'np-setup-foot', 'Every piece moves one square any way. Take the enemy Duck, or all their other pieces, to win. Red moves first.'));
     this.root.append(card);
   }
 
@@ -19157,7 +19161,7 @@ registerGame({
     'Every piece moves <strong>one square in any direction</strong>, diagonals too. You cannot land on a piece you cannot take.',
     'Red starts in the top-right corner, Blue in the bottom-left. Red moves first.',
     'Click a piece, then a highlighted square - or use the arrow keys and <strong>Enter</strong>.',
-    'Win by <strong>taking the enemy Duck</strong>. A side with no move left loses; 30 turns with nothing taken is a draw.',
+    'Win by <strong>taking the enemy Duck</strong>, or by <strong>taking their Fish, Dog and Bird</strong>. A side with no move left loses; 30 turns with nothing taken is a draw.',
   ],
   create: createDuckmate,
 });
