@@ -594,19 +594,23 @@ test('the run goes corners at the middle, corners along the walls, corners again
   assert.ok(f.time > 12);
 });
 
-test('in the middle, every corner blast and both big ones hit, 1 every half second each', () => {
+test('in the middle, every corner blast and both big ones hit, 1 a frame each', () => {
   const { f, goku, step } = blasterFight();
-  step();                                  // the run starts
-  const at = (seconds) => { while (f.time < seconds) step(); return goku.taken; };
-  const t0 = f.time;
-  const after3 = at(t0 + 3.05);
-  assert.equal(Math.round(after3), 24, 'four corner blasts, 6 ticks each');
-  const after6 = at(t0 + 6.05);
-  assert.equal(Math.round(after6 - after3), 0, 'the wall blasts miss the middle');
-  const after9 = at(t0 + 9.05);
-  assert.equal(Math.round(after9 - after6), 24);
-  const after12 = at(t0 + 12.05);
-  assert.equal(Math.round(after12 - after9), 12, 'two big ones, 6 ticks each');
+  // Add up what Goku takes under each set of blasters.
+  const bySet = [];
+  let last = '';
+  for (let i = 0; i < 30 * 13; i += 1) {
+    const before = goku.taken;
+    step();
+    const now = shapeOf(f.blasters);
+    if (now && now !== last) bySet.push(0);
+    if (now) bySet[bySet.length - 1] += goku.taken - before;
+    last = now;
+  }
+  // Corners 4 x 90 frames, walls miss the middle, big ones 2 x 90. A set's last
+  // frame can land as the next set appears, so each is allowed a frame or two either way.
+  assert.equal(bySet.length, 4);
+  [360, 0, 360, 180].forEach((want, i) => assert.ok(Math.abs(bySet[i] - want) <= 8, `set ${i + 1}: ${bySet[i]}`));
 });
 
 test('beams only hit whoever is in them', () => {
@@ -624,7 +628,7 @@ test('along a wall, only that wall\'s beam hits', () => {
   spot.x = BOX.x + BOX.w / 2;
   spot.y = BOX.y + BOX.h - BALL_RADIUS;    // against the bottom wall, under the middle
   for (let i = 0; i < 30 * 6.05; i += 1) step();
-  assert.equal(Math.round(goku.taken), 6, 'one beam, 6 ticks');
+  assert.equal(Math.round(goku.taken), 90, 'one beam, 90 frames');
 });
 
 test('Sans can dodge the blasts too, a tick at a time', () => {
@@ -638,14 +642,14 @@ test('Sans can dodge the blasts too, a tick at a time', () => {
   mine.timers.blaster = 7.99;
   // Halfway down the top-left corner's beam, clear of the others.
   const { start, end } = beamLine({ from: 'top-left', to: 'middle' });
-  for (let i = 0; i < 30 * 3.2 && !f.over; i += 1) {
+  for (let i = 0; i < 30 * 0.5 && !f.over; i += 1) {
     mine.hitLock = theirs.hitLock = 99; f.sinceBump = 0;
     theirs.x = (start.x + end.x) / 2; theirs.y = (start.y + end.y) / 2;
     mine.x = BOX.x + BOX.w - 80; mine.y = BOX.y + BOX.h / 2 + 60;
     stepFight(f, 1 / 30);
   }
   assert.equal(theirs.hp, 1, 'he is still standing');
-  assert.equal(theirs.dodgesLeft, 18, 'six ticks, six dodges');
+  assert.ok(theirs.dodgesLeft >= 9 && theirs.dodgesLeft <= 11, `${24 - theirs.dodgesLeft} dodges in half a second of beam`);
 });
 
 test('the 8 seconds start when a run is over, not when it starts', () => {
@@ -712,7 +716,7 @@ test('the Bone Wave comes every 20 seconds, and up against the ceiling it hits w
   const before = goku.taken;
   for (let i = 0; i < 30 * 5.5; i += 1) step();
   const hits = Math.round(goku.taken - before);
-  assert.ok(hits >= 5 && hits <= 8, `${hits} hits while the bones went by`);
+  assert.ok(hits >= 75 && hits <= 110, `${hits} hits while the bones went by`);
   assert.equal(f.waves.length, 0, 'and it has passed');
 });
 
@@ -746,8 +750,9 @@ test('Sans dodges a Bone Wave a tick at a time', () => {
     stepFight(f, 1 / 30);
   }
   assert.equal(theirs.hp, 1);
-  const used = 24 - theirs.dodgesLeft;
-  assert.ok(used >= 5 && used <= 8, `${used} dodges`);
+  // A frame at a time he dodges down to his last one - then out comes his own Last Attack.
+  assert.equal(theirs.dodgesLeft, 1);
+  assert.ok(theirs.finaleUsed);
 });
 
 /* ---------------------------------------------------------- Last Attack */

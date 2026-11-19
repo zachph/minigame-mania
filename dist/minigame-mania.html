@@ -15330,6 +15330,12 @@ const BLASTER_SPOTS = {
   middle: [0.5, 0.5],
 };
 
+/**
+ * How often Sans's attacks hurt while you touch them: like the real fight,
+ * 1 damage every frame at 30 frames a second - 30 a second.
+ */
+const SANS_TICK = 1 / 30;
+
 /** How thick the beams are: a normal one is about a fighter wide, a big one most of the box. */
 const BLAST_WIDTH = 64;
 const BIG_BLAST_WIDTH = 210;
@@ -15385,7 +15391,7 @@ const FIGHTERS = [
         kind: 'blaster',
         name: 'Gaster Blaster',
         every: 8,          // seconds between one run ending and the next starting
-        tick: 0.5,         // every attack Sans has does 1 every half second
+        tick: SANS_TICK,   // 1 a frame, like the real fight
         steps: [
           { lasts: 3, blasts: CORNERS_AT_MIDDLE },
           { lasts: 3, blasts: ALONG_THE_WALLS },
@@ -15397,8 +15403,8 @@ const FIGHTERS = [
         ],
       },
       // Bone Wave: every 20 seconds a row of bones slides across the box for 5,
-      // with a gap weaving up and down. Touching a bone does 1 every half second.
-      { kind: 'bones', name: 'Bone Wave', every: 20, lasts: 5, damage: 1, tick: 0.5 },
+      // with a gap weaving up and down. Touching a bone does 1 a frame.
+      { kind: 'bones', name: 'Bone Wave', every: 20, lasts: 5, damage: 1, tick: SANS_TICK },
       // Last Attack: once, when he is down to his last dodge. He slams the
       // enemy into the walls again and again, bones jutting out where they
       // land, then rings them with Gaster Blasters. Nothing touches him while
@@ -15406,7 +15412,7 @@ const FIGHTERS = [
       {
         kind: 'finale', name: 'Last Attack', at: 1,
         slams: 12, slamGap: 0.45, slamDamage: 1, slamSpeed: 900,
-        ring: 8, ringGap: 0.3, ringLasts: 1, ringRadius: 210, damage: 1, tick: 0.5,
+        ring: 8, ringGap: 0.3, ringLasts: 1, ringRadius: 210, damage: 1, tick: SANS_TICK,
       },
     ],
   }),
@@ -15543,7 +15549,7 @@ const PRESSURE_FROM = 25;
 const PRESSURE_RATE = 0.06;
 const FIGHT_LIMIT = 90;
 
-  return { BOX, BALL_RADIUS, CRUISE, HOMING, STALL_AFTER, HIT_LOCK, BUMP_DAMAGE, BUMP_SPREAD, LAUNCH_SPEED, TELEPORT_CLEAR, BASE_HP, BLASTER_SPOTS, BLAST_WIDTH, BIG_BLAST_WIDTH, FIGHTERS, FIGHTER_BY_ID, getFighter, TEAM_SIZE, MODES, MODE_BY_ID, TOWER, TOWER_RECOVERY, STORY, STORY_RECOVERY, PRESSURE_FROM, PRESSURE_RATE, FIGHT_LIMIT };
+  return { BOX, BALL_RADIUS, CRUISE, HOMING, STALL_AFTER, HIT_LOCK, BUMP_DAMAGE, BUMP_SPREAD, LAUNCH_SPEED, TELEPORT_CLEAR, BASE_HP, BLASTER_SPOTS, SANS_TICK, BLAST_WIDTH, BIG_BLAST_WIDTH, FIGHTERS, FIGHTER_BY_ID, getFighter, TEAM_SIZE, MODES, MODE_BY_ID, TOWER, TOWER_RECOVERY, STORY, STORY_RECOVERY, PRESSURE_FROM, PRESSURE_RATE, FIGHT_LIMIT };
 })();
 
 // ---- src/games/faceoff/battle.js ---------------------------------

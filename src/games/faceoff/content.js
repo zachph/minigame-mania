@@ -64,6 +64,12 @@ export const BLASTER_SPOTS = {
   middle: [0.5, 0.5],
 };
 
+/**
+ * How often Sans's attacks hurt while you touch them: like the real fight,
+ * 1 damage every frame at 30 frames a second - 30 a second.
+ */
+export const SANS_TICK = 1 / 30;
+
 /** How thick the beams are: a normal one is about a fighter wide, a big one most of the box. */
 export const BLAST_WIDTH = 64;
 export const BIG_BLAST_WIDTH = 210;
@@ -119,7 +125,7 @@ export const FIGHTERS = [
         kind: 'blaster',
         name: 'Gaster Blaster',
         every: 8,          // seconds between one run ending and the next starting
-        tick: 0.5,         // every attack Sans has does 1 every half second
+        tick: SANS_TICK,   // 1 a frame, like the real fight
         steps: [
           { lasts: 3, blasts: CORNERS_AT_MIDDLE },
           { lasts: 3, blasts: ALONG_THE_WALLS },
@@ -131,8 +137,8 @@ export const FIGHTERS = [
         ],
       },
       // Bone Wave: every 20 seconds a row of bones slides across the box for 5,
-      // with a gap weaving up and down. Touching a bone does 1 every half second.
-      { kind: 'bones', name: 'Bone Wave', every: 20, lasts: 5, damage: 1, tick: 0.5 },
+      // with a gap weaving up and down. Touching a bone does 1 a frame.
+      { kind: 'bones', name: 'Bone Wave', every: 20, lasts: 5, damage: 1, tick: SANS_TICK },
       // Last Attack: once, when he is down to his last dodge. He slams the
       // enemy into the walls again and again, bones jutting out where they
       // land, then rings them with Gaster Blasters. Nothing touches him while
@@ -140,7 +146,7 @@ export const FIGHTERS = [
       {
         kind: 'finale', name: 'Last Attack', at: 1,
         slams: 12, slamGap: 0.45, slamDamage: 1, slamSpeed: 900,
-        ring: 8, ringGap: 0.3, ringLasts: 1, ringRadius: 210, damage: 1, tick: 0.5,
+        ring: 8, ringGap: 0.3, ringLasts: 1, ringRadius: 210, damage: 1, tick: SANS_TICK,
       },
     ],
   }),
