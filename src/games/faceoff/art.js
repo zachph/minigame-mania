@@ -59,7 +59,7 @@ export function drawBall(ctx, who, { flash = 0, trail = [] } = {}) {
   ctx.beginPath();
   ctx.arc(who.x, who.y, who.radius, 0, TAU);
   ctx.fill();
-  const head = who.undying ? 'undying' : who.kind === 'whis' ? 'whis' : who.form ? `${who.id}-${who.form.id}` : who.id;
+  const head = who.undying ? 'undying' : who.kind === 'whis' ? 'whis' : who.form ? `${who.id}-${who.form.id}` : who.blindfoldOff ? `${who.id}-eyes` : who.id;
   drawHead(ctx, head, who.x, who.y, who.radius * 0.95);
   // A dash leaves streaks of water behind it.
   if (who.dash) {
@@ -438,6 +438,52 @@ function sideBone(ctx, x1, y, x2) {
   ctx.translate(x1, y);
   ctx.rotate(-Math.PI / 2);
   bone(ctx, 0, 0, x2 - x1);
+  ctx.restore();
+}
+
+/**
+ * Infinite Void: the box becomes endless space - stars, a bright ring in the
+ * middle - while the fight is frozen. After the answer, how it went.
+ */
+export function drawVoid(ctx, time, text = '') {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);
+  ctx.clip();
+  const cx = BOX.x + BOX.w / 2;
+  const cy = BOX.y + BOX.h / 2;
+  const space = ctx.createRadialGradient(cx, cy, 10, cx, cy, BOX.w * 0.6);
+  space.addColorStop(0, '#2a3a8a');
+  space.addColorStop(0.35, '#120a3a');
+  space.addColorStop(1, '#020208');
+  ctx.fillStyle = space;
+  ctx.fillRect(BOX.x, BOX.y, BOX.w, BOX.h);
+  // Stars streaming out from the middle.
+  for (let i = 0; i < 140; i += 1) {
+    const angle = i * 2.399;
+    const reach = ((i * 37 + time * 60) % 520) / 520;
+    const x = cx + Math.cos(angle) * reach * BOX.w * 0.6;
+    const y = cy + Math.sin(angle) * reach * BOX.w * 0.6;
+    ctx.globalAlpha = 0.3 + reach * 0.7;
+    ctx.fillStyle = i % 5 === 0 ? '#9fd8ff' : '#fff';
+    ctx.fillRect(x, y, 1 + reach * 2, 1 + reach * 2);
+  }
+  ctx.globalAlpha = 0.8;
+  ctx.strokeStyle = '#cfe8ff';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 46 + Math.sin(time * 3) * 4, 0, TAU);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#9fd8ff';
+  ctx.font = `bold 16px ${FONT}`;
+  ctx.fillText('DOMAIN EXPANSION: INFINITE VOID', cx, BOX.y + 26);
+  if (text) {
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold 15px ${FONT}`;
+    ctx.fillText(text, cx, BOX.y + BOX.h - 22);
+  }
   ctx.restore();
 }
 
