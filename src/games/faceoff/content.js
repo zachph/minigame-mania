@@ -209,6 +209,18 @@ export const FIGHTERS = [
     abilities: [
       { kind: 'teleport', name: 'Instant Transmission', every: 20 },
       { kind: 'beam', name: 'Kamehameha', every: 11, lasts: 8, damage: 3, tick: 0.8, colour: '#6ac8ff' },
+      // Transformations, as he gets hurt - and he never goes back down. Each
+      // one hits harder and heals more, every 1.5 seconds. The hit that would
+      // knock him out leaves him on 1 instead, and he goes Ultra Instinct.
+      {
+        kind: 'forms', name: 'Transformations', every: 1.5,
+        forms: [
+          { id: 'ssj', name: 'Super Saiyan', below: 0.75, power: 1.25, regen: 3, colour: '#ffd84a' },
+          { id: 'god', name: 'Super Saiyan God', below: 0.5, power: 1.5, regen: 5, colour: '#ff4a5a' },
+          { id: 'blue', name: 'Super Saiyan Blue', below: 0.25, power: 1.75, regen: 7, colour: '#3ac8ff' },
+        ],
+        last: { id: 'ui', name: 'Ultra Instinct', power: 2, regen: 10, dodges: 5, colour: '#dfe6f4' },
+      },
     ],
   }),
   // Every 15 seconds Whis joins in for 5: a second ball on Beerus's side that

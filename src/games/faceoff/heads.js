@@ -247,20 +247,7 @@ export const HEADS = {
     ctx.stroke();
   },
 
-  goku(ctx) {
-    // The hair is most of him. Outlined, or black hair vanishes into the dark
-    // disc every fighter sits on.
-    poly(ctx, [[-0.95, 0.15], [-1.0, -0.4], [-0.7, -0.2], [-0.85, -0.85], [-0.4, -0.45], [-0.3, -1.1], [0.0, -0.55], [0.3, -1.08], [0.4, -0.45], [0.85, -0.9], [0.72, -0.2], [1.02, -0.38], [0.92, 0.15]], INK);
-    ctx.strokeStyle = '#6a6a7a';
-    ctx.lineWidth = 0.06;
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-    circle(ctx, 0, 0.22, 0.64, SKIN);
-    // A fringe of spikes over the forehead.
-    poly(ctx, [[-0.6, -0.15], [-0.3, 0.12], [-0.15, -0.15], [0.05, 0.15], [0.2, -0.15], [0.4, 0.1], [0.6, -0.15], [0.3, -0.4], [-0.3, -0.4]], INK);
-    eyes(ctx, 0.28, 0.25, 0.08);
-    mouth(ctx, 0.58, 0.14);
-  },
+  goku(ctx) { gokuHead(ctx, INK, '#6a6a7a'); },
 
   beerus(ctx) {
     // Tall pointed ears.
@@ -313,6 +300,28 @@ HEADS.undying = (ctx) => {
 };
 
 /** Draws `id`'s head centred on x, y with radius r. */
+/** Goku, with his hair in whatever colour his form gives it. */
+function gokuHead(ctx, hair, outline) {
+  // The hair is most of him. Outlined, or black hair vanishes into the dark
+  // disc every fighter sits on.
+  poly(ctx, [[-0.95, 0.15], [-1.0, -0.4], [-0.7, -0.2], [-0.85, -0.85], [-0.4, -0.45], [-0.3, -1.1], [0.0, -0.55], [0.3, -1.08], [0.4, -0.45], [0.85, -0.9], [0.72, -0.2], [1.02, -0.38], [0.92, 0.15]], hair);
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 0.06;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  circle(ctx, 0, 0.22, 0.64, SKIN);
+  // A fringe of spikes over the forehead.
+  poly(ctx, [[-0.6, -0.15], [-0.3, 0.12], [-0.15, -0.15], [0.05, 0.15], [0.2, -0.15], [0.4, 0.1], [0.6, -0.15], [0.3, -0.4], [-0.3, -0.4]], hair);
+  eyes(ctx, 0.28, 0.25, 0.08);
+  mouth(ctx, 0.58, 0.14);
+}
+
+// Goku's forms: Super Saiyan gold, God red, Blue blue, Ultra Instinct silver.
+HEADS['goku-ssj'] = (ctx) => gokuHead(ctx, '#ffd84a', '#a07a10');
+HEADS['goku-god'] = (ctx) => gokuHead(ctx, '#e83a4a', '#7a1020');
+HEADS['goku-blue'] = (ctx) => gokuHead(ctx, '#3ac8ff', '#10608a');
+HEADS['goku-ui'] = (ctx) => gokuHead(ctx, '#dfe6f4', '#7a8296');
+
 export function drawHead(ctx, id, x, y, r) {
   ctx.save();
   ctx.translate(x, y);

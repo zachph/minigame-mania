@@ -130,7 +130,7 @@ test('they keep meeting - nobody gets stuck circling', () => {
 /* ------------------------------------------------------------- the rest */
 
 test('when one is out, the next of the three steps in', () => {
-  const f = fight(['goku', 'gojo', 'garou'], ['beerus']);
+  const f = fight(['ralsei', 'gojo', 'garou'], ['beerus']);
   hurt(f, f.sides.a.team[0], 10000);
   stepFight(f, 1 / 60);
   assert.equal(frontOf(f, 'a').name, 'Gojo');
@@ -138,7 +138,7 @@ test('when one is out, the next of the three steps in', () => {
 });
 
 test('a side with nobody left has lost', () => {
-  const f = fight(['goku', 'gojo'], ['beerus']);
+  const f = fight(['ralsei', 'gojo'], ['beerus']);
   for (const who of f.sides.a.team) hurt(f, who, 10000);
   assert.equal(isBeaten(f.sides.a), true);
 });
@@ -237,14 +237,14 @@ test('Gojo is never slowed by his own Infinity, and a fallen Gojo slows nobody',
 
 test('a slowed attacker hits Gojo for less than Gojo hits back', () => {
   let toGojo = 0;
-  let toGoku = 0;
+  let toFoe = 0;
   for (let seed = 1; seed <= 40; seed += 1) {
-    const f = fight(['gojo'], ['goku'], seed);
+    const f = fight(['gojo'], ['undyne'], seed);
     while (!f.over) stepFight(f, 1 / 30);
     toGojo += f.sides.a.team[0].taken;
-    toGoku += f.sides.b.team[0].taken;
+    toFoe += f.sides.b.team[0].taken;
   }
-  assert.ok(toGojo < toGoku * 0.8, `Gojo took ${toGojo.toFixed(0)}, Goku took ${toGoku.toFixed(0)}`);
+  assert.ok(toGojo < toFoe * 0.8, `Gojo took ${toGojo.toFixed(0)}, Undyne took ${toFoe.toFixed(0)}`);
 });
 
 test('the Infinity ring draws', async () => {
@@ -404,7 +404,7 @@ test('40% of Garou\'s hits land twice', () => {
 test('5% of Saitama\'s hits kill outright', () => {
   let kills = 0;
   for (let seed = 1; seed <= 1000; seed += 1) {
-    const f = fight(['saitama'], ['goku'], seed);
+    const f = fight(['saitama'], ['garou'], seed);
     strike(f, frontOf(f, 'a'), frontOf(f, 'b'), 1);
     if (frontOf(f, 'b').hp === 0) kills += 1;
   }
@@ -934,7 +934,7 @@ test('a spear draws', async () => {
 /* ----------------------------------------------------------- Kamehameha */
 
 test('Goku has Instant Transmission and Kamehameha', () => {
-  assert.deepEqual(getFighter('goku').abilities.map((a) => a.name), ['Instant Transmission', 'Kamehameha']);
+  assert.deepEqual(getFighter('goku').abilities.map((a) => a.name), ['Instant Transmission', 'Kamehameha', 'Transformations']);
 });
 
 test('a Kamehameha does 3 every 0.8 seconds for 8 seconds, every 11', () => {
@@ -962,9 +962,82 @@ test('the beam stops when Goku goes down, and Sans dodges each hit', () => {
   for (let i = 0; i < 60 * 1.7; i += 1) { sans.hitLock = goku.hitLock = 99; f.sinceBump = 0; sans.x = goku.x + 400; stepFight(f, 1 / 60); }
   assert.equal(sans.hp, 1);
   assert.equal(sans.dodgesLeft, 22, 'two hits, two dodges');
+  goku.formLevel = 99;                     // past Ultra Instinct, so this hit really does put him down
+  goku.dodgesLeft = 0;
   hurt(f, goku, 10000);
   stepFight(f, 1 / 60);
   assert.equal(f.beams.length, 0);
+});
+
+test('Goku goes Super Saiyan at 75%, God at 50%, Blue at 25% - and never back down', () => {
+  const f = fight(['goku'], ['garou']);
+  const goku = frontOf(f, 'a');
+  assert.equal(goku.form, null);
+  hurt(f, goku, 60);                         // 190 of 250: not yet
+  assert.equal(goku.form, null);
+  hurt(f, goku, 5);                          // 185: under 75%
+  assert.equal(goku.form.name, 'Super Saiyan');
+  hurt(f, goku, 70);                         // 115: under 50%
+  assert.equal(goku.form.name, 'Super Saiyan God');
+  heal(f, goku, 200);
+  assert.equal(goku.form.name, 'Super Saiyan God', 'healing does not take it away');
+  hurt(f, goku, 200);                        // 50: under 25%
+  assert.equal(goku.form.name, 'Super Saiyan Blue');
+  // Straight past a form or two in one hit lands in the highest reached.
+  const g = fight(['goku'], ['garou']);
+  hurt(g, frontOf(g, 'a'), 140);
+  assert.equal(frontOf(g, 'a').form.name, 'Super Saiyan God');
+});
+
+test('each form hits harder: 1.25x, 1.5x, 1.75x, then 2x', () => {
+  const f = fight(['goku'], ['garou']);
+  const [goku, garou] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  const ability = goku.spec.abilities.find((a) => a.kind === 'forms');
+  for (const [form, want] of [[null, 10], [ability.forms[0], 12.5], [ability.forms[1], 15], [ability.forms[2], 17.5], [ability.last, 20]]) {
+    goku.form = form;
+    garou.hp = garou.maxHp;
+    assert.equal(hurt(f, garou, 10, { from: goku }), want);
+  }
+});
+
+test('he heals 3, 5, 7 or 10 every 1.5 seconds, by form', () => {
+  for (const [hp, gain] of [[180, 3], [120, 5], [60, 7]]) {
+    const f = fight(['goku'], ['garou']);
+    quiet(f);
+    const goku = frontOf(f, 'a');
+    goku.hp = goku.maxHp = 250;
+    hurt(f, goku, 250 - hp);
+    for (const k of Object.keys(goku.timers)) goku.timers[k] = -1000;
+    goku.timers.forms = 1.5 - 1e-6;
+    const before = goku.hp;
+    goku.hitLock = 99; f.sides.b.team[0].hitLock = 99;
+    f.sides.b.team[0].x = goku.x + 400;
+    stepFight(f, 1 / 60);
+    assert.equal(Math.round(goku.hp - before), gain, `${goku.form.name}`);
+  }
+});
+
+test('the hit that would knock him out leaves him on 1, in Ultra Instinct with 5 dodges', () => {
+  const f = fight(['goku'], ['saitama']);
+  const goku = frontOf(f, 'a');
+  hurt(f, goku, 100000);
+  assert.equal(goku.hp, 1);
+  assert.equal(goku.form.name, 'Ultra Instinct');
+  assert.equal(goku.dodgesLeft, 5);
+  for (let i = 0; i < 5; i += 1) assert.equal(hurt(f, goku, 50), 0, 'dodged');
+  hurt(f, goku, 50);
+  assert.equal(goku.hp, 0, 'only the once');
+});
+
+test('every form draws', async () => {
+  const f = fight(['goku'], ['garou']);
+  const goku = frontOf(f, 'a');
+  const ctx = createFakeContext();
+  for (const form of goku.spec.abilities.find((a) => a.kind === 'forms').forms) {
+    goku.form = form;
+    drawBall(ctx, goku);
+  }
+  assert.ok(ctx.calls > 40);
 });
 
 test('the Kamehameha draws', async () => {

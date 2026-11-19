@@ -75,6 +75,8 @@ export function makeFighter(id, { slot = 0, side = 'a' } = {}) {
     windup: null,      // Saitama holding still: { left, hold, spec }
     undying: false,    // Undyne after she has come back
     undyingRolled: false,
+    form: null,        // Goku's transformation: { id, name, power, regen, colour }
+    formLevel: -1,     // how far up his forms he has gone; Ultra Instinct is past the end
     dealt: 0,
     taken: 0,
     dodged: 0,
@@ -161,8 +163,40 @@ export function becomeUndying(who) {
  * that come at him go nowhere. A fighter that runs out may get one more go:
  * Undyne rolls, once, to come back undying.
  */
+/** How hard a fighter's attacks land: Goku's forms multiply everything he does. */
+export const powerOf = (who) => who?.form?.power || 1;
+
+/** Goku moves up to whichever form his health has reached - never back down. */
+function checkForms(fight, who) {
+  const ability = abilityOf(who, 'forms');
+  if (!ability || who.hp <= 0) return;
+  ability.forms.forEach((form, level) => {
+    if (level > who.formLevel && who.hp <= who.maxHp * form.below) {
+      who.formLevel = level;
+      who.form = form;
+    }
+  });
+  if (who.form && who.form !== who.announcedForm) {
+    who.announcedForm = who.form;
+    fight.events.push({ kind: 'form', uid: who.uid, form: who.form.id });
+    say(fight, `${who.name} goes ${who.form.name}`, { side: who.side });
+  }
+}
+
+/** The hit that would have knocked Goku out leaves him on 1: Ultra Instinct. */
+function goUltra(fight, who, ability) {
+  who.hp = 1;
+  who.formLevel = ability.forms.length;
+  who.form = ability.last;
+  who.announcedForm = ability.last;
+  who.dodgesLeft = ability.last.dodges;
+  fight.events.push({ kind: 'form', uid: who.uid, form: ability.last.id });
+  say(fight, `${who.name} survives on 1 - Ultra Instinct`, { side: who.side });
+}
+
 export function hurt(fight, target, amount, { from = null, kind = 'bump' } = {}) {
   if (target.hp <= 0 || amount <= 0) return 0;
+  amount *= powerOf(from);
   if (inFinale(fight, target)) return 0;      // nothing touches Sans during his Last Attack
   if (target.dodgesLeft > 0) {
     target.dodgesLeft -= 1;
@@ -177,6 +211,13 @@ export function hurt(fight, target, amount, { from = null, kind = 'bump' } = {})
   target.taken += dealt;
   if (from) from.dealt += dealt;
   fight.events.push({ kind: 'damage', uid: target.uid, amount: dealt, source: kind });
+
+  const forms = abilityOf(target, 'forms');
+  if (target.hp <= 0 && forms && target.formLevel < forms.forms.length) {
+    goUltra(fight, target, forms);
+    return dealt;
+  }
+  if (target.hp > 0) checkForms(fight, target);
 
   if (target.hp <= 0) {
     const ability = abilityOf(target, 'undying');
@@ -398,7 +439,9 @@ function tickAbilities(fight, who, foe, dt) {
 
 /** One clock ability going off. */
 function useAbility(fight, who, foe, ability) {
-  if (ability.kind === 'regen') {
+  if (ability.kind === 'forms') {
+    if (who.form) heal(fight, who, who.form.regen);
+  } else if (ability.kind === 'regen') {
     const given = heal(fight, who, who.maxHp * ability.share);
     if (given > 0) say(fight, `${who.name} heals ${Math.round(given)}`, { side: who.side });
   } else if (ability.kind === 'launch' && foe && foe.hp > 0 && !foe.launched) {

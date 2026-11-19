@@ -43,11 +43,24 @@ export function drawBall(ctx, who, { flash = 0, trail = [] } = {}) {
 
   // The head is the fighter. A dark disc behind it and a white ring around it
   // keep the edge you are watching for collisions easy to see.
+  // Goku's form glows around him in its own colour.
+  if (who.form) {
+    const glow = ctx.createRadialGradient(who.x, who.y, who.radius * 0.8, who.x, who.y, who.radius * 1.7);
+    glow.addColorStop(0, who.form.colour);
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.globalAlpha = 0.65;
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(who.x, who.y, who.radius * 1.7, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
   ctx.fillStyle = '#1a1a22';
   ctx.beginPath();
   ctx.arc(who.x, who.y, who.radius, 0, TAU);
   ctx.fill();
-  drawHead(ctx, who.undying ? 'undying' : who.kind === 'whis' ? 'whis' : who.id, who.x, who.y, who.radius * 0.95);
+  const head = who.undying ? 'undying' : who.kind === 'whis' ? 'whis' : who.form ? `${who.id}-${who.form.id}` : who.id;
+  drawHead(ctx, head, who.x, who.y, who.radius * 0.95);
   // A dash leaves streaks of water behind it.
   if (who.dash) {
     ctx.strokeStyle = 'rgba(150, 210, 255, 0.7)';
