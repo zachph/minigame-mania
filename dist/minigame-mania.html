@@ -15528,7 +15528,21 @@ const HELPERS = [
   }),
 ];
 
-const FIGHTER_BY_ID = new Map([...FIGHTERS, ...HELPERS].map((f) => [f.id, f]));
+/**
+ * The ones you unlock in Story. Their abilities are still to come; until then
+ * they bump like anyone else.
+ */
+const UNLOCKABLES = [
+  fighter({ id: 'genos', name: 'Genos', colour: '#ffd24a', shade: '#8a6a10' }),
+  fighter({ id: 'yuji', name: 'Yuji', colour: '#ff9aa8', shade: '#8a3040' }),
+  fighter({ id: 'frieza', name: 'Frieza', colour: '#c88aff', shade: '#4a1a7a' }),
+  fighter({ id: 'lastbreath', name: 'Last Breath Sans', colour: '#7ad8ff', shade: '#1a4a7a' }),
+  fighter({ id: 'frisk', name: 'Frisk', colour: '#5ab0ff', shade: '#7a3aa0' }),
+  fighter({ id: 'gojo1b', name: 'Gojo 1B%', colour: '#b48aff', shade: '#3a1a8a' }),
+  fighter({ id: 'fullpower', name: 'Saitama Full Power', colour: '#ffe04a', shade: '#a02020' }),
+];
+
+const FIGHTER_BY_ID = new Map([...FIGHTERS, ...HELPERS, ...UNLOCKABLES].map((f) => [f.id, f]));
 const getFighter = (id) => {
   const found = FIGHTER_BY_ID.get(id);
   if (!found) throw new Error(`Unknown fighter: ${id}`);
@@ -15562,20 +15576,28 @@ const TOWER = [
 ];
 const TOWER_RECOVERY = 0.4;
 
+/**
+ * Story: six set fights. Beating one unlocks the new characters in it, so
+ * they can be picked from then on.
+ */
 const STORY = [
-  { id: 'underground', name: 'The Underground', team: ['ralsei', 'undyne', 'sans'], scale: 0.9,
-    before: 'Somebody fell into the box. It is going to be a bad time.' },
-  { id: 'hero', name: 'The Hero Hunter', team: ['garou', 'garou', 'undyne'], scale: 1,
-    before: 'He hunts heroes. You brought three.' },
-  { id: 'jujutsu', name: 'Jujutsu High', team: ['gojo', 'sukuna', 'ralsei'], scale: 1.1,
-    before: 'The strongest, and the one who wants that title.' },
-  { id: 'saiyan', name: 'Saiyan Pride', team: ['goku', 'goku', 'garou'], scale: 1.15,
-    before: 'He just wants a good fight.' },
-  { id: 'destroyer', name: 'God of Destruction', team: ['beerus', 'sukuna', 'gojo'], scale: 1.25,
+  { id: 'onepunch', name: 'One Punch', team: ['genos', 'garou', 'saitama'], scale: 1.0, unlocks: ['genos'],
+    before: 'A cyborg, a monster, and a hero for fun.' },
+  { id: 'jujutsu', name: 'Jujutsu High', team: ['yuji', 'sukuna', 'gojo'], scale: 1.05, unlocks: ['yuji'],
+    before: 'The vessel, the King of Curses, and the strongest.' },
+  { id: 'dbz', name: 'Dragon Ball Z', team: ['frieza', 'goku', 'beerus'], scale: 1.1, unlocks: ['frieza'],
+    before: 'An emperor, a Saiyan and a god.' },
+  { id: 'destroyer', name: 'God of Destruction', team: ['beerus', 'sukuna', 'gojo'], scale: 1.2, unlocks: [],
     before: 'He woke up hungry.' },
-  { id: 'caped', name: 'Just a Hobby', team: ['saitama', 'beerus', 'sans'], scale: 1.35,
-    before: 'He is only doing this for fun.' },
+  { id: 'underground', name: 'The Underground', team: ['ralsei', 'undyne', 'sans'], scale: 1.25, unlocks: [],
+    before: 'Somebody fell into the box. It is going to be a bad time.' },
+  { id: 'laststretch', name: 'Last Stretch', team: ['lastbreath', 'frisk', 'gojo1b', 'fullpower'], scale: 1.35,
+    unlocks: ['lastbreath', 'frisk', 'gojo1b', 'fullpower'],
+    before: 'Four of them, and every one at their strongest.' },
 ];
+/** Which chapter of Story unlocks a character. */
+const UNLOCKED_BY = new Map(STORY.flatMap((chapter) => chapter.unlocks.map((id) => [id, chapter])));
+
 const STORY_RECOVERY = 0.6;
 
 /** Escalation, so nothing goes on forever. */
@@ -15600,7 +15622,7 @@ function isChessAnswer(text) {
   return /^10{120}$/.test(t);
 }
 
-  return { BOX, BALL_RADIUS, CRUISE, HOMING, STALL_AFTER, HIT_LOCK, BUMP_DAMAGE, BUMP_SPREAD, LAUNCH_SPEED, TELEPORT_CLEAR, BASE_HP, BLASTER_SPOTS, SANS_TICK, BLAST_WIDTH, BIG_BLAST_WIDTH, FIGHTERS, HELPERS, FIGHTER_BY_ID, getFighter, TEAM_SIZE, MODES, MODE_BY_ID, TOWER, TOWER_RECOVERY, STORY, STORY_RECOVERY, PRESSURE_FROM, PRESSURE_RATE, FIGHT_LIMIT, CHESS_QUESTION, CHESS_ANSWER, isChessAnswer };
+  return { BOX, BALL_RADIUS, CRUISE, HOMING, STALL_AFTER, HIT_LOCK, BUMP_DAMAGE, BUMP_SPREAD, LAUNCH_SPEED, TELEPORT_CLEAR, BASE_HP, BLASTER_SPOTS, SANS_TICK, BLAST_WIDTH, BIG_BLAST_WIDTH, FIGHTERS, HELPERS, UNLOCKABLES, FIGHTER_BY_ID, getFighter, TEAM_SIZE, MODES, MODE_BY_ID, TOWER, TOWER_RECOVERY, STORY, UNLOCKED_BY, STORY_RECOVERY, PRESSURE_FROM, PRESSURE_RATE, FIGHT_LIMIT, CHESS_QUESTION, CHESS_ANSWER, isChessAnswer };
 })();
 
 // ---- src/games/faceoff/battle.js ---------------------------------
@@ -16747,6 +16769,35 @@ function runFight(fight, step = 1 / 30) {
   return { abilitiesOf, abilityOf, isClock, inFinale, makeFighter, makeTeam, place, createFight, other, frontOf, isBeaten, pressureAt, becomeUndying, powerOf, resolveDomain, hurt, heal, strike, speedFor, inInfinity, move, bump, summonBump, SPIKE_TIME, BLASTER_INSET, beamWidth, blasterSpot, beamLine, onBeam, BONE_SPACING, BONE_GAP, BONE_TRAIN, BONE_WEAVES, boneHead, boneAt, boneGapAt, inBones, zoneSize, inZone, nextAbilityIn, nextHealIn, stepFight, healthShare, checkOver, runFight };
 })();
 
+// ---- src/games/faceoff/unlocks.js --------------------------------
+__modules["src/games/faceoff/unlocks.js"] = (function () {
+  const { read, write } = __modules["src/core/storage.js"];
+  const { FIGHTERS, UNLOCKABLES } = __modules["src/games/faceoff/content.js"];
+
+/**
+ * Characters won in Story, kept between visits. The first nine are always
+ * there; the rest arrive one chapter at a time.
+ */
+const KEY = 'faceoff:unlocked';
+
+function unlockedIds() {
+  const saved = read(KEY);
+  return Array.isArray(saved) ? saved.filter((id) => UNLOCKABLES.some((f) => f.id === id)) : [];
+}
+
+const isUnlocked = (id) => FIGHTERS.some((f) => f.id === id) || unlockedIds().includes(id);
+
+/** Unlocks these ids and returns the ones that were new. */
+function unlock(ids) {
+  const have = unlockedIds();
+  const fresh = ids.filter((id) => !have.includes(id));
+  if (fresh.length) write(KEY, [...have, ...fresh]);
+  return fresh;
+}
+
+  return { unlockedIds, isUnlocked, unlock };
+})();
+
 // ---- src/games/faceoff/heads.js ----------------------------------
 __modules["src/games/faceoff/heads.js"] = (function () {
   const { TAU } = __modules["src/core/utils.js"];
@@ -17115,6 +17166,158 @@ HEADS['goku-god'] = (ctx) => gokuHead(ctx, '#e83a4a', '#7a1020');
 HEADS['goku-blue'] = (ctx) => gokuHead(ctx, '#3ac8ff', '#10608a');
 HEADS['goku-ui'] = (ctx) => gokuHead(ctx, '#dfe6f4', '#7a8296');
 
+/* ------------------------------------------------- the Story unlockables */
+
+HEADS.genos = (ctx) => {
+  // Blond spikes, and the cyborg's black eyes with yellow irises.
+  circle(ctx, 0, 0.14, 0.7, SKIN);
+  hair(ctx, {
+    fill: '#ffd84a', outline: '#a07a10', outer: 0.98, inner: 0.78, count: 11,
+    fringe: [[0.64, -0.06], [0.42, 0.06], [0.24, -0.12], [0.04, 0.04], [-0.16, -0.12], [-0.36, 0.04], [-0.56, -0.08], [-0.68, -0.02]],
+  });
+  for (const side of [-1, 1]) {
+    circle(ctx, side * 0.28, 0.24, 0.14, INK);
+    circle(ctx, side * 0.28, 0.24, 0.07, '#ffd84a');
+  }
+  // Metal jaw seams.
+  ctx.strokeStyle = '#8a95a8';
+  ctx.lineWidth = 0.05;
+  ctx.beginPath();
+  ctx.moveTo(-0.5, 0.45); ctx.lineTo(-0.3, 0.72);
+  ctx.moveTo(0.5, 0.45); ctx.lineTo(0.3, 0.72);
+  ctx.stroke();
+  mouth(ctx, 0.56, 0.12);
+};
+
+HEADS.yuji = (ctx) => {
+  // Pink spiky hair over a dark undercut, and the marks under his eyes.
+  circle(ctx, 0, 0.14, 0.72, SKIN);
+  ctx.fillStyle = '#3a2a2a';
+  ctx.fillRect(-0.74, -0.1, 0.12, 0.35);
+  ctx.fillRect(0.62, -0.1, 0.12, 0.35);
+  hair(ctx, {
+    fill: '#ff8fa0', outline: '#a84a5a', outer: 0.98, inner: 0.78, count: 11,
+    fringe: [[0.6, -0.14], [0.4, 0.0], [0.2, -0.16], [0.0, 0.02], [-0.2, -0.16], [-0.4, 0.0], [-0.6, -0.14]],
+  });
+  eyes(ctx, 0.22, 0.28, 0.07);
+  ctx.strokeStyle = '#a84a5a';
+  ctx.lineWidth = 0.05;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * 0.4, 0.34); ctx.lineTo(side * 0.2, 0.36);
+    ctx.stroke();
+  }
+  mouth(ctx, 0.56, 0.16);
+};
+
+HEADS.frieza = (ctx) => {
+  // White face, a purple dome on top, red eyes, purple lips.
+  circle(ctx, 0, 0.18, 0.7, '#f6f2fa');
+  ctx.fillStyle = '#9a4ad6';
+  ctx.beginPath();
+  ctx.ellipse(0, -0.28, 0.58, 0.46, 0, Math.PI, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#c88aff';
+  ctx.beginPath();
+  ctx.ellipse(-0.18, -0.46, 0.16, 0.1, -0.4, 0, TAU);
+  ctx.fill();
+  for (const side of [-1, 1]) {
+    circle(ctx, side * 0.27, 0.14, 0.11, '#fff');
+    circle(ctx, side * 0.27, 0.14, 0.06, '#d01a2a');
+  }
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.06;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * 0.42, -0.02); ctx.lineTo(side * 0.14, 0.04);
+    ctx.stroke();
+  }
+  mouth(ctx, 0.5, 0.14, '#7a2a9a');
+};
+
+HEADS.lastbreath = (ctx) => {
+  // Sans, cracked, with one eye burning.
+  HEADS.sans(ctx);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.06;
+  ctx.beginPath();
+  ctx.moveTo(0.05, -0.9); ctx.lineTo(0.15, -0.6); ctx.lineTo(0.05, -0.45); ctx.lineTo(0.2, -0.3);
+  ctx.stroke();
+  const glow = ctx.createRadialGradient(-0.34, -0.12, 0.02, -0.34, -0.12, 0.34);
+  glow.addColorStop(0, '#fff');
+  glow.addColorStop(0.3, '#7ad8ff');
+  glow.addColorStop(1, 'rgba(122, 216, 255, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(-0.34, -0.12, 0.34, 0, TAU);
+  ctx.fill();
+};
+
+HEADS.frisk = (ctx) => {
+  // A brown bob, eyes closed, and the blue-and-purple stripes of the jumper.
+  ctx.fillStyle = '#5ab0ff';
+  ctx.fillRect(-0.6, 0.72, 1.2, 0.12);
+  ctx.fillStyle = '#9a5ad6';
+  ctx.fillRect(-0.6, 0.84, 1.2, 0.1);
+  poly(ctx, [[-0.82, 0.55], [-0.86, -0.2], [-0.5, -0.72], [0.0, -0.84], [0.5, -0.72], [0.86, -0.2], [0.82, 0.55], [0.6, 0.55], [0.62, -0.05], [-0.62, -0.05], [-0.6, 0.55]], '#7a4a24');
+  circle(ctx, 0, 0.2, 0.6, SKIN);
+  poly(ctx, [[-0.62, 0.02], [-0.5, -0.48], [0.5, -0.48], [0.62, 0.02], [0.3, -0.12], [0.0, 0.0], [-0.3, -0.12]], '#7a4a24');
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.05;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * 0.36, 0.26); ctx.lineTo(side * 0.16, 0.26);
+    ctx.stroke();
+  }
+  mouth(ctx, 0.5, 0.1);
+};
+
+HEADS.gojo1b = (ctx) => {
+  // Gojo with the blindfold off, grinning, in a purple glow.
+  const glow = ctx.createRadialGradient(0, 0, 0.5, 0, 0, 1);
+  glow.addColorStop(0, 'rgba(180, 138, 255, 0)');
+  glow.addColorStop(1, 'rgba(180, 138, 255, 0.8)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, 1, 0, TAU);
+  ctx.fill();
+  HEADS['gojo-eyes'](ctx);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.07;
+  ctx.beginPath();
+  ctx.moveTo(-0.24, 0.58);
+  ctx.quadraticCurveTo(0, 0.74, 0.24, 0.58);
+  ctx.stroke();
+};
+
+HEADS.fullpower = (ctx) => {
+  // Saitama, serious for once: sharp eyes, heavy brows, the red cape at his neck.
+  ctx.fillStyle = '#c0202a';
+  ctx.beginPath();
+  ctx.ellipse(0, 0.86, 0.72, 0.16, 0, 0, TAU);
+  ctx.fill();
+  circle(ctx, 0, 0.05, 0.88, SKIN);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.beginPath();
+  ctx.ellipse(-0.32, -0.45, 0.22, 0.12, -0.5, 0, TAU);
+  ctx.fill();
+  for (const side of [-1, 1]) {
+    poly(ctx, [[side * 0.46, 0.08], [side * 0.12, 0.16], [side * 0.14, 0.24], [side * 0.44, 0.2]], '#fff');
+    circle(ctx, side * 0.27, 0.19, 0.05, INK);
+  }
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.08;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * 0.5, -0.02); ctx.lineTo(side * 0.12, 0.08);
+    ctx.stroke();
+  }
+  ctx.lineWidth = 0.06;
+  ctx.beginPath();
+  ctx.moveTo(-0.16, 0.52); ctx.lineTo(0.16, 0.52);
+  ctx.stroke();
+};
+
 function drawHead(ctx, id, x, y, r) {
   ctx.save();
   ctx.translate(x, y);
@@ -17130,7 +17333,8 @@ function drawHead(ctx, id, x, y, r) {
 
 // ---- src/games/faceoff/select.js ---------------------------------
 __modules["src/games/faceoff/select.js"] = (function () {
-  const { FIGHTERS, MODES, TEAM_SIZE } = __modules["src/games/faceoff/content.js"];
+  const { FIGHTERS, MODES, TEAM_SIZE, UNLOCKABLES, UNLOCKED_BY, getFighter } = __modules["src/games/faceoff/content.js"];
+  const { isUnlocked } = __modules["src/games/faceoff/unlocks.js"];
   const { drawHead } = __modules["src/games/faceoff/heads.js"];
 
 /**
@@ -17204,17 +17408,25 @@ class SelectPanel {
     this.root.append(this.lineup);
 
     this.grid = el('div', 'fo-grid');
-    for (const spec of FIGHTERS) {
+    for (const spec of [...FIGHTERS, ...UNLOCKABLES]) {
       const card = el('button', 'fo-card');
       card.type = 'button';
       card.dataset.id = spec.id;
       card.append(portrait(spec));
+      if (!isUnlocked(spec.id)) {
+        // Still to be won in Story: shown, but greyed out and not pickable.
+        card.disabled = true;
+        card.classList.add('is-locked');
+        card.style.opacity = '0.4';
+        card.style.filter = 'grayscale(1)';
+        card.title = `Beat ${UNLOCKED_BY.get(spec.id)?.name || 'Story'} in Story to unlock`;
+      }
       const body = el('div', 'fo-card-body');
       const name = el('div', 'fo-card-name');
       name.append(el('strong', null, spec.name));
       name.append(el('span', 'fo-card-place', ''));
       body.append(name);
-      body.append(el('p', 'fo-card-blurb', statLine(spec)));
+      body.append(el('p', 'fo-card-blurb', isUnlocked(spec.id) ? statLine(spec) : `Locked - beat ${UNLOCKED_BY.get(spec.id)?.name || 'Story'} in Story`));
       body.append(el('p', 'fo-card-ability', spec.abilities.length ? spec.abilities.map((a) => a.name).join(' + ') : 'no ability'));
       card.append(body);
       card.addEventListener('click', () => this.toggle(spec.id));
@@ -17250,7 +17462,7 @@ class SelectPanel {
     this.lineup.replaceChildren();
     for (let i = 0; i < TEAM_SIZE; i += 1) {
       const id = this.picked[i];
-      const spec = FIGHTERS.find((f) => f.id === id);
+      const spec = id ? getFighter(id) : null;
       const slot = el('div', 'fo-slot');
       slot.classList.toggle('is-filled', Boolean(spec));
       slot.append(el('span', 'fo-slot-no', i === 0 ? 'first out' : i === 1 ? 'second' : 'last'));
@@ -17400,7 +17612,12 @@ function drawStatus(ctx, who, x, y, align = 'left', helper = null) {
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
   ctx.fillStyle = '#fff';
-  ctx.fillText(who.name.toUpperCase(), left, y);
+  // Long names (Saitama Full Power) shrink to fit before the HP label.
+  const name = who.name.toUpperCase();
+  const room = 114;
+  const width = ctx.measureText(name).width;
+  if (width > room) ctx.font = `bold ${Math.max(10, Math.floor(18 * room / width))}px ${FONT}`;
+  ctx.fillText(name, left, y);
   ctx.font = `bold 12px ${FONT}`;
   ctx.fillText('HP', left + 120, y + 1);
 
@@ -17935,9 +18152,10 @@ function drawZone(ctx, zone, time = 0) {
 // ---- src/games/faceoff/game.js -----------------------------------
 __modules["src/games/faceoff/game.js"] = (function () {
   const { clamp, seededRandom } = __modules["src/core/utils.js"];
-  const { BOX, CHESS_ANSWER, CHESS_QUESTION, FIGHTERS, MODE_BY_ID, STORY, STORY_RECOVERY, TOWER, TOWER_RECOVERY, isChessAnswer } = __modules["src/games/faceoff/content.js"];
+  const { BOX, CHESS_ANSWER, CHESS_QUESTION, FIGHTERS, MODE_BY_ID, STORY, STORY_RECOVERY, TOWER, TOWER_RECOVERY, UNLOCKABLES, isChessAnswer } = __modules["src/games/faceoff/content.js"];
   const { createFight, frontOf, healthShare, inInfinity, pressureAt, resolveDomain, stepFight } = __modules["src/games/faceoff/battle.js"];
   const { SelectPanel } = __modules["src/games/faceoff/select.js"];
+  const { unlock } = __modules["src/games/faceoff/unlocks.js"];
   const { drawBall, drawBeam, drawBanner, drawBench, drawBlaster, drawBones, drawSpikes, drawBox, drawVoid, drawInfinity, drawShot, drawSlash, drawSlowed, drawPopup, drawScreen, drawSpark, drawStatus, drawWindup, drawZone, drawText } = __modules["src/games/faceoff/art.js"];
 
 const GAME_ID = 'faceoff';
@@ -17979,6 +18197,7 @@ class FaceoffGame {
     this.step = 0;
     this.wins = 0;
     this.carry = null;
+    this.unlockedNow = [];
     this.panel.destroy();
     this.panel = null;
     this.startFight();
@@ -18069,6 +18288,15 @@ class FaceoffGame {
     if (this.fight.over) {
       this.verdict = this.fight.over;
       if (this.verdict.winner === 'a') this.wins += 1;
+      // Beating a Story chapter unlocks the new characters in it.
+      if (this.verdict.winner === 'a' && this.mode === 'story') {
+        const fresh = unlock(STORY[Math.min(this.step, STORY.length - 1)].unlocks || []);
+        for (const id of fresh) {
+          const name = FIGHTERS.concat(UNLOCKABLES).find((f) => f.id === id)?.name || id;
+          this.unlockedNow.push(name);
+          this.popups.push({ x: BOX.x + BOX.w / 2, y: BOX.y + BOX.h / 2 - this.unlockedNow.length * 30, text: `UNLOCKED: ${name.toUpperCase()}`, colour: '#ffd84a', size: 22, life: AFTER, maxLife: AFTER });
+        }
+      }
       this.stage = 'between';
       this.timer = AFTER;
     }
@@ -18157,7 +18385,7 @@ class FaceoffGame {
       title: this.mode === 'sandbox' ? (cleared ? 'Your three won' : 'Your three lost')
         : cleared ? (this.mode === 'tower' ? 'You reached the top' : 'Story complete')
           : `${this.mode === 'tower' ? 'Floor' : 'Chapter'} ${this.step + 1} beat you`,
-      detailTitle: `${this.wins} of ${runs} won - ${this.verdict.reason}`,
+      detailTitle: `${this.wins} of ${runs} won - ${this.verdict.reason}${this.unlockedNow.length ? ` - unlocked ${this.unlockedNow.join(', ')}` : ''}`,
       collected: mine.team.map((who) => ({
         name: who.name,
         color: who.hp > 0 ? who.spec.colour : 'rgba(255, 255, 255, 0.2)',

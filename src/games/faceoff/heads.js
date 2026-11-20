@@ -364,6 +364,158 @@ HEADS['goku-god'] = (ctx) => gokuHead(ctx, '#e83a4a', '#7a1020');
 HEADS['goku-blue'] = (ctx) => gokuHead(ctx, '#3ac8ff', '#10608a');
 HEADS['goku-ui'] = (ctx) => gokuHead(ctx, '#dfe6f4', '#7a8296');
 
+/* ------------------------------------------------- the Story unlockables */
+
+HEADS.genos = (ctx) => {
+  // Blond spikes, and the cyborg's black eyes with yellow irises.
+  circle(ctx, 0, 0.14, 0.7, SKIN);
+  hair(ctx, {
+    fill: '#ffd84a', outline: '#a07a10', outer: 0.98, inner: 0.78, count: 11,
+    fringe: [[0.64, -0.06], [0.42, 0.06], [0.24, -0.12], [0.04, 0.04], [-0.16, -0.12], [-0.36, 0.04], [-0.56, -0.08], [-0.68, -0.02]],
+  });
+  for (const side of [-1, 1]) {
+    circle(ctx, side * 0.28, 0.24, 0.14, INK);
+    circle(ctx, side * 0.28, 0.24, 0.07, '#ffd84a');
+  }
+  // Metal jaw seams.
+  ctx.strokeStyle = '#8a95a8';
+  ctx.lineWidth = 0.05;
+  ctx.beginPath();
+  ctx.moveTo(-0.5, 0.45); ctx.lineTo(-0.3, 0.72);
+  ctx.moveTo(0.5, 0.45); ctx.lineTo(0.3, 0.72);
+  ctx.stroke();
+  mouth(ctx, 0.56, 0.12);
+};
+
+HEADS.yuji = (ctx) => {
+  // Pink spiky hair over a dark undercut, and the marks under his eyes.
+  circle(ctx, 0, 0.14, 0.72, SKIN);
+  ctx.fillStyle = '#3a2a2a';
+  ctx.fillRect(-0.74, -0.1, 0.12, 0.35);
+  ctx.fillRect(0.62, -0.1, 0.12, 0.35);
+  hair(ctx, {
+    fill: '#ff8fa0', outline: '#a84a5a', outer: 0.98, inner: 0.78, count: 11,
+    fringe: [[0.6, -0.14], [0.4, 0.0], [0.2, -0.16], [0.0, 0.02], [-0.2, -0.16], [-0.4, 0.0], [-0.6, -0.14]],
+  });
+  eyes(ctx, 0.22, 0.28, 0.07);
+  ctx.strokeStyle = '#a84a5a';
+  ctx.lineWidth = 0.05;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * 0.4, 0.34); ctx.lineTo(side * 0.2, 0.36);
+    ctx.stroke();
+  }
+  mouth(ctx, 0.56, 0.16);
+};
+
+HEADS.frieza = (ctx) => {
+  // White face, a purple dome on top, red eyes, purple lips.
+  circle(ctx, 0, 0.18, 0.7, '#f6f2fa');
+  ctx.fillStyle = '#9a4ad6';
+  ctx.beginPath();
+  ctx.ellipse(0, -0.28, 0.58, 0.46, 0, Math.PI, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#c88aff';
+  ctx.beginPath();
+  ctx.ellipse(-0.18, -0.46, 0.16, 0.1, -0.4, 0, TAU);
+  ctx.fill();
+  for (const side of [-1, 1]) {
+    circle(ctx, side * 0.27, 0.14, 0.11, '#fff');
+    circle(ctx, side * 0.27, 0.14, 0.06, '#d01a2a');
+  }
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.06;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * 0.42, -0.02); ctx.lineTo(side * 0.14, 0.04);
+    ctx.stroke();
+  }
+  mouth(ctx, 0.5, 0.14, '#7a2a9a');
+};
+
+HEADS.lastbreath = (ctx) => {
+  // Sans, cracked, with one eye burning.
+  HEADS.sans(ctx);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.06;
+  ctx.beginPath();
+  ctx.moveTo(0.05, -0.9); ctx.lineTo(0.15, -0.6); ctx.lineTo(0.05, -0.45); ctx.lineTo(0.2, -0.3);
+  ctx.stroke();
+  const glow = ctx.createRadialGradient(-0.34, -0.12, 0.02, -0.34, -0.12, 0.34);
+  glow.addColorStop(0, '#fff');
+  glow.addColorStop(0.3, '#7ad8ff');
+  glow.addColorStop(1, 'rgba(122, 216, 255, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(-0.34, -0.12, 0.34, 0, TAU);
+  ctx.fill();
+};
+
+HEADS.frisk = (ctx) => {
+  // A brown bob, eyes closed, and the blue-and-purple stripes of the jumper.
+  ctx.fillStyle = '#5ab0ff';
+  ctx.fillRect(-0.6, 0.72, 1.2, 0.12);
+  ctx.fillStyle = '#9a5ad6';
+  ctx.fillRect(-0.6, 0.84, 1.2, 0.1);
+  poly(ctx, [[-0.82, 0.55], [-0.86, -0.2], [-0.5, -0.72], [0.0, -0.84], [0.5, -0.72], [0.86, -0.2], [0.82, 0.55], [0.6, 0.55], [0.62, -0.05], [-0.62, -0.05], [-0.6, 0.55]], '#7a4a24');
+  circle(ctx, 0, 0.2, 0.6, SKIN);
+  poly(ctx, [[-0.62, 0.02], [-0.5, -0.48], [0.5, -0.48], [0.62, 0.02], [0.3, -0.12], [0.0, 0.0], [-0.3, -0.12]], '#7a4a24');
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.05;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * 0.36, 0.26); ctx.lineTo(side * 0.16, 0.26);
+    ctx.stroke();
+  }
+  mouth(ctx, 0.5, 0.1);
+};
+
+HEADS.gojo1b = (ctx) => {
+  // Gojo with the blindfold off, grinning, in a purple glow.
+  const glow = ctx.createRadialGradient(0, 0, 0.5, 0, 0, 1);
+  glow.addColorStop(0, 'rgba(180, 138, 255, 0)');
+  glow.addColorStop(1, 'rgba(180, 138, 255, 0.8)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, 1, 0, TAU);
+  ctx.fill();
+  HEADS['gojo-eyes'](ctx);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.07;
+  ctx.beginPath();
+  ctx.moveTo(-0.24, 0.58);
+  ctx.quadraticCurveTo(0, 0.74, 0.24, 0.58);
+  ctx.stroke();
+};
+
+HEADS.fullpower = (ctx) => {
+  // Saitama, serious for once: sharp eyes, heavy brows, the red cape at his neck.
+  ctx.fillStyle = '#c0202a';
+  ctx.beginPath();
+  ctx.ellipse(0, 0.86, 0.72, 0.16, 0, 0, TAU);
+  ctx.fill();
+  circle(ctx, 0, 0.05, 0.88, SKIN);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.beginPath();
+  ctx.ellipse(-0.32, -0.45, 0.22, 0.12, -0.5, 0, TAU);
+  ctx.fill();
+  for (const side of [-1, 1]) {
+    poly(ctx, [[side * 0.46, 0.08], [side * 0.12, 0.16], [side * 0.14, 0.24], [side * 0.44, 0.2]], '#fff');
+    circle(ctx, side * 0.27, 0.19, 0.05, INK);
+  }
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.08;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * 0.5, -0.02); ctx.lineTo(side * 0.12, 0.08);
+    ctx.stroke();
+  }
+  ctx.lineWidth = 0.06;
+  ctx.beginPath();
+  ctx.moveTo(-0.16, 0.52); ctx.lineTo(0.16, 0.52);
+  ctx.stroke();
+};
+
 export function drawHead(ctx, id, x, y, r) {
   ctx.save();
   ctx.translate(x, y);

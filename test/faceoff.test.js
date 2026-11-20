@@ -30,11 +30,52 @@ test('everyone has 250 health except Sans, who has 1 and 24 dodges', () => {
   }
 });
 
-test('every floor and chapter is three real fighters', () => {
+test('every floor and chapter is real fighters - three, or four for the last stretch', () => {
   for (const group of [...TOWER, ...STORY]) {
-    assert.equal(group.team.length, TEAM_SIZE);
+    assert.equal(group.team.length, group.id === 'laststretch' ? 4 : TEAM_SIZE, group.name || group.floor);
     for (const id of group.team) assert.doesNotThrow(() => getFighter(id));
   }
+});
+
+test('Story is the six fights, in order', () => {
+  assert.deepEqual(STORY.map((c) => c.name), ['One Punch', 'Jujutsu High', 'Dragon Ball Z', 'God of Destruction', 'The Underground', 'Last Stretch']);
+  assert.deepEqual(STORY[0].team, ['genos', 'garou', 'saitama']);
+  assert.deepEqual(STORY[1].team, ['yuji', 'sukuna', 'gojo']);
+  assert.deepEqual(STORY[2].team, ['frieza', 'goku', 'beerus']);
+  assert.deepEqual(STORY[4].team, ['ralsei', 'undyne', 'sans']);
+  assert.deepEqual(STORY[5].team.map((id) => getFighter(id).name), ['Last Breath Sans', 'Frisk', 'Gojo 1B%', 'Saitama Full Power']);
+});
+
+test('every new character is unlocked by the chapter they are in, and has a head', async () => {
+  const { UNLOCKABLES, UNLOCKED_BY } = await import('../src/games/faceoff/content.js');
+  const { HEADS } = await import('../src/games/faceoff/heads.js');
+  for (const spec of UNLOCKABLES) {
+    const chapter = UNLOCKED_BY.get(spec.id);
+    assert.ok(chapter && chapter.team.includes(spec.id), spec.name);
+    assert.equal(typeof HEADS[spec.id], 'function', spec.name);
+    const ctx = createFakeContext();
+    HEADS[spec.id](ctx);
+    assert.ok(ctx.calls > 5, spec.name);
+  }
+});
+
+test('beating a chapter unlocks its characters, once', async () => {
+  const { unlock, isUnlocked, unlockedIds } = await import('../src/games/faceoff/unlocks.js');
+  assert.equal(isUnlocked('gojo'), true, 'the nine are always there');
+  const before = unlockedIds();
+  const fresh = unlock(['genos']);
+  assert.ok(isUnlocked('genos'));
+  assert.deepEqual(unlock(['genos']), [], 'not twice');
+  assert.ok(before.includes('genos') || fresh.includes('genos'));
+});
+
+test('a four-strong team fights through all four', () => {
+  const f = createFight({ a: ['lastbreath', 'frisk', 'gojo1b', 'fullpower'], b: ['saitama'], random: seededRandom(3) });
+  assert.equal(f.sides.a.team.length, 4);
+  for (let i = 0; i < 3; i += 1) { f.sides.a.team[i].hp = 0; }
+  stepFight(f, 1 / 60);
+  assert.equal(frontOf(f, 'a').name, 'Saitama Full Power');
+  assert.equal(f.over, null);
 });
 
 /* ------------------------------------------------------------------ Sans */
