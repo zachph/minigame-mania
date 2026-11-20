@@ -1,4 +1,5 @@
-import { FIGHTERS, MODES, TEAM_SIZE } from './content.js';
+import { FIGHTERS, MODES, TEAM_SIZE, UNLOCKABLES, UNLOCKED_BY, getFighter } from './content.js';
+import { isUnlocked } from './unlocks.js';
 import { drawHead } from './heads.js';
 
 /**
@@ -72,17 +73,25 @@ export class SelectPanel {
     this.root.append(this.lineup);
 
     this.grid = el('div', 'fo-grid');
-    for (const spec of FIGHTERS) {
+    for (const spec of [...FIGHTERS, ...UNLOCKABLES]) {
       const card = el('button', 'fo-card');
       card.type = 'button';
       card.dataset.id = spec.id;
       card.append(portrait(spec));
+      if (!isUnlocked(spec.id)) {
+        // Still to be won in Story: shown, but greyed out and not pickable.
+        card.disabled = true;
+        card.classList.add('is-locked');
+        card.style.opacity = '0.4';
+        card.style.filter = 'grayscale(1)';
+        card.title = `Beat ${UNLOCKED_BY.get(spec.id)?.name || 'Story'} in Story to unlock`;
+      }
       const body = el('div', 'fo-card-body');
       const name = el('div', 'fo-card-name');
       name.append(el('strong', null, spec.name));
       name.append(el('span', 'fo-card-place', ''));
       body.append(name);
-      body.append(el('p', 'fo-card-blurb', statLine(spec)));
+      body.append(el('p', 'fo-card-blurb', isUnlocked(spec.id) ? statLine(spec) : `Locked - beat ${UNLOCKED_BY.get(spec.id)?.name || 'Story'} in Story`));
       body.append(el('p', 'fo-card-ability', spec.abilities.length ? spec.abilities.map((a) => a.name).join(' + ') : 'no ability'));
       card.append(body);
       card.addEventListener('click', () => this.toggle(spec.id));
@@ -118,7 +127,7 @@ export class SelectPanel {
     this.lineup.replaceChildren();
     for (let i = 0; i < TEAM_SIZE; i += 1) {
       const id = this.picked[i];
-      const spec = FIGHTERS.find((f) => f.id === id);
+      const spec = id ? getFighter(id) : null;
       const slot = el('div', 'fo-slot');
       slot.classList.toggle('is-filled', Boolean(spec));
       slot.append(el('span', 'fo-slot-no', i === 0 ? 'first out' : i === 1 ? 'second' : 'last'));

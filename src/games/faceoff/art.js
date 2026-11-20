@@ -113,7 +113,12 @@ export function drawStatus(ctx, who, x, y, align = 'left', helper = null) {
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
   ctx.fillStyle = '#fff';
-  ctx.fillText(who.name.toUpperCase(), left, y);
+  // Long names (Saitama Full Power) shrink to fit before the HP label.
+  const name = who.name.toUpperCase();
+  const room = 114;
+  const width = ctx.measureText(name).width;
+  if (width > room) ctx.font = `bold ${Math.max(10, Math.floor(18 * room / width))}px ${FONT}`;
+  ctx.fillText(name, left, y);
   ctx.font = `bold 12px ${FONT}`;
   ctx.fillText('HP', left + 120, y + 1);
 

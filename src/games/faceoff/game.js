@@ -9,10 +9,12 @@ import {
   STORY_RECOVERY,
   TOWER,
   TOWER_RECOVERY,
+  UNLOCKABLES,
   isChessAnswer,
 } from './content.js';
 import { createFight, frontOf, healthShare, inInfinity, pressureAt, resolveDomain, stepFight } from './battle.js';
 import { SelectPanel } from './select.js';
+import { unlock } from './unlocks.js';
 import {
   drawBall,
   drawBeam,
@@ -75,6 +77,7 @@ class FaceoffGame {
     this.step = 0;
     this.wins = 0;
     this.carry = null;
+    this.unlockedNow = [];
     this.panel.destroy();
     this.panel = null;
     this.startFight();
@@ -165,6 +168,15 @@ class FaceoffGame {
     if (this.fight.over) {
       this.verdict = this.fight.over;
       if (this.verdict.winner === 'a') this.wins += 1;
+      // Beating a Story chapter unlocks the new characters in it.
+      if (this.verdict.winner === 'a' && this.mode === 'story') {
+        const fresh = unlock(STORY[Math.min(this.step, STORY.length - 1)].unlocks || []);
+        for (const id of fresh) {
+          const name = FIGHTERS.concat(UNLOCKABLES).find((f) => f.id === id)?.name || id;
+          this.unlockedNow.push(name);
+          this.popups.push({ x: BOX.x + BOX.w / 2, y: BOX.y + BOX.h / 2 - this.unlockedNow.length * 30, text: `UNLOCKED: ${name.toUpperCase()}`, colour: '#ffd84a', size: 22, life: AFTER, maxLife: AFTER });
+        }
+      }
       this.stage = 'between';
       this.timer = AFTER;
     }
@@ -253,7 +265,7 @@ class FaceoffGame {
       title: this.mode === 'sandbox' ? (cleared ? 'Your three won' : 'Your three lost')
         : cleared ? (this.mode === 'tower' ? 'You reached the top' : 'Story complete')
           : `${this.mode === 'tower' ? 'Floor' : 'Chapter'} ${this.step + 1} beat you`,
-      detailTitle: `${this.wins} of ${runs} won - ${this.verdict.reason}`,
+      detailTitle: `${this.wins} of ${runs} won - ${this.verdict.reason}${this.unlockedNow.length ? ` - unlocked ${this.unlockedNow.join(', ')}` : ''}`,
       collected: mine.team.map((who) => ({
         name: who.name,
         color: who.hp > 0 ? who.spec.colour : 'rgba(255, 255, 255, 0.2)',

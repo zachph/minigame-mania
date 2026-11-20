@@ -262,7 +262,21 @@ export const HELPERS = [
   }),
 ];
 
-export const FIGHTER_BY_ID = new Map([...FIGHTERS, ...HELPERS].map((f) => [f.id, f]));
+/**
+ * The ones you unlock in Story. Their abilities are still to come; until then
+ * they bump like anyone else.
+ */
+export const UNLOCKABLES = [
+  fighter({ id: 'genos', name: 'Genos', colour: '#ffd24a', shade: '#8a6a10' }),
+  fighter({ id: 'yuji', name: 'Yuji', colour: '#ff9aa8', shade: '#8a3040' }),
+  fighter({ id: 'frieza', name: 'Frieza', colour: '#c88aff', shade: '#4a1a7a' }),
+  fighter({ id: 'lastbreath', name: 'Last Breath Sans', colour: '#7ad8ff', shade: '#1a4a7a' }),
+  fighter({ id: 'frisk', name: 'Frisk', colour: '#5ab0ff', shade: '#7a3aa0' }),
+  fighter({ id: 'gojo1b', name: 'Gojo 1B%', colour: '#b48aff', shade: '#3a1a8a' }),
+  fighter({ id: 'fullpower', name: 'Saitama Full Power', colour: '#ffe04a', shade: '#a02020' }),
+];
+
+export const FIGHTER_BY_ID = new Map([...FIGHTERS, ...HELPERS, ...UNLOCKABLES].map((f) => [f.id, f]));
 export const getFighter = (id) => {
   const found = FIGHTER_BY_ID.get(id);
   if (!found) throw new Error(`Unknown fighter: ${id}`);
@@ -296,20 +310,28 @@ export const TOWER = [
 ];
 export const TOWER_RECOVERY = 0.4;
 
+/**
+ * Story: six set fights. Beating one unlocks the new characters in it, so
+ * they can be picked from then on.
+ */
 export const STORY = [
-  { id: 'underground', name: 'The Underground', team: ['ralsei', 'undyne', 'sans'], scale: 0.9,
-    before: 'Somebody fell into the box. It is going to be a bad time.' },
-  { id: 'hero', name: 'The Hero Hunter', team: ['garou', 'garou', 'undyne'], scale: 1,
-    before: 'He hunts heroes. You brought three.' },
-  { id: 'jujutsu', name: 'Jujutsu High', team: ['gojo', 'sukuna', 'ralsei'], scale: 1.1,
-    before: 'The strongest, and the one who wants that title.' },
-  { id: 'saiyan', name: 'Saiyan Pride', team: ['goku', 'goku', 'garou'], scale: 1.15,
-    before: 'He just wants a good fight.' },
-  { id: 'destroyer', name: 'God of Destruction', team: ['beerus', 'sukuna', 'gojo'], scale: 1.25,
+  { id: 'onepunch', name: 'One Punch', team: ['genos', 'garou', 'saitama'], scale: 1.0, unlocks: ['genos'],
+    before: 'A cyborg, a monster, and a hero for fun.' },
+  { id: 'jujutsu', name: 'Jujutsu High', team: ['yuji', 'sukuna', 'gojo'], scale: 1.05, unlocks: ['yuji'],
+    before: 'The vessel, the King of Curses, and the strongest.' },
+  { id: 'dbz', name: 'Dragon Ball Z', team: ['frieza', 'goku', 'beerus'], scale: 1.1, unlocks: ['frieza'],
+    before: 'An emperor, a Saiyan and a god.' },
+  { id: 'destroyer', name: 'God of Destruction', team: ['beerus', 'sukuna', 'gojo'], scale: 1.2, unlocks: [],
     before: 'He woke up hungry.' },
-  { id: 'caped', name: 'Just a Hobby', team: ['saitama', 'beerus', 'sans'], scale: 1.35,
-    before: 'He is only doing this for fun.' },
+  { id: 'underground', name: 'The Underground', team: ['ralsei', 'undyne', 'sans'], scale: 1.25, unlocks: [],
+    before: 'Somebody fell into the box. It is going to be a bad time.' },
+  { id: 'laststretch', name: 'Last Stretch', team: ['lastbreath', 'frisk', 'gojo1b', 'fullpower'], scale: 1.35,
+    unlocks: ['lastbreath', 'frisk', 'gojo1b', 'fullpower'],
+    before: 'Four of them, and every one at their strongest.' },
 ];
+/** Which chapter of Story unlocks a character. */
+export const UNLOCKED_BY = new Map(STORY.flatMap((chapter) => chapter.unlocks.map((id) => [id, chapter])));
+
 export const STORY_RECOVERY = 0.6;
 
 /** Escalation, so nothing goes on forever. */
