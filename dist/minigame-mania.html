@@ -17322,63 +17322,123 @@ HEADS.fullpower = (ctx) => {
 };
 
 HEADS.susie = (ctx) => {
-  // Purple skin, a mane of magenta hair falling over her eyes, and a toothy grin.
-  poly(ctx, [[-0.9, 0.7], [-0.95, -0.2], [-0.6, -0.8], [0.0, -0.95], [0.6, -0.8], [0.95, -0.2], [0.9, 0.7], [0.6, 0.4], [-0.6, 0.4]], '#8a2a6a');
-  circle(ctx, 0, 0.2, 0.62, '#9a7ac8');
-  poly(ctx, [[-0.66, 0.2], [-0.6, -0.5], [0.6, -0.5], [0.66, 0.2], [0.4, 0.0], [0.25, 0.22], [0.05, 0.02], [-0.15, 0.24], [-0.35, 0.02], [-0.5, 0.2]], '#8a2a6a');
-  ctx.fillStyle = '#fff';
+  // Lavender skin and a long jaw, a shaggy mane of purple hair hanging over
+  // her eyes, and a wide grin full of sharp teeth.
+  poly(ctx, [[-0.92, 0.72], [-0.98, 0.0], [-0.82, -0.55], [-0.45, -0.9], [0.0, -0.98], [0.45, -0.9], [0.82, -0.55], [0.98, 0.0], [0.92, 0.72], [0.7, 0.5], [0.62, 0.2], [-0.62, 0.2], [-0.7, 0.5]], '#6a2a5a');
+  // The face: narrower at the top, a long jaw underneath.
+  ctx.fillStyle = '#a58ad8';
   ctx.beginPath();
-  ctx.moveTo(-0.3, 0.46);
-  ctx.quadraticCurveTo(0, 0.68, 0.3, 0.46);
+  ctx.moveTo(-0.52, -0.2);
+  ctx.quadraticCurveTo(-0.62, 0.55, -0.3, 0.82);
+  ctx.quadraticCurveTo(0, 0.94, 0.3, 0.82);
+  ctx.quadraticCurveTo(0.62, 0.55, 0.52, -0.2);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = 0.05;
+  // Fringe right down over the eyes, in ragged points.
+  poly(ctx, [[-0.62, 0.25], [-0.58, -0.6], [0.58, -0.6], [0.62, 0.25], [0.46, 0.08], [0.34, 0.3], [0.2, 0.06], [0.06, 0.28], [-0.08, 0.06], [-0.22, 0.3], [-0.36, 0.08], [-0.48, 0.28]], '#6a2a5a');
+  // A few darker strands so it reads as hair, not a hat.
+  ctx.strokeStyle = '#4a1a40';
+  ctx.lineWidth = 0.04;
+  ctx.beginPath();
+  for (const x of [-0.4, -0.15, 0.1, 0.35]) { ctx.moveTo(x, -0.7); ctx.lineTo(x + 0.05, 0.05); }
   ctx.stroke();
-  for (const x of [-0.15, 0.0, 0.15]) {
+  // Nostrils.
+  circle(ctx, -0.07, 0.44, 0.03, '#5a3a80');
+  circle(ctx, 0.07, 0.44, 0.03, '#5a3a80');
+  // The grin, with a row of fangs.
+  ctx.fillStyle = '#2a1030';
+  ctx.beginPath();
+  ctx.moveTo(-0.36, 0.56);
+  ctx.quadraticCurveTo(0, 0.86, 0.36, 0.56);
+  ctx.quadraticCurveTo(0, 0.66, -0.36, 0.56);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  for (let i = -3; i <= 3; i += 1) {
+    const x = i * 0.1;
+    const top = 0.6 + Math.abs(i) * -0.012;
     ctx.beginPath();
-    ctx.moveTo(x, 0.47); ctx.lineTo(x, 0.56);
-    ctx.stroke();
+    ctx.moveTo(x - 0.045, top);
+    ctx.lineTo(x + 0.045, top);
+    ctx.lineTo(x, top + 0.09);
+    ctx.closePath();
+    ctx.fill();
   }
 };
 
 HEADS.roaringknight = (ctx) => {
-  // A black helm with a crown of points, and two white eyes in the dark.
-  poly(ctx, [[-0.7, 0.7], [-0.78, -0.3], [-0.6, -0.9], [-0.4, -0.45], [-0.2, -1.0], [0.0, -0.5], [0.2, -1.0], [0.4, -0.45], [0.6, -0.9], [0.78, -0.3], [0.7, 0.7], [0.0, 0.92]], '#0a0a10');
-  ctx.strokeStyle = '#8a8aa0';
-  ctx.lineWidth = 0.05;
-  ctx.lineJoin = 'round';
-  ctx.stroke();
-  for (const side of [-1, 1]) {
-    poly(ctx, [[side * 0.48, 0.02], [side * 0.12, 0.12], [side * 0.14, 0.22], [side * 0.46, 0.16]], '#fff');
-  }
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+  // A dark knight in shadow: a tall, sharp helm swept back into points, the
+  // whole of it black, edged in white light, with one hard white glare.
+  const glow = ctx.createRadialGradient(0, 0, 0.5, 0, 0, 1);
+  glow.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  glow.addColorStop(1, 'rgba(220, 225, 255, 0.35)');
+  ctx.fillStyle = glow;
   ctx.beginPath();
-  ctx.moveTo(0, 0.3); ctx.lineTo(0, 0.8);
+  ctx.arc(0, 0, 1, 0, TAU);
+  ctx.fill();
+  poly(ctx, [[-0.55, 0.9], [-0.66, 0.1], [-0.9, -0.55], [-0.5, -0.32], [-0.36, -0.98], [-0.12, -0.5], [0.0, -1.02], [0.12, -0.5], [0.36, -0.98], [0.5, -0.32], [0.9, -0.55], [0.66, 0.1], [0.55, 0.9]], '#050508');
+  ctx.strokeStyle = '#f4f6ff';
+  ctx.lineWidth = 0.06;
+  ctx.lineJoin = 'miter';
+  ctx.stroke();
+  // The visor: a dark band and a single narrow slash of white across it.
+  poly(ctx, [[-0.5, -0.02], [0.5, -0.02], [0.42, 0.26], [-0.42, 0.26]], '#14141c');
+  poly(ctx, [[-0.42, 0.06], [0.42, 0.06], [0.34, 0.16], [-0.34, 0.16]], '#fff');
+  // A ridge down the face of the helm.
+  ctx.strokeStyle = 'rgba(244, 246, 255, 0.6)';
+  ctx.lineWidth = 0.04;
+  ctx.beginPath();
+  ctx.moveTo(0, 0.3); ctx.lineTo(0, 0.86);
+  ctx.moveTo(0, -0.5); ctx.lineTo(0, -0.04);
   ctx.stroke();
 };
 
 HEADS.toriel = (ctx) => {
-  // A white goat: small horns, long floppy ears, red eyes, a kind smile.
-  poly(ctx, [[-0.42, -0.5], [-0.62, -0.95], [-0.26, -0.62]], '#f4ecd8');
-  poly(ctx, [[0.42, -0.5], [0.62, -0.95], [0.26, -0.62]], '#f4ecd8');
-  for (const side of [-1, 1]) {
-    ctx.fillStyle = '#ece4d0';
-    ctx.beginPath();
-    ctx.ellipse(side * 0.78, 0.2, 0.18, 0.42, side * -0.35, 0, TAU);
-    ctx.fill();
-  }
-  circle(ctx, 0, 0.12, 0.7, '#fbf7ee');
-  ctx.fillStyle = '#f0e8d6';
+  // A white goat mother: long ears hanging down either side, small horns,
+  // a soft muzzle, red eyes - and her purple robe with the Delta Rune.
+  ctx.fillStyle = '#7a4ab8';
   ctx.beginPath();
-  ctx.ellipse(0, 0.48, 0.34, 0.24, 0, 0, TAU);
+  ctx.ellipse(0, 0.95, 0.85, 0.28, 0, Math.PI, TAU);
   ctx.fill();
+  poly(ctx, [[-0.12, 0.74], [0.12, 0.74], [0.0, 0.88]], '#fff');
   for (const side of [-1, 1]) {
-    circle(ctx, side * 0.26, 0.08, 0.1, '#fff');
-    circle(ctx, side * 0.26, 0.08, 0.06, '#c0202a');
+    ctx.fillStyle = '#eee6d2';
+    ctx.beginPath();
+    ctx.ellipse(side * 0.66, 0.34, 0.16, 0.44, side * -0.12, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#c9bfa6';
+    ctx.lineWidth = 0.04;
+    ctx.stroke();
   }
-  circle(ctx, 0, 0.38, 0.06, '#c8a0a8');
-  mouth(ctx, 0.56, 0.14);
+  poly(ctx, [[-0.3, -0.42], [-0.44, -0.82], [-0.16, -0.5]], '#f4ecd8');
+  poly(ctx, [[0.3, -0.42], [0.44, -0.82], [0.16, -0.5]], '#f4ecd8');
+  // Head, longer than it is wide, coming down into a muzzle.
+  ctx.fillStyle = '#fbf8f0';
+  ctx.beginPath();
+  ctx.moveTo(-0.5, -0.1);
+  ctx.quadraticCurveTo(-0.55, -0.6, 0, -0.62);
+  ctx.quadraticCurveTo(0.55, -0.6, 0.5, -0.1);
+  ctx.quadraticCurveTo(0.5, 0.42, 0.32, 0.62);
+  ctx.quadraticCurveTo(0, 0.78, -0.32, 0.62);
+  ctx.quadraticCurveTo(-0.5, 0.42, -0.5, -0.1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#d8cfb8';
+  ctx.lineWidth = 0.04;
+  ctx.stroke();
+  for (const side of [-1, 1]) {
+    circle(ctx, side * 0.22, 0.02, 0.085, '#fff');
+    circle(ctx, side * 0.22, 0.03, 0.055, '#c01a24');
+  }
+  // Snout, nose and a gentle smile.
+  ctx.fillStyle = '#f0e9dc';
+  ctx.beginPath();
+  ctx.ellipse(0, 0.42, 0.26, 0.18, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#b88a90';
+  ctx.beginPath();
+  ctx.ellipse(0, 0.33, 0.07, 0.045, 0, 0, TAU);
+  ctx.fill();
+  mouth(ctx, 0.5, 0.12, '#6a4a3a');
 };
 
 function drawHead(ctx, id, x, y, r) {
