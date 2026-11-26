@@ -59,7 +59,7 @@ test('every new character is unlocked by the chapter they are in, and has a head
   }
 });
 
-test('beating a chapter unlocks its characters, once', async () => {
+test('unlocking a character only happens once', async () => {
   const { unlock, isUnlocked, unlockedIds } = await import('../src/games/faceoff/unlocks.js');
   assert.equal(isUnlocked('gojo'), true, 'the nine are always there');
   const before = unlockedIds();

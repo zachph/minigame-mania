@@ -168,15 +168,6 @@ class FaceoffGame {
     if (this.fight.over) {
       this.verdict = this.fight.over;
       if (this.verdict.winner === 'a') this.wins += 1;
-      // Beating a Story chapter unlocks the new characters in it.
-      if (this.verdict.winner === 'a' && this.mode === 'story') {
-        const fresh = unlock(STORY[Math.min(this.step, STORY.length - 1)].unlocks || []);
-        for (const id of fresh) {
-          const name = FIGHTERS.concat(UNLOCKABLES).find((f) => f.id === id)?.name || id;
-          this.unlockedNow.push(name);
-          this.popups.push({ x: BOX.x + BOX.w / 2, y: BOX.y + BOX.h / 2 - this.unlockedNow.length * 30, text: `UNLOCKED: ${name.toUpperCase()}`, colour: '#ffd84a', size: 22, life: AFTER, maxLife: AFTER });
-        }
-      }
       this.stage = 'between';
       this.timer = AFTER;
     }
@@ -190,8 +181,21 @@ class FaceoffGame {
     return { x: BOX.x + BOX.w / 2, y: BOX.y + 40 };
   }
 
+  /** In Story, knocking out a new character unlocks them - win or lose. */
+  unlockDefeated(uid) {
+    if (this.mode !== 'story') return;
+    const who = this.fight.sides.b.team.find((f) => f.uid === uid);
+    if (!who || !UNLOCKABLES.some((f) => f.id === who.id)) return;
+    for (const id of unlock([who.id])) {
+      const name = UNLOCKABLES.find((f) => f.id === id).name;
+      this.unlockedNow.push(name);
+      this.popups.push({ x: BOX.x + BOX.w / 2, y: BOX.y + BOX.h / 2, text: `UNLOCKED: ${name.toUpperCase()}`, colour: '#ffd84a', size: 22, life: 2.4, maxLife: 2.4 });
+    }
+  }
+
   absorb() {
     for (const event of this.fight.events) {
+      if (event.kind === 'down') this.unlockDefeated(event.uid);
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
         const colour = { zone: '#b46aff', table: '#d9a35a', dash: '#96d2ff', beam: '#6ac8ff', fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff' }[event.source] || '#f44';

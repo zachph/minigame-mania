@@ -15577,8 +15577,8 @@ const TOWER = [
 const TOWER_RECOVERY = 0.4;
 
 /**
- * Story: six set fights. Beating one unlocks the new characters in it, so
- * they can be picked from then on.
+ * Story: six set fights. Knocking out one of the new characters unlocks
+ * them - you do not have to win the fight - so they can be picked from then on.
  */
 const STORY = [
   { id: 'onepunch', name: 'One Punch', team: ['genos', 'garou', 'saitama'], scale: 1.0, unlocks: ['genos'],
@@ -17419,14 +17419,14 @@ class SelectPanel {
         card.classList.add('is-locked');
         card.style.opacity = '0.4';
         card.style.filter = 'grayscale(1)';
-        card.title = `Beat ${UNLOCKED_BY.get(spec.id)?.name || 'Story'} in Story to unlock`;
+        card.title = `Knock them out in ${UNLOCKED_BY.get(spec.id)?.name || 'Story'} (Story) to unlock`;
       }
       const body = el('div', 'fo-card-body');
       const name = el('div', 'fo-card-name');
       name.append(el('strong', null, spec.name));
       name.append(el('span', 'fo-card-place', ''));
       body.append(name);
-      body.append(el('p', 'fo-card-blurb', isUnlocked(spec.id) ? statLine(spec) : `Locked - beat ${UNLOCKED_BY.get(spec.id)?.name || 'Story'} in Story`));
+      body.append(el('p', 'fo-card-blurb', isUnlocked(spec.id) ? statLine(spec) : `Locked - knock them out in ${UNLOCKED_BY.get(spec.id)?.name || 'Story'} (Story)`));
       body.append(el('p', 'fo-card-ability', spec.abilities.length ? spec.abilities.map((a) => a.name).join(' + ') : 'no ability'));
       card.append(body);
       card.addEventListener('click', () => this.toggle(spec.id));
@@ -18288,15 +18288,6 @@ class FaceoffGame {
     if (this.fight.over) {
       this.verdict = this.fight.over;
       if (this.verdict.winner === 'a') this.wins += 1;
-      // Beating a Story chapter unlocks the new characters in it.
-      if (this.verdict.winner === 'a' && this.mode === 'story') {
-        const fresh = unlock(STORY[Math.min(this.step, STORY.length - 1)].unlocks || []);
-        for (const id of fresh) {
-          const name = FIGHTERS.concat(UNLOCKABLES).find((f) => f.id === id)?.name || id;
-          this.unlockedNow.push(name);
-          this.popups.push({ x: BOX.x + BOX.w / 2, y: BOX.y + BOX.h / 2 - this.unlockedNow.length * 30, text: `UNLOCKED: ${name.toUpperCase()}`, colour: '#ffd84a', size: 22, life: AFTER, maxLife: AFTER });
-        }
-      }
       this.stage = 'between';
       this.timer = AFTER;
     }
@@ -18310,8 +18301,21 @@ class FaceoffGame {
     return { x: BOX.x + BOX.w / 2, y: BOX.y + 40 };
   }
 
+  /** In Story, knocking out a new character unlocks them - win or lose. */
+  unlockDefeated(uid) {
+    if (this.mode !== 'story') return;
+    const who = this.fight.sides.b.team.find((f) => f.uid === uid);
+    if (!who || !UNLOCKABLES.some((f) => f.id === who.id)) return;
+    for (const id of unlock([who.id])) {
+      const name = UNLOCKABLES.find((f) => f.id === id).name;
+      this.unlockedNow.push(name);
+      this.popups.push({ x: BOX.x + BOX.w / 2, y: BOX.y + BOX.h / 2, text: `UNLOCKED: ${name.toUpperCase()}`, colour: '#ffd84a', size: 22, life: 2.4, maxLife: 2.4 });
+    }
+  }
+
   absorb() {
     for (const event of this.fight.events) {
+      if (event.kind === 'down') this.unlockDefeated(event.uid);
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
         const colour = { zone: '#b46aff', table: '#d9a35a', dash: '#96d2ff', beam: '#6ac8ff', fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff' }[event.source] || '#f44';
