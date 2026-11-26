@@ -17468,14 +17468,14 @@ HEADS['roaringknight-half'] = (ctx) => {
     ctx.stroke();
   }
 
-  // Legs: two thick black legs curving down from the body and meeting in a
-  // point, the left heavier than the right, with a wide hollow between them.
-  fill([[-0.4, 0.08], [0.4, 0.08], [0.48, 0.26], [0.46, 0.46], [0.36, 0.62], [0.2, 0.78], [0.08, 0.88],
-    [0.03, 0.99], [-0.03, 0.99], [-0.1, 0.88], [-0.26, 0.76], [-0.42, 0.6], [-0.5, 0.42], [-0.5, 0.22]]);
-  fill([[-0.02, 0.2], [0.12, 0.22], [0.28, 0.32], [0.33, 0.46], [0.26, 0.6], [0.12, 0.74], [0.02, 0.82],
-    [-0.06, 0.78], [-0.18, 0.66], [-0.28, 0.5], [-0.28, 0.34], [-0.18, 0.24]], WHITE);
+  // Legs: two thick black legs curving down from the hips. They do not meet:
+  // the left sweeps all the way down to a point, the right stops short of it.
+  fill([[-0.4, 0.08], [-0.06, 0.08], [-0.16, 0.22], [-0.27, 0.36], [-0.28, 0.5], [-0.18, 0.66], [-0.04, 0.8],
+    [0.04, 0.88], [0.02, 0.99], [-0.04, 0.99], [-0.12, 0.88], [-0.28, 0.76], [-0.44, 0.6], [-0.5, 0.42], [-0.5, 0.22]]);
+  fill([[0.06, 0.08], [0.4, 0.08], [0.48, 0.26], [0.46, 0.46], [0.38, 0.6], [0.26, 0.72], [0.2, 0.74],
+    [0.24, 0.62], [0.32, 0.48], [0.32, 0.36], [0.22, 0.26], [0.1, 0.2]]);
   // A spur on the inside of the right leg.
-  fill([[0.3, 0.38], [0.2, 0.36], [0.26, 0.44]]);
+  fill([[0.31, 0.38], [0.2, 0.36], [0.28, 0.46]]);
 
   // The eye in its chest: white, with a black slit pupil.
   ctx.beginPath();
