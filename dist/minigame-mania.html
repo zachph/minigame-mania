@@ -17366,30 +17366,50 @@ HEADS.susie = (ctx) => {
 };
 
 HEADS.roaringknight = (ctx) => {
-  // A dark knight in shadow: a tall, sharp helm swept back into points, the
-  // whole of it black, edged in white light, with one hard white glare.
-  const glow = ctx.createRadialGradient(0, 0, 0.5, 0, 0, 1);
-  glow.addColorStop(0, 'rgba(255, 255, 255, 0)');
-  glow.addColorStop(1, 'rgba(220, 225, 255, 0.35)');
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(0, 0, 1, 0, TAU);
-  ctx.fill();
-  poly(ctx, [[-0.55, 0.9], [-0.66, 0.1], [-0.9, -0.55], [-0.5, -0.32], [-0.36, -0.98], [-0.12, -0.5], [0.0, -1.02], [0.12, -0.5], [0.36, -0.98], [0.5, -0.32], [0.9, -0.55], [0.66, 0.1], [0.55, 0.9]], '#050508');
-  ctx.strokeStyle = '#f4f6ff';
-  ctx.lineWidth = 0.06;
+  // A pitch-black diamond-shaped helm outlined in white, with long antler-like
+  // horns of three points each out of its sides, and a frog-mouth visor: a
+  // narrow slit across the middle.
+  const line = '#f4f6ff';
   ctx.lineJoin = 'miter';
-  ctx.stroke();
-  // The visor: a dark band and a single narrow slash of white across it.
-  poly(ctx, [[-0.5, -0.02], [0.5, -0.02], [0.42, 0.26], [-0.42, 0.26]], '#14141c');
-  poly(ctx, [[-0.42, 0.06], [0.42, 0.06], [0.34, 0.16], [-0.34, 0.16]], '#fff');
-  // A ridge down the face of the helm.
-  ctx.strokeStyle = 'rgba(244, 246, 255, 0.6)';
-  ctx.lineWidth = 0.04;
+  ctx.lineCap = 'round';
+  // Horns first, so the helm sits over their roots.
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * 0.3, -0.12);
+    ctx.lineTo(side * 0.78, -0.42);          // the long beam out to the side
+    ctx.lineTo(side * 0.98, -0.86);          // its tip, sweeping up
+    ctx.moveTo(side * 0.56, -0.28);
+    ctx.lineTo(side * 0.62, -0.74);          // a tine up
+    ctx.moveTo(side * 0.78, -0.42);
+    ctx.lineTo(side * 1.0, -0.36);           // a tine out
+    ctx.strokeStyle = line;
+    ctx.lineWidth = 0.17;
+    ctx.stroke();
+    ctx.strokeStyle = '#050508';
+    ctx.lineWidth = 0.09;
+    ctx.stroke();
+  }
+  // The diamond helm.
   ctx.beginPath();
-  ctx.moveTo(0, 0.3); ctx.lineTo(0, 0.86);
-  ctx.moveTo(0, -0.5); ctx.lineTo(0, -0.04);
+  ctx.moveTo(0, -0.9);
+  ctx.quadraticCurveTo(0.34, -0.38, 0.5, 0.0);
+  ctx.quadraticCurveTo(0.34, 0.42, 0, 0.92);
+  ctx.quadraticCurveTo(-0.34, 0.42, -0.5, 0.0);
+  ctx.quadraticCurveTo(-0.34, -0.38, 0, -0.9);
+  ctx.closePath();
+  ctx.fillStyle = '#050508';
+  ctx.fill();
+  ctx.strokeStyle = line;
+  ctx.lineWidth = 0.06;
   ctx.stroke();
+  // The visor slit, wider in the middle like a frog-mouth helm.
+  ctx.beginPath();
+  ctx.moveTo(-0.4, 0.02);
+  ctx.quadraticCurveTo(0, -0.08, 0.4, 0.02);
+  ctx.quadraticCurveTo(0, 0.14, -0.4, 0.02);
+  ctx.closePath();
+  ctx.fillStyle = line;
+  ctx.fill();
 };
 
 HEADS.toriel = (ctx) => {
