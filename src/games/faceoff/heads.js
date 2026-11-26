@@ -625,6 +625,66 @@ HEADS.roaringknight = (ctx) => {
   ctx.stroke();
 };
 
+HEADS['roaringknight-half'] = (ctx) => {
+  // Half health: it opens up. Antlers spread wide, the face goes white, jagged
+  // wings tear out to either side over heavy black shoulders, and the body
+  // below becomes a black teardrop with a white hollow in it.
+  const BLACK = '#030305';
+  const WHITE = '#e4e6ee';
+  circle(ctx, 0, 0, 1.0, WHITE);
+  const fill = (points, colour = BLACK) => poly(ctx, points, colour);
+  const mirror = (points) => points.map(([x, y]) => [-x, y]);
+
+  // Antlers, swept up and out, hooking at the tips.
+  ctx.strokeStyle = BLACK;
+  ctx.lineCap = 'square';
+  ctx.lineJoin = 'miter';
+  ctx.lineWidth = 0.12;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * 0.16, -0.42);
+    ctx.lineTo(side * 0.34, -0.7);
+    ctx.lineTo(side * 0.5, -0.92);
+    ctx.lineTo(side * 0.64, -0.82);           // the hook at the tip
+    ctx.moveTo(side * 0.34, -0.7);
+    ctx.lineTo(side * 0.22, -0.86);           // a tine inwards
+    ctx.moveTo(side * 0.28, -0.6);
+    ctx.lineTo(side * 0.58, -0.6);            // a tine out to the side
+    ctx.stroke();
+  }
+
+  // Heavy shoulders under the wings.
+  for (const pts of [[[0.3, 0.02], [0.88, 0.02], [0.96, 0.26], [0.78, 0.3], [0.66, 0.52], [0.5, 0.3], [0.34, 0.24]]]) {
+    fill(pts);
+    fill(mirror(pts));
+  }
+
+  // The wings: long jagged spikes straight out to the sides.
+  const wing = [[0.14, -0.14], [0.6, -0.26], [0.5, -0.18], [0.98, -0.2], [0.62, -0.08], [0.92, -0.02],
+    [0.56, 0.02], [0.72, 0.12], [0.3, 0.04], [0.14, 0.06]];
+  fill(wing);
+  fill(mirror(wing));
+
+  // The body: a black teardrop, hollow and white in the middle.
+  fill([[0, 0.12], [0.36, 0.3], [0.44, 0.56], [0.2, 0.8], [0.03, 0.99], [-0.03, 0.99], [-0.2, 0.8], [-0.44, 0.56], [-0.36, 0.3]]);
+  fill([[0, 0.34], [0.22, 0.48], [0.18, 0.66], [0.02, 0.82], [-0.02, 0.82], [-0.18, 0.66], [-0.22, 0.48]], WHITE);
+
+  // Its chest: a small white diamond with a dark mark down the middle.
+  fill([[0, -0.2], [0.12, -0.04], [0, 0.1], [-0.12, -0.04]], WHITE);
+  ctx.fillStyle = BLACK;
+  ctx.fillRect(-0.025, -0.12, 0.05, 0.16);
+
+  // The face: white now, ringed in ragged black.
+  ctx.beginPath();
+  ctx.ellipse(0, -0.42, 0.17, 0.2, 0, 0, TAU);
+  ctx.fillStyle = WHITE;
+  ctx.fill();
+  ctx.strokeStyle = BLACK;
+  ctx.lineWidth = 0.07;
+  ctx.stroke();
+  fill([[0.12, -0.5], [0.22, -0.46], [0.2, -0.34], [0.12, -0.36]]);
+};
+
 HEADS.toriel = (ctx) => {
   // A white goat mother: long ears hanging down either side, small horns,
   // a soft muzzle, red eyes - and her purple robe with the Delta Rune.

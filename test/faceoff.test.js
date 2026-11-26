@@ -70,6 +70,22 @@ test('unlocking a character only happens once', async () => {
   assert.ok(before.includes('genos') || fresh.includes('genos'));
 });
 
+test('the Roaring Knight changes shape at half health, and stays changed', async () => {
+  const { HEADS } = await import('../src/games/faceoff/heads.js');
+  const f = createFight({ a: ['roaringknight'], b: ['garou'], random: seededRandom(2) });
+  const knight = f.sides.a.team[0];
+  hurt(f, knight, 120);
+  assert.ok(!knight.halfForm, '130 of 250 is not half yet');
+  hurt(f, knight, 10);
+  assert.ok(knight.halfForm);
+  heal(f, knight, 200);
+  assert.ok(knight.halfForm, 'healing does not change it back');
+  const ctx = createFakeContext();
+  HEADS['roaringknight-half'](ctx);
+  drawBall(ctx, knight);
+  assert.ok(ctx.calls > 20);
+});
+
 test('a four-strong team fights through all four', () => {
   const f = createFight({ a: ['lastbreath', 'frisk', 'gojo1b', 'fullpower'], b: ['saitama'], random: seededRandom(3) });
   assert.equal(f.sides.a.team.length, 4);
