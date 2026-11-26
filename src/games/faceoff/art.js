@@ -59,7 +59,7 @@ export function drawBall(ctx, who, { flash = 0, trail = [] } = {}) {
   ctx.beginPath();
   ctx.arc(who.x, who.y, who.radius, 0, TAU);
   ctx.fill();
-  const head = who.undying ? 'undying' : who.kind === 'whis' ? 'whis' : who.form ? `${who.id}-${who.form.id}` : who.blindfoldOff ? `${who.id}-eyes` : who.id;
+  const head = who.undying ? 'undying' : who.kind === 'whis' ? 'whis' : who.form ? `${who.id}-${who.form.id}` : who.halfForm ? who.spec.halfHead : who.blindfoldOff ? `${who.id}-eyes` : who.id;
   drawHead(ctx, head, who.x, who.y, who.radius * 0.95);
   // A dash leaves streaks of water behind it.
   if (who.dash) {

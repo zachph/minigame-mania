@@ -271,7 +271,8 @@ export const UNLOCKABLES = [
   fighter({ id: 'yuji', name: 'Yuji', colour: '#ff9aa8', shade: '#8a3040' }),
   fighter({ id: 'frieza', name: 'Frieza', colour: '#c88aff', shade: '#4a1a7a' }),
   fighter({ id: 'susie', name: 'Susie', colour: '#b46ad6', shade: '#4a1a6a' }),
-  fighter({ id: 'roaringknight', name: 'The Roaring Knight', colour: '#e8ecff', shade: '#101018' }),
+  // At half health the Knight changes shape, and stays changed.
+  fighter({ id: 'roaringknight', name: 'The Roaring Knight', colour: '#e8ecff', shade: '#101018', halfHead: 'roaringknight-half' }),
   fighter({ id: 'toriel', name: 'Toriel', colour: '#a060d0', shade: '#4a2a7a' }),
   fighter({ id: 'lastbreath', name: 'Last Breath Sans', colour: '#7ad8ff', shade: '#1a4a7a' }),
   fighter({ id: 'frisk', name: 'Frisk', colour: '#5ab0ff', shade: '#7a3aa0' }),

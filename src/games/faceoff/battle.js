@@ -263,6 +263,8 @@ export function hurt(fight, target, amount, { from = null, kind = 'bump' } = {})
     return dealt;
   }
   if (target.hp > 0) checkForms(fight, target);
+  // A fighter with a second look changes into it at half health, for good.
+  if (target.spec.halfHead && target.hp > 0 && target.hp <= target.maxHp / 2) target.halfForm = true;
 
   if (target.hp <= 0) {
     const ability = abilityOf(target, 'undying');
