@@ -516,6 +516,66 @@ HEADS.fullpower = (ctx) => {
   ctx.stroke();
 };
 
+HEADS.susie = (ctx) => {
+  // Purple skin, a mane of magenta hair falling over her eyes, and a toothy grin.
+  poly(ctx, [[-0.9, 0.7], [-0.95, -0.2], [-0.6, -0.8], [0.0, -0.95], [0.6, -0.8], [0.95, -0.2], [0.9, 0.7], [0.6, 0.4], [-0.6, 0.4]], '#8a2a6a');
+  circle(ctx, 0, 0.2, 0.62, '#9a7ac8');
+  poly(ctx, [[-0.66, 0.2], [-0.6, -0.5], [0.6, -0.5], [0.66, 0.2], [0.4, 0.0], [0.25, 0.22], [0.05, 0.02], [-0.15, 0.24], [-0.35, 0.02], [-0.5, 0.2]], '#8a2a6a');
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.moveTo(-0.3, 0.46);
+  ctx.quadraticCurveTo(0, 0.68, 0.3, 0.46);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.05;
+  ctx.stroke();
+  for (const x of [-0.15, 0.0, 0.15]) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0.47); ctx.lineTo(x, 0.56);
+    ctx.stroke();
+  }
+};
+
+HEADS.roaringknight = (ctx) => {
+  // A black helm with a crown of points, and two white eyes in the dark.
+  poly(ctx, [[-0.7, 0.7], [-0.78, -0.3], [-0.6, -0.9], [-0.4, -0.45], [-0.2, -1.0], [0.0, -0.5], [0.2, -1.0], [0.4, -0.45], [0.6, -0.9], [0.78, -0.3], [0.7, 0.7], [0.0, 0.92]], '#0a0a10');
+  ctx.strokeStyle = '#8a8aa0';
+  ctx.lineWidth = 0.05;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  for (const side of [-1, 1]) {
+    poly(ctx, [[side * 0.48, 0.02], [side * 0.12, 0.12], [side * 0.14, 0.22], [side * 0.46, 0.16]], '#fff');
+  }
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+  ctx.beginPath();
+  ctx.moveTo(0, 0.3); ctx.lineTo(0, 0.8);
+  ctx.stroke();
+};
+
+HEADS.toriel = (ctx) => {
+  // A white goat: small horns, long floppy ears, red eyes, a kind smile.
+  poly(ctx, [[-0.42, -0.5], [-0.62, -0.95], [-0.26, -0.62]], '#f4ecd8');
+  poly(ctx, [[0.42, -0.5], [0.62, -0.95], [0.26, -0.62]], '#f4ecd8');
+  for (const side of [-1, 1]) {
+    ctx.fillStyle = '#ece4d0';
+    ctx.beginPath();
+    ctx.ellipse(side * 0.78, 0.2, 0.18, 0.42, side * -0.35, 0, TAU);
+    ctx.fill();
+  }
+  circle(ctx, 0, 0.12, 0.7, '#fbf7ee');
+  ctx.fillStyle = '#f0e8d6';
+  ctx.beginPath();
+  ctx.ellipse(0, 0.48, 0.34, 0.24, 0, 0, TAU);
+  ctx.fill();
+  for (const side of [-1, 1]) {
+    circle(ctx, side * 0.26, 0.08, 0.1, '#fff');
+    circle(ctx, side * 0.26, 0.08, 0.06, '#c0202a');
+  }
+  circle(ctx, 0, 0.38, 0.06, '#c8a0a8');
+  mouth(ctx, 0.56, 0.14);
+};
+
 export function drawHead(ctx, id, x, y, r) {
   ctx.save();
   ctx.translate(x, y);
