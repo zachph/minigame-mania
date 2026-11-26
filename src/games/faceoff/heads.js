@@ -690,13 +690,13 @@ HEADS['roaringknight-half'] = (ctx) => {
 
   // The eye in its chest: white, with a black slit pupil.
   ctx.beginPath();
-  ctx.ellipse(0, -0.22, 0.12, 0.1, 0, 0, TAU);
+  ctx.ellipse(0, -0.09, 0.11, 0.085, 0, 0, TAU);
   ctx.fillStyle = WHITE;
   ctx.fill();
   ctx.strokeStyle = BLACK;
   ctx.lineWidth = 0.05;
   ctx.stroke();
-  fill([[0, -0.3], [0.035, -0.22], [0, -0.14], [-0.035, -0.22]]);
+  fill([[0, -0.165], [0.032, -0.09], [0, -0.015], [-0.032, -0.09]]);
 
   // Horns: thick, curving up and out from the sides of the head to sharp tips,
   // each with a small notch on the inside.
@@ -713,8 +713,14 @@ HEADS['roaringknight-half'] = (ctx) => {
   ctx.stroke();
   fill([[-0.24, -0.6], [-0.2, -0.74], [-0.14, -0.66], [-0.08, -0.8], [-0.02, -0.68], [0.04, -0.82], [0.1, -0.68],
     [0.16, -0.78], [0.2, -0.66], [0.24, -0.6], [0.16, -0.68], [0.0, -0.72], [-0.16, -0.68]]);
-  // Ragged black along its jaw, falling into the mane.
-  fill([[-0.2, -0.42], [-0.12, -0.36], [-0.06, -0.42], [0.0, -0.34], [0.06, -0.42], [0.12, -0.36], [0.2, -0.42], [0.12, -0.3], [-0.12, -0.3]]);
+  // The jaw: a black band under the face, and in it a row of white spiky
+  // teeth, top ones pointing down and bottom ones up, meeting in a zigzag.
+  fill([[-0.26, -0.42], [0.26, -0.42], [0.22, -0.26], [0.0, -0.2], [-0.22, -0.26]]);
+  for (let i = -3; i <= 3; i += 1) {
+    const x = i * 0.065;
+    fill([[x - 0.03, -0.4], [x + 0.03, -0.4], [x, -0.31]], WHITE);
+    if (i < 3) fill([[x + 0.004, -0.23], [x + 0.061, -0.23], [x + 0.0325, -0.32]], WHITE);
+  }
 };
 
 HEADS.toriel = (ctx) => {
