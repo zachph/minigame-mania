@@ -685,8 +685,6 @@ HEADS['roaringknight-half'] = (ctx) => {
     ctx.lineTo(side * 0.54, 0.38);
     ctx.stroke();
   }
-  // A spur on the inside of the right leg.
-  fill([[0.31, 0.38], [0.2, 0.36], [0.28, 0.46]]);
 
   // The eye in its chest: white, with a black slit pupil.
   ctx.beginPath();
