@@ -84,14 +84,14 @@ export class SelectPanel {
         card.classList.add('is-locked');
         card.style.opacity = '0.4';
         card.style.filter = 'grayscale(1)';
-        card.title = `Beat ${UNLOCKED_BY.get(spec.id)?.name || 'Story'} in Story to unlock`;
+        card.title = `Knock them out in ${UNLOCKED_BY.get(spec.id)?.name || 'Story'} (Story) to unlock`;
       }
       const body = el('div', 'fo-card-body');
       const name = el('div', 'fo-card-name');
       name.append(el('strong', null, spec.name));
       name.append(el('span', 'fo-card-place', ''));
       body.append(name);
-      body.append(el('p', 'fo-card-blurb', isUnlocked(spec.id) ? statLine(spec) : `Locked - beat ${UNLOCKED_BY.get(spec.id)?.name || 'Story'} in Story`));
+      body.append(el('p', 'fo-card-blurb', isUnlocked(spec.id) ? statLine(spec) : `Locked - knock them out in ${UNLOCKED_BY.get(spec.id)?.name || 'Story'} (Story)`));
       body.append(el('p', 'fo-card-ability', spec.abilities.length ? spec.abilities.map((a) => a.name).join(' + ') : 'no ability'));
       card.append(body);
       card.addEventListener('click', () => this.toggle(spec.id));

@@ -311,8 +311,8 @@ export const TOWER = [
 export const TOWER_RECOVERY = 0.4;
 
 /**
- * Story: six set fights. Beating one unlocks the new characters in it, so
- * they can be picked from then on.
+ * Story: six set fights. Knocking out one of the new characters unlocks
+ * them - you do not have to win the fight - so they can be picked from then on.
  */
 export const STORY = [
   { id: 'onepunch', name: 'One Punch', team: ['genos', 'garou', 'saitama'], scale: 1.0, unlocks: ['genos'],
