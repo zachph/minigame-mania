@@ -38,11 +38,12 @@ test('every floor and chapter is real fighters - three, or four for the last str
 });
 
 test('Story is the six fights, in order', () => {
-  assert.deepEqual(STORY.map((c) => c.name), ['One Punch', 'Jujutsu High', 'Dragon Ball Z', 'God of Destruction', 'The Underground', 'Last Stretch']);
+  assert.deepEqual(STORY.map((c) => c.name), ['One Punch', 'Jujutsu High', 'Dragon Ball Z', 'Deltarune', 'The Underground', 'Last Stretch']);
+  assert.deepEqual(STORY[3].team.map((id) => getFighter(id).name), ['Ralsei', 'Susie', 'The Roaring Knight']);
   assert.deepEqual(STORY[0].team, ['genos', 'garou', 'saitama']);
   assert.deepEqual(STORY[1].team, ['yuji', 'sukuna', 'gojo']);
   assert.deepEqual(STORY[2].team, ['frieza', 'goku', 'beerus']);
-  assert.deepEqual(STORY[4].team, ['ralsei', 'undyne', 'sans']);
+  assert.deepEqual(STORY[4].team, ['toriel', 'undyne', 'sans']);
   assert.deepEqual(STORY[5].team.map((id) => getFighter(id).name), ['Last Breath Sans', 'Frisk', 'Gojo 1B%', 'Saitama Full Power']);
 });
 
