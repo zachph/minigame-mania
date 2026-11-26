@@ -17366,50 +17366,68 @@ HEADS.susie = (ctx) => {
 };
 
 HEADS.roaringknight = (ctx) => {
-  // A pitch-black diamond-shaped helm outlined in white, with long antler-like
-  // horns of three points each out of its sides, and a frog-mouth visor: a
-  // narrow slit across the middle.
-  const line = '#f4f6ff';
-  ctx.lineJoin = 'miter';
-  ctx.lineCap = 'round';
-  // Horns first, so the helm sits over their roots.
+  // A pitch-black silhouette on a pale disc, like its sprite: spiked
+  // shoulders flaring out to the sides, a wide flat helm narrowing to a point
+  // at the chin, two branching antlers standing straight up from its corners,
+  // and a jagged white V across the bottom of the helm for its visor.
+  const BLACK = '#030305';
+  const EDGE = '#030305';
+  // Black on pale, like its sprite, so the silhouette reads on the dark box.
+  circle(ctx, 0, 0, 1.0, '#e4e6ee');
+  const outline = (draw, width = 0.06) => {
+    draw();
+    ctx.fillStyle = BLACK;
+    ctx.fill();
+    ctx.strokeStyle = EDGE;
+    ctx.lineWidth = width;
+    ctx.lineJoin = 'miter';
+    ctx.stroke();
+  };
+  const shape = (points) => () => {
+    ctx.beginPath();
+    points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+  };
+
+  // Shoulders and the body under the helm.
+  outline(shape([[0, 0.12], [0.5, 0.12], [0.98, 0.0], [0.6, 0.3], [0.4, 0.42], [0.18, 0.7], [0.0, 0.98],
+    [-0.18, 0.7], [-0.4, 0.42], [-0.6, 0.3], [-0.98, 0.0], [-0.5, 0.12]]));
+
+  // Antlers: a stem up from each corner, a branch out to the side, a fork on top.
   for (const side of [-1, 1]) {
     ctx.beginPath();
-    ctx.moveTo(side * 0.3, -0.12);
-    ctx.lineTo(side * 0.78, -0.42);          // the long beam out to the side
-    ctx.lineTo(side * 0.98, -0.86);          // its tip, sweeping up
-    ctx.moveTo(side * 0.56, -0.28);
-    ctx.lineTo(side * 0.62, -0.74);          // a tine up
-    ctx.moveTo(side * 0.78, -0.42);
-    ctx.lineTo(side * 1.0, -0.36);           // a tine out
-    ctx.strokeStyle = line;
-    ctx.lineWidth = 0.17;
-    ctx.stroke();
-    ctx.strokeStyle = '#050508';
-    ctx.lineWidth = 0.09;
+    ctx.moveTo(side * 0.36, -0.38);
+    ctx.lineTo(side * 0.38, -0.9);
+    ctx.moveTo(side * 0.37, -0.66);
+    ctx.lineTo(side * 0.62, -0.78);
+    ctx.lineTo(side * 0.64, -0.9);
+    ctx.moveTo(side * 0.38, -0.84);
+    ctx.lineTo(side * 0.24, -0.96);
+    ctx.moveTo(side * 0.38, -0.84);
+    ctx.lineTo(side * 0.5, -0.98);
+    ctx.lineCap = 'square';
+    ctx.strokeStyle = BLACK;
+    ctx.lineWidth = 0.14;
     ctx.stroke();
   }
-  // The diamond helm.
+
+  // The helm: wide and flat on top with a little crest, flaring at the sides,
+  // narrowing to a point at the chin.
+  outline(shape([[-0.42, -0.42], [-0.14, -0.46], [0, -0.58], [0.14, -0.46], [0.42, -0.42], [0.56, -0.2],
+    [0.44, -0.04], [0.2, 0.14], [0, 0.34], [-0.2, 0.14], [-0.44, -0.04], [-0.56, -0.2]]));
+
+  // The visor: a ragged white V along the bottom of the helm.
   ctx.beginPath();
-  ctx.moveTo(0, -0.9);
-  ctx.quadraticCurveTo(0.34, -0.38, 0.5, 0.0);
-  ctx.quadraticCurveTo(0.34, 0.42, 0, 0.92);
-  ctx.quadraticCurveTo(-0.34, 0.42, -0.5, 0.0);
-  ctx.quadraticCurveTo(-0.34, -0.38, 0, -0.9);
-  ctx.closePath();
-  ctx.fillStyle = '#050508';
-  ctx.fill();
-  ctx.strokeStyle = line;
-  ctx.lineWidth = 0.06;
+  ctx.moveTo(-0.36, 0.0);
+  ctx.lineTo(-0.27, 0.04); ctx.lineTo(-0.22, 0.0); ctx.lineTo(-0.12, 0.1); ctx.lineTo(-0.06, 0.08);
+  ctx.lineTo(0, 0.18);
+  ctx.lineTo(0.06, 0.08); ctx.lineTo(0.12, 0.1); ctx.lineTo(0.22, 0.0); ctx.lineTo(0.27, 0.04);
+  ctx.lineTo(0.36, 0.0);
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 0.05;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
   ctx.stroke();
-  // The visor slit, wider in the middle like a frog-mouth helm.
-  ctx.beginPath();
-  ctx.moveTo(-0.4, 0.02);
-  ctx.quadraticCurveTo(0, -0.08, 0.4, 0.02);
-  ctx.quadraticCurveTo(0, 0.14, -0.4, 0.02);
-  ctx.closePath();
-  ctx.fillStyle = line;
-  ctx.fill();
 };
 
 HEADS.toriel = (ctx) => {
