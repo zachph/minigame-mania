@@ -17445,11 +17445,20 @@ HEADS['roaringknight-half'] = (ctx) => {
   const fill = (points, colour = BLACK) => poly(ctx, points, colour);
   const both = (points, colour) => { fill(points, colour); fill(points.map(([x, y]) => [-x, y]), colour); };
 
-  // Arms: big, flame-topped, coming to a point below - and joined on to the
-  // chest along their inner edge.
-  both([[-0.1, -0.12], [-0.36, -0.12], [-0.48, -0.24], [-0.56, -0.12], [-0.66, -0.26], [-0.72, -0.1],
-    [-0.84, -0.22], [-0.86, -0.06], [-0.98, -0.1], [-0.96, 0.1], [-0.88, 0.22], [-0.74, 0.3], [-0.6, 0.44],
-    [-0.5, 0.24], [-0.36, 0.1], [-0.1, 0.06]]);
+  // Arms: from the shoulders under the mane, angling out and down...
+  both([[-0.1, -0.04], [-0.14, 0.12], [-0.36, 0.24], [-0.58, 0.36], [-0.62, 0.2], [-0.4, 0.1], [-0.22, 0.0]]);
+  // ...to big clawed hands, spiky on top like flames, coming to a point below.
+  both([[-0.52, 0.12], [-0.58, -0.02], [-0.66, 0.06], [-0.74, -0.1], [-0.82, 0.06], [-0.9, -0.06], [-0.92, 0.1],
+    [-0.99, 0.08], [-0.96, 0.26], [-0.86, 0.36], [-0.74, 0.42], [-0.64, 0.54], [-0.56, 0.38], [-0.52, 0.24]]);
+  // A white gap between the arms and the mane above, so the arms read as arms.
+  ctx.strokeStyle = WHITE;
+  ctx.lineWidth = 0.035;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * 0.2, -0.04);
+    ctx.lineTo(side * 0.56, 0.1);
+    ctx.stroke();
+  }
 
   // The body between them, from under the eye down into the legs.
   fill([[-0.14, -0.14], [0.14, -0.14], [0.3, 0.02], [0.4, 0.12], [-0.4, 0.12], [-0.3, 0.02]]);
