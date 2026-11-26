@@ -17446,7 +17446,7 @@ HEADS['roaringknight-half'] = (ctx) => {
   const both = (points, colour) => { fill(points, colour); fill(points.map(([x, y]) => [-x, y]), colour); };
 
   // Arms: from the shoulders under the mane, angling out and down...
-  both([[-0.1, -0.04], [-0.14, 0.12], [-0.36, 0.24], [-0.58, 0.36], [-0.62, 0.2], [-0.4, 0.1], [-0.22, 0.0]]);
+  both([[-0.1, -0.06], [-0.13, 0.04], [-0.36, 0.13], [-0.58, 0.3], [-0.62, 0.14], [-0.4, 0.03], [-0.22, -0.03]]);
   // ...to big clawed hands, spiky on top like flames, coming to a point below.
   both([[-0.52, 0.12], [-0.58, -0.02], [-0.66, 0.06], [-0.74, -0.1], [-0.82, 0.06], [-0.9, -0.06], [-0.92, 0.1],
     [-0.99, 0.08], [-0.96, 0.26], [-0.86, 0.36], [-0.74, 0.42], [-0.64, 0.54], [-0.56, 0.38], [-0.52, 0.24]]);
@@ -17461,7 +17461,7 @@ HEADS['roaringknight-half'] = (ctx) => {
   }
 
   // The body between them, from under the eye down into the legs.
-  fill([[-0.14, -0.14], [0.14, -0.14], [0.3, 0.02], [0.4, 0.12], [-0.4, 0.12], [-0.3, 0.02]]);
+  fill([[-0.14, -0.14], [0.14, -0.14], [0.16, 0.04], [0.22, 0.16], [-0.22, 0.16], [-0.16, 0.04]]);
 
   // The mane: a thick band of spikes fanning straight out to the sides.
   both([[-0.08, -0.46], [-0.5, -0.52], [-0.44, -0.44], [-0.98, -0.46], [-0.6, -0.36], [-0.99, -0.3],
@@ -17477,12 +17477,22 @@ HEADS['roaringknight-half'] = (ctx) => {
     ctx.stroke();
   }
 
-  // Legs: two thick black legs curving down from the hips. They do not meet:
-  // the left sweeps all the way down to a point, the right stops short of it.
-  fill([[-0.4, 0.08], [-0.06, 0.08], [-0.16, 0.22], [-0.27, 0.36], [-0.28, 0.5], [-0.18, 0.66], [-0.04, 0.8],
-    [0.04, 0.88], [0.02, 0.99], [-0.04, 0.99], [-0.12, 0.88], [-0.28, 0.76], [-0.44, 0.6], [-0.5, 0.42], [-0.5, 0.22]]);
-  fill([[0.06, 0.08], [0.4, 0.08], [0.48, 0.26], [0.46, 0.46], [0.38, 0.6], [0.26, 0.72], [0.2, 0.74],
-    [0.24, 0.62], [0.32, 0.48], [0.32, 0.36], [0.22, 0.26], [0.1, 0.2]]);
+  // Legs: two thick black legs curving down from the hips, kept clear of the
+  // arms. They do not meet: the left sweeps all the way down to a point, the
+  // right stops short of it.
+  fill([[-0.24, 0.12], [-0.06, 0.12], [-0.16, 0.24], [-0.27, 0.36], [-0.28, 0.5], [-0.18, 0.66], [-0.04, 0.8],
+    [0.04, 0.88], [0.02, 0.99], [-0.04, 0.99], [-0.12, 0.88], [-0.28, 0.76], [-0.42, 0.6], [-0.46, 0.44], [-0.4, 0.28]]);
+  fill([[0.06, 0.12], [0.24, 0.12], [0.4, 0.28], [0.44, 0.46], [0.38, 0.6], [0.26, 0.72], [0.2, 0.74],
+    [0.24, 0.62], [0.32, 0.48], [0.32, 0.36], [0.22, 0.26], [0.1, 0.22]]);
+  // White between each arm and the leg below it.
+  ctx.strokeStyle = WHITE;
+  ctx.lineWidth = 0.04;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * 0.24, 0.14);
+    ctx.lineTo(side * 0.56, 0.36);
+    ctx.stroke();
+  }
   // A spur on the inside of the right leg.
   fill([[0.31, 0.38], [0.2, 0.36], [0.28, 0.46]]);
 
