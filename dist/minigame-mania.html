@@ -17434,63 +17434,70 @@ HEADS.roaringknight = (ctx) => {
 };
 
 HEADS['roaringknight-half'] = (ctx) => {
-  // Half health: it opens up. Antlers spread wide, the face goes white, jagged
-  // wings tear out to either side over heavy black shoulders, and the body
-  // below becomes a black teardrop with a white hollow in it.
+  // Half health: it opens up. Two thick horns curve up and out from a white
+  // face crowned in jagged black; spikes fan out to either side like a mane;
+  // in the middle of its chest a single white eye with a slit pupil; heavy
+  // flame-topped shoulders hang below; and under the eye, a thick black ring
+  // shaped like a drop, hollow inside.
   const BLACK = '#030305';
   const WHITE = '#e4e6ee';
   circle(ctx, 0, 0, 1.0, WHITE);
   const fill = (points, colour = BLACK) => poly(ctx, points, colour);
-  const mirror = (points) => points.map(([x, y]) => [-x, y]);
+  const both = (points, colour) => { fill(points, colour); fill(points.map(([x, y]) => [-x, y]), colour); };
 
-  // Antlers, swept up and out, hooking at the tips.
-  ctx.strokeStyle = BLACK;
-  ctx.lineCap = 'square';
-  ctx.lineJoin = 'miter';
-  ctx.lineWidth = 0.12;
+  // Shoulders: big, flame-topped, coming to a point below.
+  both([[-0.36, -0.12], [-0.48, -0.24], [-0.56, -0.12], [-0.66, -0.26], [-0.72, -0.1], [-0.84, -0.22],
+    [-0.86, -0.06], [-0.98, -0.1], [-0.96, 0.1], [-0.88, 0.22], [-0.74, 0.3], [-0.6, 0.44], [-0.5, 0.24], [-0.38, 0.08]]);
+
+  // The mane: a thick band of spikes fanning straight out to the sides.
+  both([[-0.08, -0.46], [-0.5, -0.52], [-0.44, -0.44], [-0.98, -0.46], [-0.6, -0.36], [-0.99, -0.3],
+    [-0.62, -0.24], [-0.96, -0.14], [-0.56, -0.12], [-0.74, -0.02], [-0.3, -0.08], [-0.08, -0.1]]);
+  // Thin white streaks through it.
+  ctx.strokeStyle = WHITE;
+  ctx.lineWidth = 0.022;
   for (const side of [-1, 1]) {
     ctx.beginPath();
-    ctx.moveTo(side * 0.16, -0.42);
-    ctx.lineTo(side * 0.34, -0.7);
-    ctx.lineTo(side * 0.5, -0.92);
-    ctx.lineTo(side * 0.64, -0.82);           // the hook at the tip
-    ctx.moveTo(side * 0.34, -0.7);
-    ctx.lineTo(side * 0.22, -0.86);           // a tine inwards
-    ctx.moveTo(side * 0.28, -0.6);
-    ctx.lineTo(side * 0.58, -0.6);            // a tine out to the side
+    ctx.moveTo(side * 0.28, -0.38); ctx.lineTo(side * 0.78, -0.4);
+    ctx.moveTo(side * 0.32, -0.28); ctx.lineTo(side * 0.84, -0.27);
+    ctx.moveTo(side * 0.3, -0.17); ctx.lineTo(side * 0.7, -0.14);
     ctx.stroke();
   }
 
-  // Heavy shoulders under the wings.
-  for (const pts of [[[0.3, 0.02], [0.88, 0.02], [0.96, 0.26], [0.78, 0.3], [0.66, 0.52], [0.5, 0.3], [0.34, 0.24]]]) {
-    fill(pts);
-    fill(mirror(pts));
-  }
+  // The drop-shaped ring under the eye, on a stem.
+  fill([[-0.05, -0.12], [0.05, -0.12], [0.05, 0.02], [-0.05, 0.02]]);
+  fill([[0, 0.0], [0.18, 0.06], [0.36, 0.16], [0.46, 0.34], [0.44, 0.52], [0.3, 0.7], [0.12, 0.84], [0.02, 0.97],
+    [-0.02, 0.97], [-0.12, 0.84], [-0.3, 0.7], [-0.44, 0.52], [-0.46, 0.34], [-0.36, 0.16], [-0.18, 0.06]]);
+  fill([[0, 0.24], [0.14, 0.3], [0.24, 0.44], [0.2, 0.6], [0.1, 0.72], [0.0, 0.8], [-0.1, 0.72], [-0.2, 0.6],
+    [-0.24, 0.44], [-0.14, 0.3]], WHITE);
+  fill([[0.12, 0.34], [0.2, 0.42], [0.1, 0.4]]);
 
-  // The wings: long jagged spikes straight out to the sides.
-  const wing = [[0.14, -0.14], [0.6, -0.26], [0.5, -0.18], [0.98, -0.2], [0.62, -0.08], [0.92, -0.02],
-    [0.56, 0.02], [0.72, 0.12], [0.3, 0.04], [0.14, 0.06]];
-  fill(wing);
-  fill(mirror(wing));
-
-  // The body: a black teardrop, hollow and white in the middle.
-  fill([[0, 0.12], [0.36, 0.3], [0.44, 0.56], [0.2, 0.8], [0.03, 0.99], [-0.03, 0.99], [-0.2, 0.8], [-0.44, 0.56], [-0.36, 0.3]]);
-  fill([[0, 0.34], [0.22, 0.48], [0.18, 0.66], [0.02, 0.82], [-0.02, 0.82], [-0.18, 0.66], [-0.22, 0.48]], WHITE);
-
-  // Its chest: a small white diamond with a dark mark down the middle.
-  fill([[0, -0.2], [0.12, -0.04], [0, 0.1], [-0.12, -0.04]], WHITE);
-  ctx.fillStyle = BLACK;
-  ctx.fillRect(-0.025, -0.12, 0.05, 0.16);
-
-  // The face: white now, ringed in ragged black.
+  // The eye in its chest: white, with a black slit pupil.
   ctx.beginPath();
-  ctx.ellipse(0, -0.42, 0.17, 0.2, 0, 0, TAU);
+  ctx.ellipse(0, -0.22, 0.12, 0.1, 0, 0, TAU);
   ctx.fillStyle = WHITE;
   ctx.fill();
   ctx.strokeStyle = BLACK;
-  ctx.lineWidth = 0.07;
+  ctx.lineWidth = 0.05;
   ctx.stroke();
-  fill([[0.12, -0.5], [0.22, -0.46], [0.2, -0.34], [0.12, -0.36]]);
+  fill([[0, -0.3], [0.035, -0.22], [0, -0.14], [-0.035, -0.22]]);
+
+  // Horns: thick, curving up and out from the sides of the head to sharp tips,
+  // each with a small notch on the inside.
+  both([[-0.2, -0.42], [-0.4, -0.5], [-0.52, -0.66], [-0.56, -0.8], [-0.48, -0.95], [-0.44, -0.8],
+    [-0.38, -0.7], [-0.3, -0.78], [-0.3, -0.66], [-0.16, -0.6]]);
+
+  // The face: white, ringed in black, with a jagged black crown along the top.
+  ctx.beginPath();
+  ctx.ellipse(0, -0.56, 0.2, 0.17, 0, 0, TAU);
+  ctx.fillStyle = WHITE;
+  ctx.fill();
+  ctx.strokeStyle = BLACK;
+  ctx.lineWidth = 0.1;
+  ctx.stroke();
+  fill([[-0.24, -0.6], [-0.2, -0.74], [-0.14, -0.66], [-0.08, -0.8], [-0.02, -0.68], [0.04, -0.82], [0.1, -0.68],
+    [0.16, -0.78], [0.2, -0.66], [0.24, -0.6], [0.16, -0.68], [0.0, -0.72], [-0.16, -0.68]]);
+  // Ragged black along its jaw, falling into the mane.
+  fill([[-0.2, -0.42], [-0.12, -0.36], [-0.06, -0.42], [0.0, -0.34], [0.06, -0.42], [0.12, -0.36], [0.2, -0.42], [0.12, -0.3], [-0.12, -0.3]]);
 };
 
 HEADS.toriel = (ctx) => {
