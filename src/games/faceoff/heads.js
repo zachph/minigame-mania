@@ -638,7 +638,7 @@ HEADS['roaringknight-half'] = (ctx) => {
   const both = (points, colour) => { fill(points, colour); fill(points.map(([x, y]) => [-x, y]), colour); };
 
   // Arms: from the shoulders under the mane, angling out and down...
-  both([[-0.1, -0.06], [-0.13, 0.04], [-0.36, 0.13], [-0.58, 0.3], [-0.62, 0.14], [-0.4, 0.03], [-0.22, -0.03]]);
+  both([[-0.1, -0.08], [-0.12, 0.08], [-0.36, 0.19], [-0.58, 0.34], [-0.66, 0.1], [-0.42, -0.02], [-0.22, -0.07]]);
   // ...to big clawed hands, spiky on top like flames, coming to a point below.
   both([[-0.52, 0.12], [-0.58, -0.02], [-0.66, 0.06], [-0.74, -0.1], [-0.82, 0.06], [-0.9, -0.06], [-0.92, 0.1],
     [-0.99, 0.08], [-0.96, 0.26], [-0.86, 0.36], [-0.74, 0.42], [-0.64, 0.54], [-0.56, 0.38], [-0.52, 0.24]]);
@@ -647,8 +647,8 @@ HEADS['roaringknight-half'] = (ctx) => {
   ctx.lineWidth = 0.035;
   for (const side of [-1, 1]) {
     ctx.beginPath();
-    ctx.moveTo(side * 0.2, -0.04);
-    ctx.lineTo(side * 0.56, 0.1);
+    ctx.moveTo(side * 0.22, -0.09);
+    ctx.lineTo(side * 0.6, 0.02);
     ctx.stroke();
   }
 
@@ -681,8 +681,8 @@ HEADS['roaringknight-half'] = (ctx) => {
   ctx.lineWidth = 0.04;
   for (const side of [-1, 1]) {
     ctx.beginPath();
-    ctx.moveTo(side * 0.24, 0.14);
-    ctx.lineTo(side * 0.56, 0.36);
+    ctx.moveTo(side * 0.24, 0.16);
+    ctx.lineTo(side * 0.54, 0.38);
     ctx.stroke();
   }
   // A spur on the inside of the right leg.
