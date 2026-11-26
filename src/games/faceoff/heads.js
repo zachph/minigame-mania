@@ -637,9 +637,14 @@ HEADS['roaringknight-half'] = (ctx) => {
   const fill = (points, colour = BLACK) => poly(ctx, points, colour);
   const both = (points, colour) => { fill(points, colour); fill(points.map(([x, y]) => [-x, y]), colour); };
 
-  // Shoulders: big, flame-topped, coming to a point below.
-  both([[-0.36, -0.12], [-0.48, -0.24], [-0.56, -0.12], [-0.66, -0.26], [-0.72, -0.1], [-0.84, -0.22],
-    [-0.86, -0.06], [-0.98, -0.1], [-0.96, 0.1], [-0.88, 0.22], [-0.74, 0.3], [-0.6, 0.44], [-0.5, 0.24], [-0.38, 0.08]]);
+  // Arms: big, flame-topped, coming to a point below - and joined on to the
+  // chest along their inner edge.
+  both([[-0.1, -0.12], [-0.36, -0.12], [-0.48, -0.24], [-0.56, -0.12], [-0.66, -0.26], [-0.72, -0.1],
+    [-0.84, -0.22], [-0.86, -0.06], [-0.98, -0.1], [-0.96, 0.1], [-0.88, 0.22], [-0.74, 0.3], [-0.6, 0.44],
+    [-0.5, 0.24], [-0.36, 0.1], [-0.1, 0.06]]);
+
+  // The body between them, from under the eye down into the legs.
+  fill([[-0.14, -0.14], [0.14, -0.14], [0.3, 0.02], [0.4, 0.12], [-0.4, 0.12], [-0.3, 0.02]]);
 
   // The mane: a thick band of spikes fanning straight out to the sides.
   both([[-0.08, -0.46], [-0.5, -0.52], [-0.44, -0.44], [-0.98, -0.46], [-0.6, -0.36], [-0.99, -0.3],
@@ -655,13 +660,14 @@ HEADS['roaringknight-half'] = (ctx) => {
     ctx.stroke();
   }
 
-  // The drop-shaped ring under the eye, on a stem.
-  fill([[-0.05, -0.12], [0.05, -0.12], [0.05, 0.02], [-0.05, 0.02]]);
-  fill([[0, 0.0], [0.18, 0.06], [0.36, 0.16], [0.46, 0.34], [0.44, 0.52], [0.3, 0.7], [0.12, 0.84], [0.02, 0.97],
-    [-0.02, 0.97], [-0.12, 0.84], [-0.3, 0.7], [-0.44, 0.52], [-0.46, 0.34], [-0.36, 0.16], [-0.18, 0.06]]);
-  fill([[0, 0.24], [0.14, 0.3], [0.24, 0.44], [0.2, 0.6], [0.1, 0.72], [0.0, 0.8], [-0.1, 0.72], [-0.2, 0.6],
-    [-0.24, 0.44], [-0.14, 0.3]], WHITE);
-  fill([[0.12, 0.34], [0.2, 0.42], [0.1, 0.4]]);
+  // Legs: two thick black legs curving down from the body and meeting in a
+  // point, the left heavier than the right, with a wide hollow between them.
+  fill([[-0.4, 0.08], [0.4, 0.08], [0.48, 0.26], [0.46, 0.46], [0.36, 0.62], [0.2, 0.78], [0.08, 0.88],
+    [0.03, 0.99], [-0.03, 0.99], [-0.1, 0.88], [-0.26, 0.76], [-0.42, 0.6], [-0.5, 0.42], [-0.5, 0.22]]);
+  fill([[-0.02, 0.2], [0.12, 0.22], [0.28, 0.32], [0.33, 0.46], [0.26, 0.6], [0.12, 0.74], [0.02, 0.82],
+    [-0.06, 0.78], [-0.18, 0.66], [-0.28, 0.5], [-0.28, 0.34], [-0.18, 0.24]], WHITE);
+  // A spur on the inside of the right leg.
+  fill([[0.3, 0.38], [0.2, 0.36], [0.26, 0.44]]);
 
   // The eye in its chest: white, with a black slit pupil.
   ctx.beginPath();
