@@ -550,6 +550,55 @@ export function drawConverge(ctx, c) {
   ctx.restore();
 }
 
+/**
+ * A sword of the Knight's: first a thin red warning line across the box,
+ * then a giant white blade lying along it for the moment it strikes.
+ */
+export function drawSword(ctx, sword, time = 0) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);
+  ctx.clip();
+  if (!sword.struck) {
+    ctx.strokeStyle = `rgba(255, 40, 40, ${0.5 + 0.4 * Math.sin(time * 25)})`;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([12, 8]);
+    ctx.beginPath();
+    ctx.moveTo(sword.x1, sword.y1);
+    ctx.lineTo(sword.x2, sword.y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  } else {
+    const angle = Math.atan2(sword.y2 - sword.y1, sword.x2 - sword.x1);
+    const length = Math.hypot(sword.x2 - sword.x1, sword.y2 - sword.y1);
+    const w = 13;
+    ctx.translate(sword.x1, sword.y1);
+    ctx.rotate(angle);
+    // Blade: long and white, with a point at the far end.
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(60, -w);
+    ctx.lineTo(length - 40, -w);
+    ctx.lineTo(length, 0);
+    ctx.lineTo(length - 40, w);
+    ctx.lineTo(60, w);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Crossguard and grip, black.
+    ctx.fillStyle = '#111';
+    ctx.fillRect(48, -w * 2.4, 12, w * 4.8);
+    ctx.fillRect(4, -w * 0.5, 44, w);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(48, -w * 2.4, 12, w * 4.8);
+    ctx.strokeRect(4, -w * 0.5, 44, w);
+  }
+  ctx.restore();
+}
+
 /** A fireball: a hot core in a glow, with flame trailing behind it. */
 export function drawFireball(ctx, shot) {
   const r = shot.size || 13;
