@@ -121,6 +121,8 @@ export function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random
     waves: [],         // Bone Waves, while they sweep
     finales: [],       // Sans's Last Attack, while he does it
     converges: [],     // the Roaring Knight's final attack, while it goes on
+    swords: [],        // the Roaring Knight's swords: warning, then the strike
+    swordRuns: [],     // swords still to come in a run
     spikes: [],        // bones jutting from a wall where someone was slammed
     volleys: [],       // Undyne's spears still to throw
     beams: [],         // Kamehameha, while it is firing
@@ -231,25 +233,25 @@ function startConverge(fight, knight, ability) {
   knight.convergeUsed = true;
   knight.hp = 1;
   knight.burn = null;
-  const cx = BOX.x + BOX.w / 2;
-  const cy = BOX.y + BOX.h / 2;
-  const reach = Math.hypot(BOX.w, BOX.h) / 2;
   const blades = [];
   for (let i = 0; i < ability.blades; i += 1) {
     const angle = (i / ability.blades) * Math.PI * 2;
-    const x = clamp(cx + Math.cos(angle) * reach, BOX.x + 6, BOX.x + BOX.w - 6);
-    const y = clamp(cy + Math.sin(angle) * reach, BOX.y + 6, BOX.y + BOX.h - 6);
-    blades.push({ from: { x, y }, x, y, hitIn: false, hitOut: false });
+    blades.push({ angle, dist: CONVERGE_FAR, x: knight.x, y: knight.y, hitIn: false, hitOut: false });
   }
   fight.converges.push({ owner: knight, side: knight.side, ability, phase: 'gather', time: 0, blades });
   fight.events.push({ kind: 'converge', uid: knight.uid });
   announce(fight, knight, ability.name);
 }
 
+/** How far out the stars start, and how close in to the Knight they come. */
+const CONVERGE_FAR = 460;
+const CONVERGE_NEAR = 95;
+
 /**
- * The final attack, a step at a time: blades slide in to the Knight, hang
- * there a moment, then fly back out past where they started. Any blade that
- * touches the enemy hurts it once on the way in and once on the way out.
+ * The final attack, a step at a time: stars close in on the Knight from a
+ * ring all round it, hang there a moment, then fly back out past where they
+ * started. Any star that touches the enemy hurts it once on the way in and
+ * once on the way out.
  */
 function tickConverges(fight, dt) {
   for (const c of fight.converges) {
@@ -257,22 +259,23 @@ function tickConverges(fight, dt) {
     if (knight.hp <= 0) { c.done = true; continue; }
     c.time += dt;
     const foe = frontOf(fight, other(c.side));
-    const at = (from, t) => ({ x: from.x + (knight.x - from.x) * t, y: from.y + (knight.y - from.y) * t });
+    let dist;
     if (c.phase === 'gather') {
-      // Ease in, stopping just short of the Knight.
       const t = Math.min(1, c.time / ability.gather);
-      const near = (1 - (1 - t) ** 2) * 0.88;
-      for (const b of c.blades) Object.assign(b, at(b.from, near));
+      dist = CONVERGE_FAR - (CONVERGE_FAR - CONVERGE_NEAR) * (1 - (1 - t) ** 2);
       if (t >= 1) { c.phase = 'hold'; c.time = 0; }
     } else if (c.phase === 'hold') {
-      for (const b of c.blades) Object.assign(b, at(b.from, 0.88));
+      dist = CONVERGE_NEAR;
       if (c.time >= ability.hold) { c.phase = 'scatter'; c.time = 0; }
     } else {
-      // Back out the way they came, and on past the edge.
       const t = Math.min(1, c.time / ability.scatter);
-      const back = 0.88 - (t ** 1.5) * 1.3;
-      for (const b of c.blades) Object.assign(b, at(b.from, back));
+      dist = CONVERGE_NEAR + (CONVERGE_FAR * 1.2 - CONVERGE_NEAR) * t ** 1.5;
       if (t >= 1) c.done = true;
+    }
+    for (const b of c.blades) {
+      b.dist = dist;
+      b.x = knight.x + Math.cos(b.angle) * dist;
+      b.y = knight.y + Math.sin(b.angle) * dist;
     }
     if (!foe || foe.hp <= 0) continue;
     for (const b of c.blades) {
@@ -610,6 +613,9 @@ function useAbility(fight, who, foe, ability) {
       from: fight.random() < 0.5 ? 'left' : 'right',
     });
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'swords' && foe && foe.hp > 0) {
+    fight.swordRuns.push({ owner: who, side: who.side, ability, left: ability.count, next: 0, spin: fight.random() * Math.PI * 2 });
+    announce(fight, who, ability.name);
   } else if (ability.kind === 'barrage' && foe && foe.hp > 0) {
     // One missile out in every direction, evenly round the circle.
     for (let i = 0; i < ability.count; i += 1) {
@@ -822,6 +828,76 @@ function tickFinales(fight, dt) {
     }
   }
   fight.finales = fight.finales.filter((f) => !f.done);
+}
+
+/** Where a sword lands: a line right across the box, through a point, at an angle. */
+export function swordLine(x, y, angle) {
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
+  const reach = (sx, sy) => {
+    let t = Infinity;
+    if (sx > 0) t = Math.min(t, (BOX.x + BOX.w - x) / sx);
+    if (sx < 0) t = Math.min(t, (BOX.x - x) / sx);
+    if (sy > 0) t = Math.min(t, (BOX.y + BOX.h - y) / sy);
+    if (sy < 0) t = Math.min(t, (BOX.y - y) / sy);
+    return Number.isFinite(t) ? t : 0;
+  };
+  const back = reach(-dx, -dy);
+  const on = reach(dx, dy);
+  return { x1: x - dx * back, y1: y - dy * back, x2: x + dx * on, y2: y + dy * on };
+}
+
+/** How wide a sword is, for hitting. */
+export const SWORD_WIDTH = 26;
+
+/** Whether a fighter is touching a sword's line. */
+export function onSword(sword, who) {
+  const dx = sword.x2 - sword.x1;
+  const dy = sword.y2 - sword.y1;
+  const t = clamp(((who.x - sword.x1) * dx + (who.y - sword.y1) * dy) / (dx * dx + dy * dy || 1), 0, 1);
+  return Math.hypot(who.x - (sword.x1 + dx * t), who.y - (sword.y1 + dy * t)) <= who.radius + SWORD_WIDTH / 2;
+}
+
+/**
+ * Sword Dance. A run puts swords down one after another round the outside of
+ * the box, each pointing in through wherever the enemy is at that moment. A
+ * sword waits, pointing, then slashes straight across; whatever it touches as
+ * it does is knocked out in one hit (a dodge still saves Sans).
+ */
+function tickSwords(fight, dt) {
+  for (const run of fight.swordRuns) {
+    run.next -= dt;
+    const foe = frontOf(fight, other(run.side));
+    while (run.next <= 0 && run.left > 0 && run.owner.hp > 0) {
+      run.next += run.ability.gap;
+      run.left -= 1;
+      if (!foe || foe.hp <= 0) continue;
+      // Round the outside of the box, a different side each time, pointing in
+      // through the enemy.
+      const k = run.ability.count - run.left - 1;
+      const around = run.spin + (k * Math.PI * 2) / run.ability.count;
+      const cx = BOX.x + BOX.w / 2;
+      const cy = BOX.y + BOX.h / 2;
+      const angle = Math.atan2(foe.y - (cy + Math.sin(around) * BOX.h), foe.x - (cx + Math.cos(around) * BOX.w));
+      fight.swords.push({
+        owner: run.owner, side: run.side, ...swordLine(foe.x, foe.y, angle),
+        warn: run.ability.warn, strike: run.ability.strike, struck: false, hit: false,
+      });
+    }
+  }
+  fight.swordRuns = fight.swordRuns.filter((r) => r.left > 0 && r.owner.hp > 0);
+
+  for (const sword of fight.swords) {
+    if (sword.warn > 0) { sword.warn -= dt; continue; }
+    sword.struck = true;
+    sword.strike -= dt;
+    const foe = frontOf(fight, other(sword.side));
+    if (!sword.hit && foe && foe.hp > 0 && onSword(sword, foe)) {
+      sword.hit = true;
+      hurt(fight, foe, foe.hp + 100000, { from: sword.owner, kind: 'sword' });
+    }
+  }
+  fight.swords = fight.swords.filter((s) => s.strike > 0 && s.owner.hp > 0);
 }
 
 /**
@@ -1195,6 +1271,7 @@ export function stepFight(fight, dt) {
     tickShots(fight, slice);
     tickFinales(fight, slice);
     tickConverges(fight, slice);
+    tickSwords(fight, slice);
     tickRuns(fight, slice);
     tickBlasters(fight, slice);
     tickWaves(fight, slice);

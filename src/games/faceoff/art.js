@@ -522,30 +522,140 @@ export function drawVoid(ctx, time, text = '') {
   ctx.restore();
 }
 
-/** The Roaring Knight's final attack: white blades, each pointing at the Knight. */
-export function drawConverge(ctx, c) {
+/** A six-pointed star: purple, outlined in white, with a white heart. */
+function knightStar(ctx, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 12; i += 1) {
+    const a = (i / 12) * TAU - Math.PI / 2;
+    const rr = i % 2 ? r * 0.58 : r;
+    if (i) ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    else ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(120, 50, 190, 0.85)';
+  ctx.fill();
+  ctx.strokeStyle = '#f2e8ff';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, -r * 0.3); ctx.lineTo(r * 0.22, 0); ctx.lineTo(0, r * 0.3); ctx.lineTo(-r * 0.22, 0);
+  ctx.closePath();
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+}
+
+/**
+ * The Roaring Knight's final attack: the box glows purple round the Knight,
+ * and six-pointed stars come in to it, then fly back out, turning as they go.
+ */
+export function drawConverge(ctx, c, time = 0) {
   const knight = c.owner;
   ctx.save();
   ctx.beginPath();
   ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);
   ctx.clip();
-  for (const b of c.blades) {
-    const angle = Math.atan2(knight.y - b.from.y, knight.x - b.from.x);
+  const glow = ctx.createRadialGradient(knight.x, knight.y, 10, knight.x, knight.y, BOX.w * 0.6);
+  glow.addColorStop(0, 'rgba(190, 110, 255, 0.75)');
+  glow.addColorStop(0.45, 'rgba(110, 40, 180, 0.55)');
+  glow.addColorStop(1, 'rgba(40, 10, 70, 0.5)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(BOX.x, BOX.y, BOX.w, BOX.h);
+  c.blades.forEach((b, i) => {
     ctx.save();
     ctx.translate(b.x, b.y);
-    ctx.rotate(c.phase === 'scatter' ? angle + Math.PI : angle);
-    ctx.fillStyle = '#fff';
-    ctx.strokeStyle = '#111';
-    ctx.lineWidth = 2;
+    ctx.rotate(time * 2 + i);
+    knightStar(ctx, BLADE_SIZE * 0.75);
+    ctx.restore();
+  });
+  ctx.restore();
+}
+
+/** One of the Knight's swords, drawn pointing along +x from its hilt at 0. */
+function knightSword(ctx, length = 96) {
+  const INK = '#050508';
+  ctx.fillStyle = INK;
+  ctx.strokeStyle = '#f4f6ff';
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'miter';
+  // Blade.
+  ctx.beginPath();
+  ctx.moveTo(30, -5);
+  ctx.lineTo(length - 14, -4);
+  ctx.lineTo(length, 0);
+  ctx.lineTo(length - 14, 4);
+  ctx.lineTo(30, 5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Ragged, spiky crossguard.
+  ctx.beginPath();
+  ctx.moveTo(18, -6);
+  ctx.lineTo(26, -20);
+  ctx.lineTo(30, -10);
+  ctx.lineTo(36, -24);
+  ctx.lineTo(38, -8);
+  ctx.lineTo(38, 8);
+  ctx.lineTo(36, 24);
+  ctx.lineTo(30, 10);
+  ctx.lineTo(26, 20);
+  ctx.lineTo(18, 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // The eye set in the guard.
+  ctx.beginPath();
+  ctx.ellipse(29, 0, 5.5, 4, 0, 0, TAU);
+  ctx.fillStyle = '#f4f6ff';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(29, 0, 1.8, 0, TAU);
+  ctx.fillStyle = INK;
+  ctx.fill();
+  // Grip and pommel.
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.rect(2, -3, 16, 6);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(2, -6); ctx.lineTo(-6, 0); ctx.lineTo(2, 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+/**
+ * Sword Dance: a sword waits at the edge of the box, pointing in; then it
+ * slashes across, leaving a white line that fades.
+ */
+export function drawSword(ctx, sword, time = 0) {
+  const angle = Math.atan2(sword.y2 - sword.y1, sword.x2 - sword.x1);
+  const length = Math.hypot(sword.x2 - sword.x1, sword.y2 - sword.y1);
+  ctx.save();
+  if (!sword.struck) {
+    // Waiting just outside the box, pointing in, with a little tremble.
+    const shake = Math.sin(time * 60) * 1.5;
+    ctx.translate(sword.x1 - Math.cos(angle) * 70 + shake, sword.y1 - Math.sin(angle) * 70);
+    ctx.rotate(angle);
+    knightSword(ctx);
+  } else {
+    // The slash: a thin white line across the box, and the sword at its end.
+    ctx.save();
     ctx.beginPath();
-    ctx.moveTo(BLADE_SIZE, 0);
-    ctx.lineTo(-BLADE_SIZE * 0.3, -BLADE_SIZE * 0.24);
-    ctx.lineTo(-BLADE_SIZE * 0.75, 0);
-    ctx.lineTo(-BLADE_SIZE * 0.3, BLADE_SIZE * 0.24);
-    ctx.closePath();
-    ctx.fill();
+    ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);
+    ctx.clip();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 4;
+    ctx.globalAlpha = clamp(sword.strike / 0.22, 0, 1);
+    ctx.beginPath();
+    ctx.moveTo(sword.x1, sword.y1);
+    ctx.lineTo(sword.x2, sword.y2);
     ctx.stroke();
     ctx.restore();
+    const t = 1 - clamp(sword.strike / 0.22, 0, 1);
+    ctx.translate(sword.x1 + Math.cos(angle) * length * t - Math.cos(angle) * 70, sword.y1 + Math.sin(angle) * length * t - Math.sin(angle) * 70);
+    ctx.rotate(angle);
+    knightSword(ctx);
   }
   ctx.restore();
 }

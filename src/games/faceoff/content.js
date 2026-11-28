@@ -282,13 +282,18 @@ export const UNLOCKABLES = [
   fighter({ id: 'susie', name: 'Susie', colour: '#b46ad6', shade: '#4a1a6a' }),
   // At half health the Knight changes shape, and stays changed.
   // The first hit that would knock it out leaves it on 1 instead, and it does
-  // its final attack: blades come in from all round the box to it, hang
+  // its final attack: stars come in from all round the box to it, hang
   // there, then fly back out. Each one that touches the enemy does 5, going in
   // and again coming out. Nothing touches the Knight while it does it.
   fighter({
     id: 'roaringknight', name: 'The Roaring Knight', colour: '#e8ecff', shade: '#101018', halfHead: 'roaringknight-half',
     abilities: [
-      { kind: 'converge', name: 'Final Attack', blades: 24, damage: 5, gather: 1.6, hold: 0.5, scatter: 1.2 },
+      // Sword Dance: every 15 seconds, swords appear one after another round
+      // the outside of the box, each pointing in through wherever the enemy
+      // is. A moment later each one slashes straight across, leaving a white
+      // line - and anything it touches is knocked out in one hit.
+      { kind: 'swords', name: 'Sword Dance', every: 15, count: 5, gap: 0.35, warn: 0.9, strike: 0.22 },
+      { kind: 'converge', name: 'Final Attack', blades: 14, damage: 5, gather: 1.6, hold: 0.5, scatter: 1.2 },
     ],
   }),
   fighter({ id: 'toriel', name: 'Toriel', colour: '#a060d0', shade: '#4a2a7a' }),
