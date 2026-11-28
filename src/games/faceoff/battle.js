@@ -123,6 +123,7 @@ export function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random
     converges: [],     // the Roaring Knight's final attack, while it goes on
     swords: [],        // the Roaring Knight's swords: warning, then the strike
     swordRuns: [],     // swords still to come in a run
+    sliceRuns: [],     // Red Slices still to come: which wave is next
     spikes: [],        // bones jutting from a wall where someone was slammed
     volleys: [],       // Undyne's spears still to throw
     beams: [],         // Kamehameha, while it is firing
@@ -613,6 +614,9 @@ function useAbility(fight, who, foe, ability) {
       from: fight.random() < 0.5 ? 'left' : 'right',
     });
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'slices' && foe && foe.hp > 0) {
+    fight.sliceRuns.push({ owner: who, side: who.side, ability, wave: 0, next: 0 });
+    announce(fight, who, ability.name);
   } else if (ability.kind === 'swords' && foe && foe.hp > 0) {
     fight.swordRuns.push({ owner: who, side: who.side, ability, left: ability.count, next: 0, spin: fight.random() * Math.PI * 2 });
     announce(fight, who, ability.name);
@@ -887,6 +891,31 @@ function tickSwords(fight, dt) {
   }
   fight.swordRuns = fight.swordRuns.filter((r) => r.left > 0 && r.owner.hp > 0);
 
+  // Red Slices: each wave puts down more lines at once, each through a point
+  // near the enemy at its own angle.
+  for (const run of fight.sliceRuns) {
+    run.next -= dt;
+    const foe = frontOf(fight, other(run.side));
+    const { ability } = run;
+    while (run.next <= 0 && run.wave < ability.waves.length && run.owner.hp > 0) {
+      const lines = ability.waves[run.wave];
+      run.wave += 1;
+      run.next += ability.gap;
+      if (!foe || foe.hp <= 0) continue;
+      const base = fight.random() * Math.PI;
+      for (let i = 0; i < lines; i += 1) {
+        const angle = base + (i * Math.PI) / lines + (fight.random() - 0.5) * 0.3;
+        const x = foe.x + (fight.random() - 0.5) * 2 * ability.spread;
+        const y = foe.y + (fight.random() - 0.5) * 2 * ability.spread;
+        fight.swords.push({
+          owner: run.owner, side: run.side, style: 'slice', ...swordLine(x, y, angle),
+          warn: ability.warn, strike: ability.strike, damage: ability.damage, struck: false, hit: false,
+        });
+      }
+    }
+  }
+  fight.sliceRuns = fight.sliceRuns.filter((r) => r.wave < r.ability.waves.length && r.owner.hp > 0);
+
   for (const sword of fight.swords) {
     if (sword.warn > 0) { sword.warn -= dt; continue; }
     sword.struck = true;
@@ -894,7 +923,8 @@ function tickSwords(fight, dt) {
     const foe = frontOf(fight, other(sword.side));
     if (!sword.hit && foe && foe.hp > 0 && onSword(sword, foe)) {
       sword.hit = true;
-      hurt(fight, foe, foe.maxHp * sword.share, { from: sword.owner, kind: 'sword' });
+      const amount = sword.damage != null ? sword.damage * fight.sides[sword.side].scale : foe.maxHp * sword.share;
+      hurt(fight, foe, amount, { from: sword.owner, kind: sword.style === 'slice' ? 'slice' : 'sword' });
     }
   }
   fight.swords = fight.swords.filter((s) => s.strike > 0 && s.owner.hp > 0);

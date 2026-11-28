@@ -570,6 +570,42 @@ export function drawConverge(ctx, c, time = 0) {
   ctx.restore();
 }
 
+/**
+ * A Red Slice: a thin red line across the box first, then the slice itself -
+ * a broad red glow with a dark line down its middle.
+ */
+export function drawSlice(ctx, slice, time = 0) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);
+  ctx.clip();
+  ctx.lineCap = 'butt';
+  const line = () => {
+    ctx.beginPath();
+    ctx.moveTo(slice.x1, slice.y1);
+    ctx.lineTo(slice.x2, slice.y2);
+    ctx.stroke();
+  };
+  if (!slice.struck) {
+    ctx.strokeStyle = `rgba(255, 30, 30, ${0.35 + 0.25 * Math.sin(time * 30)})`;
+    ctx.lineWidth = 2;
+    line();
+  } else {
+    const fade = clamp(slice.strike / 0.25, 0, 1);
+    ctx.globalAlpha = 0.35 * fade;
+    ctx.strokeStyle = '#ff1a1a';
+    ctx.lineWidth = 22;
+    line();
+    ctx.globalAlpha = fade;
+    ctx.lineWidth = 9;
+    line();
+    ctx.strokeStyle = '#1a0000';
+    ctx.lineWidth = 3;
+    line();
+  }
+  ctx.restore();
+}
+
 /** One of the Knight's swords, drawn pointing along +x from its hilt at 0. */
 function knightSword(ctx, length = 96) {
   const INK = '#050508';
@@ -629,6 +665,7 @@ function knightSword(ctx, length = 96) {
  * slashes across, leaving a white line that fades.
  */
 export function drawSword(ctx, sword, time = 0) {
+  if (sword.style === 'slice') { drawSlice(ctx, sword, time); return; }
   const angle = Math.atan2(sword.y2 - sword.y1, sword.x2 - sword.x1);
   const length = Math.hypot(sword.x2 - sword.x1, sword.y2 - sword.y1);
   ctx.save();
