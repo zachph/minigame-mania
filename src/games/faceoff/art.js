@@ -1,7 +1,7 @@
 import { TAU, clamp } from '../../core/utils.js';
 import { BOX } from './content.js';
 import { drawHead } from './heads.js';
-import { BONE_GAP, BONE_SPACING, BONE_TRAIN, abilityOf, abilitiesOf, beamLine, beamWidth, boneGapAt, boneHead, isClock } from './battle.js';
+import { BLADE_SIZE, BONE_GAP, BONE_SPACING, BONE_TRAIN, abilityOf, abilitiesOf, beamLine, beamWidth, boneGapAt, boneHead, isClock } from './battle.js';
 
 /**
  * The Undertale battle box, made bigger: black, a thick white border, and
@@ -536,12 +536,12 @@ export function drawConverge(ctx, c) {
     ctx.rotate(c.phase === 'scatter' ? angle + Math.PI : angle);
     ctx.fillStyle = '#fff';
     ctx.strokeStyle = '#111';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(18, 0);
-    ctx.lineTo(-6, -4);
-    ctx.lineTo(-14, 0);
-    ctx.lineTo(-6, 4);
+    ctx.moveTo(BLADE_SIZE, 0);
+    ctx.lineTo(-BLADE_SIZE * 0.3, -BLADE_SIZE * 0.24);
+    ctx.lineTo(-BLADE_SIZE * 0.75, 0);
+    ctx.lineTo(-BLADE_SIZE * 0.3, BLADE_SIZE * 0.24);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
