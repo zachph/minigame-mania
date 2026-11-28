@@ -862,7 +862,7 @@ export function onSword(sword, who) {
  * Sword Dance. A run puts swords down one after another round the outside of
  * the box, each pointing in through wherever the enemy is at that moment. A
  * sword waits, pointing, then slashes straight across; whatever it touches as
- * it does is knocked out in one hit (a dodge still saves Sans).
+ * it does loses a quarter of its health (a dodge still saves Sans).
  */
 function tickSwords(fight, dt) {
   for (const run of fight.swordRuns) {
@@ -881,7 +881,7 @@ function tickSwords(fight, dt) {
       const angle = Math.atan2(foe.y - (cy + Math.sin(around) * BOX.h), foe.x - (cx + Math.cos(around) * BOX.w));
       fight.swords.push({
         owner: run.owner, side: run.side, ...swordLine(foe.x, foe.y, angle),
-        warn: run.ability.warn, strike: run.ability.strike, struck: false, hit: false,
+        warn: run.ability.warn, strike: run.ability.strike, share: run.ability.share, struck: false, hit: false,
       });
     }
   }
@@ -894,7 +894,7 @@ function tickSwords(fight, dt) {
     const foe = frontOf(fight, other(sword.side));
     if (!sword.hit && foe && foe.hp > 0 && onSword(sword, foe)) {
       sword.hit = true;
-      hurt(fight, foe, foe.hp + 100000, { from: sword.owner, kind: 'sword' });
+      hurt(fight, foe, foe.maxHp * sword.share, { from: sword.owner, kind: 'sword' });
     }
   }
   fight.swords = fight.swords.filter((s) => s.strike > 0 && s.owner.hp > 0);
