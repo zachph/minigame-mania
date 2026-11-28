@@ -281,7 +281,16 @@ export const UNLOCKABLES = [
   fighter({ id: 'frieza', name: 'Frieza', colour: '#c88aff', shade: '#4a1a7a' }),
   fighter({ id: 'susie', name: 'Susie', colour: '#b46ad6', shade: '#4a1a6a' }),
   // At half health the Knight changes shape, and stays changed.
-  fighter({ id: 'roaringknight', name: 'The Roaring Knight', colour: '#e8ecff', shade: '#101018', halfHead: 'roaringknight-half' }),
+  // The first hit that would knock it out leaves it on 1 instead, and it does
+  // its final attack: blades come in from all round the box to it, hang
+  // there, then fly back out. Each one that touches the enemy does 5, going in
+  // and again coming out. Nothing touches the Knight while it does it.
+  fighter({
+    id: 'roaringknight', name: 'The Roaring Knight', colour: '#e8ecff', shade: '#101018', halfHead: 'roaringknight-half',
+    abilities: [
+      { kind: 'converge', name: 'Final Attack', blades: 24, damage: 5, gather: 1.6, hold: 0.5, scatter: 1.2 },
+    ],
+  }),
   fighter({ id: 'toriel', name: 'Toriel', colour: '#a060d0', shade: '#4a2a7a' }),
   fighter({ id: 'lastbreath', name: 'Last Breath Sans', colour: '#7ad8ff', shade: '#1a4a7a' }),
   fighter({ id: 'frisk', name: 'Frisk', colour: '#5ab0ff', shade: '#7a3aa0' }),
