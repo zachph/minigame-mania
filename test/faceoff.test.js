@@ -86,6 +86,50 @@ test('the Roaring Knight changes shape at half health, and stays changed', async
   assert.ok(ctx.calls > 20);
 });
 
+test('Genos: Incineration Cannon, 5 a second for 4 seconds, every 10', () => {
+  const f = createFight({ a: ['genos'], b: ['garou'], random: seededRandom(4) });
+  quiet(f);
+  const [genos, garou] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  genos.timers.barrage = -1000;
+  genos.timers.beam = 10 - 1e-6;
+  const step = () => { garou.hitLock = genos.hitLock = 99; f.sinceBump = 0; garou.x = genos.x + 400; stepFight(f, 1 / 60); };
+  step();
+  assert.equal(f.beams.length, 1);
+  assert.equal(f.beams[0].colour, '#ff7a1a');
+  genos.timers.beam = -1000;
+  const before = garou.taken;
+  for (let i = 0; i < 60 * 4.5; i += 1) step();
+  assert.equal(Math.round(garou.taken - before), 20, 'four hits of 5');
+  assert.equal(f.beams.length, 0);
+});
+
+test('Genos: Missile Barrage, eight missiles every 7 seconds, one each way, 4 each', () => {
+  const f = createFight({ a: ['genos'], b: ['garou'], random: seededRandom(4) });
+  quiet(f);
+  const [genos, garou] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  genos.timers.beam = -1000;
+  genos.timers.barrage = 7 - 1e-6;
+  genos.x = BOX.x + BOX.w / 2; genos.y = BOX.y + BOX.h / 2;
+  garou.x = genos.x + 200; garou.y = genos.y;           // straight to the right
+  garou.hitLock = genos.hitLock = 99;
+  stepFight(f, 1 / 60);
+  const missiles = f.shots.filter((s) => s.owner === genos);
+  assert.equal(missiles.length, 8);
+  const ways = new Set(missiles.map((m) => `${Math.round(m.dx * 10)},${Math.round(m.dy * 10)}`));
+  assert.equal(ways.size, 8, 'all different directions');
+  const before = garou.taken;
+  for (let i = 0; i < 60; i += 1) { garou.x = genos.x + 200; garou.y = genos.y; garou.hitLock = genos.hitLock = 99; f.sinceBump = 0; stepFight(f, 1 / 60); }
+  assert.equal(Math.round(garou.taken - before), 4, 'the one fired his way hits');
+});
+
+test('the cannon and missiles draw', async () => {
+  const { drawShot, drawBeam } = await import('../src/games/faceoff/art.js');
+  const ctx = createFakeContext();
+  drawShot(ctx, { x: 300, y: 200, dx: 1, dy: 0, style: 'missile', colour: '#ccc' });
+  drawBeam(ctx, { colour: '#ff7a1a', width: 1.7 }, { x: 200, y: 200, radius: 30 }, { x: 500, y: 220 }, 1);
+  assert.ok(ctx.calls > 10);
+});
+
 test('a four-strong team fights through all four', () => {
   const f = createFight({ a: ['lastbreath', 'frisk', 'gojo1b', 'fullpower'], b: ['saitama'], random: seededRandom(3) });
   assert.equal(f.sides.a.team.length, 4);

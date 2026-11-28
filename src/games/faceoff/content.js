@@ -267,7 +267,16 @@ export const HELPERS = [
  * they bump like anyone else.
  */
 export const UNLOCKABLES = [
-  fighter({ id: 'genos', name: 'Genos', colour: '#ffd24a', shade: '#8a6a10' }),
+  // Incineration Cannon: every 10 seconds a big orange beam, locked on, 5 a
+  // second for 4 seconds. Missile Barrage: every 7 seconds a missile out in
+  // each of the eight directions, 4 each.
+  fighter({
+    id: 'genos', name: 'Genos', colour: '#ffd24a', shade: '#8a6a10',
+    abilities: [
+      { kind: 'beam', name: 'Incineration Cannon', every: 10, lasts: 4, damage: 5, tick: 1, colour: '#ff7a1a', width: 1.7 },
+      { kind: 'barrage', name: 'Missile Barrage', every: 7, count: 8, damage: 4, speed: 460, length: 0, colour: '#d0d4dc', style: 'missile', size: 6 },
+    ],
+  }),
   fighter({ id: 'yuji', name: 'Yuji', colour: '#ff9aa8', shade: '#8a3040' }),
   fighter({ id: 'frieza', name: 'Frieza', colour: '#c88aff', shade: '#4a1a7a' }),
   fighter({ id: 'susie', name: 'Susie', colour: '#b46ad6', shade: '#4a1a6a' }),
