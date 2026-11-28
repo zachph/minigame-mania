@@ -220,6 +220,9 @@ function takeOffBlindfold(fight, gojo, foe, domain) {
   }
 }
 
+/** How long the final attack's blades are, tip to tail. */
+export const BLADE_SIZE = 36;
+
 /**
  * The Roaring Knight would have gone down: it stays on 1 and does its final
  * attack. Blades start all round the edge of the box, each aimed at the Knight.
@@ -274,7 +277,7 @@ function tickConverges(fight, dt) {
     if (!foe || foe.hp <= 0) continue;
     for (const b of c.blades) {
       const key = c.phase === 'scatter' ? 'hitOut' : 'hitIn';
-      if (b[key] || Math.hypot(foe.x - b.x, foe.y - b.y) > foe.radius + 10) continue;
+      if (b[key] || Math.hypot(foe.x - b.x, foe.y - b.y) > foe.radius + BLADE_SIZE * 0.6) continue;
       b[key] = true;
       hurt(fight, foe, ability.damage * fight.sides[c.side].scale, { from: knight, kind: 'blade' });
       if (foe.hp <= 0) break;
