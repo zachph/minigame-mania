@@ -17446,17 +17446,17 @@ HEADS['roaringknight-half'] = (ctx) => {
   const both = (points, colour) => { fill(points, colour); fill(points.map(([x, y]) => [-x, y]), colour); };
 
   // Arms: from the shoulders under the mane, angling out and down...
-  both([[-0.1, -0.08], [-0.12, 0.08], [-0.36, 0.19], [-0.58, 0.34], [-0.66, 0.1], [-0.42, -0.02], [-0.22, -0.07]]);
+  both([[-0.1, -0.1], [-0.12, 0.06], [-0.36, 0.11], [-0.58, 0.24], [-0.66, 0.0], [-0.42, -0.1], [-0.22, -0.12]]);
   // ...to big clawed hands, spiky on top like flames, coming to a point below.
-  both([[-0.52, 0.12], [-0.58, -0.02], [-0.66, 0.06], [-0.74, -0.1], [-0.82, 0.06], [-0.9, -0.06], [-0.92, 0.1],
-    [-0.99, 0.08], [-0.96, 0.26], [-0.86, 0.36], [-0.74, 0.42], [-0.64, 0.54], [-0.56, 0.38], [-0.52, 0.24]]);
+  both([[-0.52, 0.02], [-0.58, -0.12], [-0.66, -0.04], [-0.74, -0.2], [-0.82, -0.04], [-0.9, -0.16], [-0.92, 0.0],
+    [-0.99, -0.02], [-0.96, 0.16], [-0.86, 0.26], [-0.74, 0.32], [-0.64, 0.44], [-0.56, 0.28], [-0.52, 0.14]]);
   // A white gap between the arms and the mane above, so the arms read as arms.
   ctx.strokeStyle = WHITE;
   ctx.lineWidth = 0.035;
   for (const side of [-1, 1]) {
     ctx.beginPath();
-    ctx.moveTo(side * 0.22, -0.09);
-    ctx.lineTo(side * 0.6, 0.02);
+    ctx.moveTo(side * 0.24, -0.14);
+    ctx.lineTo(side * 0.6, -0.08);
     ctx.stroke();
   }
 
@@ -17489,8 +17489,8 @@ HEADS['roaringknight-half'] = (ctx) => {
   ctx.lineWidth = 0.04;
   for (const side of [-1, 1]) {
     ctx.beginPath();
-    ctx.moveTo(side * 0.24, 0.16);
-    ctx.lineTo(side * 0.54, 0.38);
+    ctx.moveTo(side * 0.24, 0.14);
+    ctx.lineTo(side * 0.54, 0.3);
     ctx.stroke();
   }
 
