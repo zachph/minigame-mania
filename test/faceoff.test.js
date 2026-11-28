@@ -137,7 +137,7 @@ test('the Roaring Knight survives its first fatal hit on 1 and does its final at
   hurt(f, knight, 1000, { from: garou });
   assert.equal(knight.hp, 1);
   assert.equal(f.converges.length, 1);
-  assert.equal(f.converges[0].blades.length, 24);
+  assert.equal(f.converges[0].blades.length, 14);
   assert.equal(hurt(f, knight, 50, { from: garou }), 0, 'nothing touches it meanwhile');
   // Stand the enemy right next to the Knight, where every blade ends up.
   const before = garou.taken;
@@ -165,7 +165,7 @@ test('the blades draw', async () => {
   assert.ok(ctx.calls > 50);
 });
 
-test('the Knight\'s swords: a warning line, then a strike that knocks out in one hit', () => {
+test('Sword Dance: a sword points in first, then slashes across and knocks out in one hit', () => {
   const f = createFight({ a: ['roaringknight'], b: ['garou'], random: seededRandom(6) });
   const [knight, garou] = [frontOf(f, 'a'), frontOf(f, 'b')];
   knight.timers.swords = 15 - 1e-6;
@@ -173,9 +173,9 @@ test('the Knight\'s swords: a warning line, then a strike that knocks out in one
   const step = () => { Object.assign(garou, hold); garou.hitLock = knight.hitLock = 99; f.sinceBump = 0; stepFight(f, 1 / 60); };
   step();
   assert.equal(f.swords.length, 1, 'the first sword goes down');
-  assert.equal(f.swords[0].struck, false, 'as a warning first');
+  assert.equal(f.swords[0].struck, false, 'pointing in first');
   assert.ok(onSword(f.swords[0], garou), 'aimed through the enemy');
-  assert.equal(garou.hp, garou.maxHp, 'the warning does nothing');
+  assert.equal(garou.hp, garou.maxHp, 'that does nothing yet');
   for (let i = 0; i < 60 && garou.hp > 0; i += 1) step();
   assert.equal(garou.hp, 0, 'one hit and he is out');
 });
@@ -196,13 +196,17 @@ test('a sword misses anyone who has moved off its line, and only costs Sans a do
   void garou;
 });
 
-test('the swords draw, warning and striking', async () => {
+test('the swords and stars draw', async () => {
   const { drawSword } = await import('../src/games/faceoff/art.js');
   const ctx = createFakeContext();
   const line = swordLine(BOX.x + 300, BOX.y + 150, 0.6);
   drawSword(ctx, { ...line, struck: false }, 1);
-  drawSword(ctx, { ...line, struck: true }, 1);
-  assert.ok(ctx.calls > 15);
+  drawSword(ctx, { ...line, struck: true, strike: 0.1 }, 1);
+  const { drawConverge } = await import('../src/games/faceoff/art.js');
+  const f = createFight({ a: ['roaringknight'], b: ['garou'], random: seededRandom(5) });
+  hurt(f, frontOf(f, 'a'), 1000);
+  drawConverge(ctx, f.converges[0], 1);
+  assert.ok(ctx.calls > 60);
 });
 
 test('a four-strong team fights through all four', () => {

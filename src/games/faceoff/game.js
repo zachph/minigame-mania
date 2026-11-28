@@ -306,7 +306,7 @@ class FaceoffGame {
       drawBeam(ctx, beam, beam.owner, frontOf(this.fight, beam.side === 'a' ? 'b' : 'a'), this.clock);
     }
     for (const shot of this.fight.shots) drawShot(ctx, shot);
-    for (const c of this.fight.converges) drawConverge(ctx, c);
+    for (const c of this.fight.converges) drawConverge(ctx, c, this.clock);
     for (const sword of this.fight.swords) drawSword(ctx, sword, this.clock);
     for (const blaster of this.fight.blasters) {
       drawBlaster(ctx, blaster, this.clock);
