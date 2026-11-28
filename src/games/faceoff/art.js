@@ -275,9 +275,39 @@ export function drawSlowed(ctx, who) {
 }
 
 /** A shot in flight: a long streak, brightest at the head. */
+/** A missile: a grey body with a red nose and fins, and a flame behind it. */
+function drawMissile(ctx, shot) {
+  ctx.save();
+  ctx.translate(shot.x, shot.y);
+  ctx.rotate(Math.atan2(shot.dy, shot.dx));
+  const flame = ctx.createLinearGradient(-30, 0, -10, 0);
+  flame.addColorStop(0, 'rgba(255, 120, 20, 0)');
+  flame.addColorStop(1, '#ffb030');
+  ctx.fillStyle = flame;
+  ctx.beginPath();
+  ctx.moveTo(-10, -4);
+  ctx.lineTo(-30, 0);
+  ctx.lineTo(-10, 4);
+  ctx.fill();
+  ctx.fillStyle = shot.colour || '#d0d4dc';
+  ctx.fillRect(-11, -3.5, 16, 7);
+  ctx.fillStyle = '#d0302a';
+  ctx.beginPath();
+  ctx.moveTo(5, -3.5);
+  ctx.lineTo(12, 0);
+  ctx.lineTo(5, 3.5);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-11, -3.5); ctx.lineTo(-15, -7); ctx.lineTo(-7, -3.5);
+  ctx.moveTo(-11, 3.5); ctx.lineTo(-15, 7); ctx.lineTo(-7, 3.5);
+  ctx.fill();
+  ctx.restore();
+}
+
 export function drawShot(ctx, shot) {
   if (shot.style === 'ball') { drawFireball(ctx, shot); return; }
   if (shot.style === 'spear') { drawSpear(ctx, shot); return; }
+  if (shot.style === 'missile') { drawMissile(ctx, shot); return; }
   if (shot.style === 'table') { drawTable(ctx, shot.x, shot.y, shot.size || 26, (shot.spin = (shot.spin || 0) + 0.35)); return; }
   ctx.save();
   const tailX = shot.x - shot.dx * shot.length;
@@ -557,17 +587,18 @@ export function drawBeam(ctx, beam, from, target, time = 0) {
   ctx.lineCap = 'round';
   ctx.globalAlpha = 0.35;
   ctx.strokeStyle = beam.colour;
-  ctx.lineWidth = 30 * pulse;
+  const width = beam.width || 1;
+  ctx.lineWidth = 30 * pulse * width;
   ctx.beginPath();
   ctx.moveTo(sx, sy);
   ctx.lineTo(target.x, target.y);
   ctx.stroke();
   ctx.globalAlpha = 0.9;
-  ctx.lineWidth = 14 * pulse;
+  ctx.lineWidth = 14 * pulse * width;
   ctx.stroke();
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = '#eaf8ff';
-  ctx.lineWidth = 5;
+  ctx.strokeStyle = width > 1 ? '#fff4d0' : '#eaf8ff';
+  ctx.lineWidth = 5 * width;
   ctx.stroke();
   const glow = ctx.createRadialGradient(sx, sy, 1, sx, sy, 22);
   glow.addColorStop(0, '#ffffff');

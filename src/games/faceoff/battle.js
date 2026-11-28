@@ -538,6 +538,13 @@ function useAbility(fight, who, foe, ability) {
       from: fight.random() < 0.5 ? 'left' : 'right',
     });
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'barrage' && foe && foe.hp > 0) {
+    // One missile out in every direction, evenly round the circle.
+    for (let i = 0; i < ability.count; i += 1) {
+      const angle = (i / ability.count) * Math.PI * 2;
+      fireShotAlong(fight, who, Math.cos(angle), Math.sin(angle), ability);
+    }
+    announce(fight, who, ability.name);
   } else if (ability.kind === 'shot' && foe && foe.hp > 0) {
     fireShot(fight, who, foe, ability);
     announce(fight, who, ability.name);
@@ -576,6 +583,7 @@ function useAbility(fight, who, foe, ability) {
       tick: ability.tick,
       damage: ability.damage,
       colour: ability.colour,
+      width: ability.width || 1,
     });
     announce(fight, who, ability.name);
   } else if (ability.kind === 'volley' && foe && foe.hp > 0) {
@@ -635,8 +643,11 @@ function endDash(who) {
 
 /** Throws one shot at where the enemy is now, not where it is going. */
 function fireShot(fight, who, foe, spec) {
-  const dx = foe.x - who.x;
-  const dy = foe.y - who.y;
+  fireShotAlong(fight, who, foe.x - who.x, foe.y - who.y, spec);
+}
+
+/** A shot from a fighter in a set direction, aimed or not. */
+function fireShotAlong(fight, who, dx, dy, spec) {
   const d = Math.hypot(dx, dy) || 1;
   fight.shots.push({
     side: who.side,
