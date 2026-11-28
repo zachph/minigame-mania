@@ -196,12 +196,37 @@ test('a sword misses anyone off its line, and only costs Sans a dodge', () => {
   void garou;
 });
 
+test('Red Slices: one, then two, then four lines, 10 each on a touch', () => {
+  const f = createFight({ a: ['roaringknight'], b: ['garou'], random: seededRandom(8) });
+  const [knight, garou] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  for (const k of Object.keys(knight.timers)) knight.timers[k] = -1000;
+  knight.timers.slices = 12 - 1e-6;
+  garou.hp = garou.maxHp = 100000;
+  const hold = { x: garou.x, y: garou.y };
+  const counts = [];
+  let last = 0;
+  const before = garou.taken;
+  for (let i = 0; i < 60 * 4; i += 1) {
+    Object.assign(garou, hold); garou.hitLock = knight.hitLock = 99; f.sinceBump = 0;
+    const had = f.swords.filter((s) => s.style === 'slice').length;
+    stepFight(f, 1 / 60);
+    const now = f.swords.filter((s) => s.style === 'slice' && !s.struck).length;
+    if (now > had && now !== last) counts.push(now - had);
+    last = now;
+  }
+  assert.deepEqual(counts, [1, 2, 4]);
+  const dealt = garou.taken - before;
+  assert.ok(dealt % 10 === 0 && dealt > 0 && dealt <= 70, `${dealt} - only whole slices of 10`);
+});
+
 test('the swords and stars draw', async () => {
   const { drawSword } = await import('../src/games/faceoff/art.js');
   const ctx = createFakeContext();
   const line = swordLine(BOX.x + 300, BOX.y + 150, 0.6);
   drawSword(ctx, { ...line, struck: false }, 1);
   drawSword(ctx, { ...line, struck: true, strike: 0.1 }, 1);
+  drawSword(ctx, { ...line, style: 'slice', struck: false }, 1);
+  drawSword(ctx, { ...line, style: 'slice', struck: true, strike: 0.1 }, 1);
   const { drawConverge } = await import('../src/games/faceoff/art.js');
   const f = createFight({ a: ['roaringknight'], b: ['garou'], random: seededRandom(5) });
   hurt(f, frontOf(f, 'a'), 1000);

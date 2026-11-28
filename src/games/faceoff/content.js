@@ -293,6 +293,10 @@ export const UNLOCKABLES = [
       // is. A moment later each one slashes straight across, leaving a white
       // line - and anything it touches loses a quarter of its health.
       { kind: 'swords', name: 'Sword Dance', every: 15, count: 5, gap: 0.35, warn: 0.9, strike: 0.22, share: 0.25 },
+      // Red Slices: every 12 seconds, red lines slice across the box - one,
+      // then two at once, then four at once. Each shows as a thin line first,
+      // then slices, 10 to the enemy if it is touching it.
+      { kind: 'slices', name: 'Red Slices', every: 12, waves: [1, 2, 4], gap: 1.0, warn: 0.6, strike: 0.25, damage: 10, spread: 70 },
       { kind: 'converge', name: 'Final Attack', blades: 14, damage: 5, gather: 1.6, hold: 0.5, scatter: 1.2 },
     ],
   }),

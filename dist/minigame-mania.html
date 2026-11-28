@@ -15559,6 +15559,10 @@ const UNLOCKABLES = [
       // is. A moment later each one slashes straight across, leaving a white
       // line - and anything it touches loses a quarter of its health.
       { kind: 'swords', name: 'Sword Dance', every: 15, count: 5, gap: 0.35, warn: 0.9, strike: 0.22, share: 0.25 },
+      // Red Slices: every 12 seconds, red lines slice across the box - one,
+      // then two at once, then four at once. Each shows as a thin line first,
+      // then slices, 10 to the enemy if it is touching it.
+      { kind: 'slices', name: 'Red Slices', every: 12, waves: [1, 2, 4], gap: 1.0, warn: 0.6, strike: 0.25, damage: 10, spread: 70 },
       { kind: 'converge', name: 'Final Attack', blades: 14, damage: 5, gather: 1.6, hold: 0.5, scatter: 1.2 },
     ],
   }),
@@ -15761,6 +15765,7 @@ function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random, limit
     converges: [],     // the Roaring Knight's final attack, while it goes on
     swords: [],        // the Roaring Knight's swords: warning, then the strike
     swordRuns: [],     // swords still to come in a run
+    sliceRuns: [],     // Red Slices still to come: which wave is next
     spikes: [],        // bones jutting from a wall where someone was slammed
     volleys: [],       // Undyne's spears still to throw
     beams: [],         // Kamehameha, while it is firing
@@ -16251,6 +16256,9 @@ function useAbility(fight, who, foe, ability) {
       from: fight.random() < 0.5 ? 'left' : 'right',
     });
     announce(fight, who, ability.name);
+  } else if (ability.kind === 'slices' && foe && foe.hp > 0) {
+    fight.sliceRuns.push({ owner: who, side: who.side, ability, wave: 0, next: 0 });
+    announce(fight, who, ability.name);
   } else if (ability.kind === 'swords' && foe && foe.hp > 0) {
     fight.swordRuns.push({ owner: who, side: who.side, ability, left: ability.count, next: 0, spin: fight.random() * Math.PI * 2 });
     announce(fight, who, ability.name);
@@ -16525,6 +16533,31 @@ function tickSwords(fight, dt) {
   }
   fight.swordRuns = fight.swordRuns.filter((r) => r.left > 0 && r.owner.hp > 0);
 
+  // Red Slices: each wave puts down more lines at once, each through a point
+  // near the enemy at its own angle.
+  for (const run of fight.sliceRuns) {
+    run.next -= dt;
+    const foe = frontOf(fight, other(run.side));
+    const { ability } = run;
+    while (run.next <= 0 && run.wave < ability.waves.length && run.owner.hp > 0) {
+      const lines = ability.waves[run.wave];
+      run.wave += 1;
+      run.next += ability.gap;
+      if (!foe || foe.hp <= 0) continue;
+      const base = fight.random() * Math.PI;
+      for (let i = 0; i < lines; i += 1) {
+        const angle = base + (i * Math.PI) / lines + (fight.random() - 0.5) * 0.3;
+        const x = foe.x + (fight.random() - 0.5) * 2 * ability.spread;
+        const y = foe.y + (fight.random() - 0.5) * 2 * ability.spread;
+        fight.swords.push({
+          owner: run.owner, side: run.side, style: 'slice', ...swordLine(x, y, angle),
+          warn: ability.warn, strike: ability.strike, damage: ability.damage, struck: false, hit: false,
+        });
+      }
+    }
+  }
+  fight.sliceRuns = fight.sliceRuns.filter((r) => r.wave < r.ability.waves.length && r.owner.hp > 0);
+
   for (const sword of fight.swords) {
     if (sword.warn > 0) { sword.warn -= dt; continue; }
     sword.struck = true;
@@ -16532,7 +16565,8 @@ function tickSwords(fight, dt) {
     const foe = frontOf(fight, other(sword.side));
     if (!sword.hit && foe && foe.hp > 0 && onSword(sword, foe)) {
       sword.hit = true;
-      hurt(fight, foe, foe.maxHp * sword.share, { from: sword.owner, kind: 'sword' });
+      const amount = sword.damage != null ? sword.damage * fight.sides[sword.side].scale : foe.maxHp * sword.share;
+      hurt(fight, foe, amount, { from: sword.owner, kind: sword.style === 'slice' ? 'slice' : 'sword' });
     }
   }
   fight.swords = fight.swords.filter((s) => s.strike > 0 && s.owner.hp > 0);
@@ -18516,6 +18550,42 @@ function drawConverge(ctx, c, time = 0) {
   ctx.restore();
 }
 
+/**
+ * A Red Slice: a thin red line across the box first, then the slice itself -
+ * a broad red glow with a dark line down its middle.
+ */
+function drawSlice(ctx, slice, time = 0) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);
+  ctx.clip();
+  ctx.lineCap = 'butt';
+  const line = () => {
+    ctx.beginPath();
+    ctx.moveTo(slice.x1, slice.y1);
+    ctx.lineTo(slice.x2, slice.y2);
+    ctx.stroke();
+  };
+  if (!slice.struck) {
+    ctx.strokeStyle = `rgba(255, 30, 30, ${0.35 + 0.25 * Math.sin(time * 30)})`;
+    ctx.lineWidth = 2;
+    line();
+  } else {
+    const fade = clamp(slice.strike / 0.25, 0, 1);
+    ctx.globalAlpha = 0.35 * fade;
+    ctx.strokeStyle = '#ff1a1a';
+    ctx.lineWidth = 22;
+    line();
+    ctx.globalAlpha = fade;
+    ctx.lineWidth = 9;
+    line();
+    ctx.strokeStyle = '#1a0000';
+    ctx.lineWidth = 3;
+    line();
+  }
+  ctx.restore();
+}
+
 /** One of the Knight's swords, drawn pointing along +x from its hilt at 0. */
 function knightSword(ctx, length = 96) {
   const INK = '#050508';
@@ -18575,6 +18645,7 @@ function knightSword(ctx, length = 96) {
  * slashes across, leaving a white line that fades.
  */
 function drawSword(ctx, sword, time = 0) {
+  if (sword.style === 'slice') { drawSlice(ctx, sword, time); return; }
   const angle = Math.atan2(sword.y2 - sword.y1, sword.x2 - sword.x1);
   const length = Math.hypot(sword.x2 - sword.x1, sword.y2 - sword.y1);
   ctx.save();
@@ -18762,7 +18833,7 @@ function drawZone(ctx, zone, time = 0) {
   ctx.restore();
 }
 
-  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, drawBlaster, drawBones, drawSpikes, drawVoid, drawConverge, drawSword, drawFireball, drawSpear, drawBeam, drawTable, drawWindup, drawZone, beamLine };
+  return { drawScreen, drawBox, drawBall, drawStatus, drawBench, drawPopup, drawSpark, drawText, drawBanner, drawInfinity, drawSlowed, drawShot, drawSlash, drawBlaster, drawBones, drawSpikes, drawVoid, drawConverge, drawSlice, drawSword, drawFireball, drawSpear, drawBeam, drawTable, drawWindup, drawZone, beamLine };
 })();
 
 // ---- src/games/faceoff/game.js -----------------------------------
@@ -18934,7 +19005,7 @@ class FaceoffGame {
       if (event.kind === 'down') this.unlockDefeated(event.uid);
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
-        const colour = { zone: '#b46aff', table: '#d9a35a', dash: '#96d2ff', beam: '#6ac8ff', fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff', blade: '#fff', sword: '#fff' }[event.source] || '#f44';
+        const colour = { zone: '#b46aff', table: '#d9a35a', dash: '#96d2ff', beam: '#6ac8ff', fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff', blade: '#fff', sword: '#fff', slice: '#ff1a1a' }[event.source] || '#f44';
         const big = event.source === 'instakill';
         this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' || event.source === 'blaster' || event.source === 'bones' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
       } else if (event.kind === 'ability') {
