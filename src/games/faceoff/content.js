@@ -291,8 +291,8 @@ export const UNLOCKABLES = [
       // Sword Dance: every 15 seconds, swords appear one after another round
       // the outside of the box, each pointing in through wherever the enemy
       // is. A moment later each one slashes straight across, leaving a white
-      // line - and anything it touches is knocked out in one hit.
-      { kind: 'swords', name: 'Sword Dance', every: 15, count: 5, gap: 0.35, warn: 0.9, strike: 0.22 },
+      // line - and anything it touches loses a quarter of its health.
+      { kind: 'swords', name: 'Sword Dance', every: 15, count: 5, gap: 0.35, warn: 0.9, strike: 0.22, share: 0.25 },
       { kind: 'converge', name: 'Final Attack', blades: 14, damage: 5, gather: 1.6, hold: 0.5, scatter: 1.2 },
     ],
   }),

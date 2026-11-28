@@ -165,7 +165,7 @@ test('the blades draw', async () => {
   assert.ok(ctx.calls > 50);
 });
 
-test('Sword Dance: a sword points in first, then slashes across and knocks out in one hit', () => {
+test('Sword Dance: a sword points in first, then slashes across for a quarter of the enemy\'s health', () => {
   const f = createFight({ a: ['roaringknight'], b: ['garou'], random: seededRandom(6) });
   const [knight, garou] = [frontOf(f, 'a'), frontOf(f, 'b')];
   knight.timers.swords = 15 - 1e-6;
@@ -176,11 +176,11 @@ test('Sword Dance: a sword points in first, then slashes across and knocks out i
   assert.equal(f.swords[0].struck, false, 'pointing in first');
   assert.ok(onSword(f.swords[0], garou), 'aimed through the enemy');
   assert.equal(garou.hp, garou.maxHp, 'that does nothing yet');
-  for (let i = 0; i < 60 && garou.hp > 0; i += 1) step();
-  assert.equal(garou.hp, 0, 'one hit and he is out');
+  for (let i = 0; i < 60 && !f.swords.some((s) => s.hit); i += 1) step();
+  assert.equal(garou.hp, garou.maxHp * 0.75, 'a quarter gone');
 });
 
-test('a sword misses anyone who has moved off its line, and only costs Sans a dodge', () => {
+test('a sword misses anyone off its line, and only costs Sans a dodge', () => {
   const f = createFight({ a: ['roaringknight'], b: ['garou'], random: seededRandom(6) });
   const garou = frontOf(f, 'b');
   const sword = { ...swordLine(BOX.x + 100, BOX.y + 150, 0), warn: 0, strike: 0.25 };
@@ -189,7 +189,7 @@ test('a sword misses anyone who has moved off its line, and only costs Sans a do
   const s2 = createFight({ a: ['roaringknight'], b: ['sans'], random: seededRandom(6) });
   const [k2, sans] = [frontOf(s2, 'a'), frontOf(s2, 'b')];
   for (const key of Object.keys(sans.timers)) sans.timers[key] = -1000;
-  s2.swords.push({ owner: k2, side: 'a', ...swordLine(sans.x, sans.y, 0.3), warn: 0, strike: 0.25, struck: false, hit: false });
+  s2.swords.push({ owner: k2, side: 'a', ...swordLine(sans.x, sans.y, 0.3), warn: 0, strike: 0.25, share: 0.25, struck: false, hit: false });
   stepFight(s2, 1 / 60);
   assert.equal(sans.hp, 1);
   assert.equal(sans.dodgesLeft, 23);

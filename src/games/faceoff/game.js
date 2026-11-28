@@ -201,8 +201,8 @@ class FaceoffGame {
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
         const colour = { zone: '#b46aff', table: '#d9a35a', dash: '#96d2ff', beam: '#6ac8ff', fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff', blade: '#fff', sword: '#fff' }[event.source] || '#f44';
-        const big = event.source === 'instakill' || event.source === 'sword';
-        this.popups.push({ ...this.whereIs(event.uid), text: big ? (event.source === 'sword' ? 'ONE HIT' : 'ONE PUNCH') : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' || event.source === 'blaster' || event.source === 'bones' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
+        const big = event.source === 'instakill';
+        this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' || event.source === 'blaster' || event.source === 'bones' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
       } else if (event.kind === 'ability') {
         const at = this.whereIs(event.uid);
         this.popups.push({ x: at.x, y: at.y - 22, text: event.name.toUpperCase(), colour: '#ff0', size: 14, life: 1.1, maxLife: 1.1 });
