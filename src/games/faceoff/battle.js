@@ -49,7 +49,7 @@ export const abilityOf = (who, kind) => abilitiesOf(who).find((ability) => abili
 export const isClock = (ability) => Boolean(ability.every) && ability.kind !== 'burn';
 
 /** Whether a fighter is in the middle of his Last Attack. */
-export const inFinale = (fight, who) => fight.finales.some((f) => f.owner === who);
+export const inFinale = (fight, who) => fight.finales.some((f) => f.owner === who) || fight.converges.some((c) => c.owner === who);
 
 export function makeFighter(id, { slot = 0, side = 'a' } = {}) {
   const spec = getFighter(id);
@@ -120,6 +120,7 @@ export function createFight({ a, b, scaleA = 1, scaleB = 1, random = Math.random
     runs: [],          // Gaster Blaster runs in progress: which blast is next
     waves: [],         // Bone Waves, while they sweep
     finales: [],       // Sans's Last Attack, while he does it
+    converges: [],     // the Roaring Knight's final attack, while it goes on
     spikes: [],        // bones jutting from a wall where someone was slammed
     volleys: [],       // Undyne's spears still to throw
     beams: [],         // Kamehameha, while it is firing
@@ -219,6 +220,69 @@ function takeOffBlindfold(fight, gojo, foe, domain) {
   }
 }
 
+/**
+ * The Roaring Knight would have gone down: it stays on 1 and does its final
+ * attack. Blades start all round the edge of the box, each aimed at the Knight.
+ */
+function startConverge(fight, knight, ability) {
+  knight.convergeUsed = true;
+  knight.hp = 1;
+  knight.burn = null;
+  const cx = BOX.x + BOX.w / 2;
+  const cy = BOX.y + BOX.h / 2;
+  const reach = Math.hypot(BOX.w, BOX.h) / 2;
+  const blades = [];
+  for (let i = 0; i < ability.blades; i += 1) {
+    const angle = (i / ability.blades) * Math.PI * 2;
+    const x = clamp(cx + Math.cos(angle) * reach, BOX.x + 6, BOX.x + BOX.w - 6);
+    const y = clamp(cy + Math.sin(angle) * reach, BOX.y + 6, BOX.y + BOX.h - 6);
+    blades.push({ from: { x, y }, x, y, hitIn: false, hitOut: false });
+  }
+  fight.converges.push({ owner: knight, side: knight.side, ability, phase: 'gather', time: 0, blades });
+  fight.events.push({ kind: 'converge', uid: knight.uid });
+  announce(fight, knight, ability.name);
+}
+
+/**
+ * The final attack, a step at a time: blades slide in to the Knight, hang
+ * there a moment, then fly back out past where they started. Any blade that
+ * touches the enemy hurts it once on the way in and once on the way out.
+ */
+function tickConverges(fight, dt) {
+  for (const c of fight.converges) {
+    const { owner: knight, ability } = c;
+    if (knight.hp <= 0) { c.done = true; continue; }
+    c.time += dt;
+    const foe = frontOf(fight, other(c.side));
+    const at = (from, t) => ({ x: from.x + (knight.x - from.x) * t, y: from.y + (knight.y - from.y) * t });
+    if (c.phase === 'gather') {
+      // Ease in, stopping just short of the Knight.
+      const t = Math.min(1, c.time / ability.gather);
+      const near = (1 - (1 - t) ** 2) * 0.88;
+      for (const b of c.blades) Object.assign(b, at(b.from, near));
+      if (t >= 1) { c.phase = 'hold'; c.time = 0; }
+    } else if (c.phase === 'hold') {
+      for (const b of c.blades) Object.assign(b, at(b.from, 0.88));
+      if (c.time >= ability.hold) { c.phase = 'scatter'; c.time = 0; }
+    } else {
+      // Back out the way they came, and on past the edge.
+      const t = Math.min(1, c.time / ability.scatter);
+      const back = 0.88 - (t ** 1.5) * 1.3;
+      for (const b of c.blades) Object.assign(b, at(b.from, back));
+      if (t >= 1) c.done = true;
+    }
+    if (!foe || foe.hp <= 0) continue;
+    for (const b of c.blades) {
+      const key = c.phase === 'scatter' ? 'hitOut' : 'hitIn';
+      if (b[key] || Math.hypot(foe.x - b.x, foe.y - b.y) > foe.radius + 10) continue;
+      b[key] = true;
+      hurt(fight, foe, ability.damage * fight.sides[c.side].scale, { from: knight, kind: 'blade' });
+      if (foe.hp <= 0) break;
+    }
+  }
+  fight.converges = fight.converges.filter((c) => !c.done);
+}
+
 /** The player's answer is in: right beats Sukuna outright, wrong heals Gojo to full. */
 export function resolveDomain(fight, correct) {
   const pending = fight.pending;
@@ -252,6 +316,11 @@ export function hurt(fight, target, amount, { from = null, kind = 'bump' } = {})
   if (from) from.dealt += dealt;
   fight.events.push({ kind: 'damage', uid: target.uid, amount: dealt, source: kind });
 
+  const converge = abilityOf(target, 'converge');
+  if (target.hp <= 0 && converge && !target.convergeUsed) {
+    startConverge(fight, target, converge);
+    return dealt;
+  }
   const domain = abilityOf(target, 'domain');
   if (target.hp <= 0 && domain && !target.blindfoldOff && from?.id === domain.against) {
     takeOffBlindfold(fight, target, from, domain);
@@ -1122,6 +1191,7 @@ export function stepFight(fight, dt) {
     tickVolleys(fight, slice);
     tickShots(fight, slice);
     tickFinales(fight, slice);
+    tickConverges(fight, slice);
     tickRuns(fight, slice);
     tickBlasters(fight, slice);
     tickWaves(fight, slice);

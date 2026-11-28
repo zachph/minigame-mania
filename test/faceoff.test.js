@@ -130,6 +130,41 @@ test('the cannon and missiles draw', async () => {
   assert.ok(ctx.calls > 10);
 });
 
+test('the Roaring Knight survives its first fatal hit on 1 and does its final attack', () => {
+  const f = createFight({ a: ['roaringknight'], b: ['garou'], random: seededRandom(5) });
+  const [knight, garou] = [frontOf(f, 'a'), frontOf(f, 'b')];
+  garou.hp = garou.maxHp = 100000;
+  hurt(f, knight, 1000, { from: garou });
+  assert.equal(knight.hp, 1);
+  assert.equal(f.converges.length, 1);
+  assert.equal(f.converges[0].blades.length, 24);
+  assert.equal(hurt(f, knight, 50, { from: garou }), 0, 'nothing touches it meanwhile');
+  // Stand the enemy right next to the Knight, where every blade ends up.
+  const before = garou.taken;
+  let phases = new Set();
+  for (let i = 0; i < 60 * 5 && f.converges.length; i += 1) {
+    garou.x = knight.x + 40; garou.y = knight.y;
+    garou.hitLock = knight.hitLock = 99; f.sinceBump = 0;
+    stepFight(f, 1 / 60);
+    if (f.converges[0]) phases.add(f.converges[0].phase);
+  }
+  assert.deepEqual([...phases], ['gather', 'hold', 'scatter']);
+  assert.equal(f.converges.length, 0, 'it ends');
+  assert.ok(garou.taken - before >= 10, `blades did ${garou.taken - before}`);
+  assert.equal(knight.hp, 1);
+  hurt(f, knight, 1000, { from: garou });
+  assert.equal(knight.hp, 0, 'only the first fatal hit');
+});
+
+test('the blades draw', async () => {
+  const { drawConverge } = await import('../src/games/faceoff/art.js');
+  const f = createFight({ a: ['roaringknight'], b: ['garou'], random: seededRandom(5) });
+  hurt(f, frontOf(f, 'a'), 1000);
+  const ctx = createFakeContext();
+  drawConverge(ctx, f.converges[0]);
+  assert.ok(ctx.calls > 50);
+});
+
 test('a four-strong team fights through all four', () => {
   const f = createFight({ a: ['lastbreath', 'frisk', 'gojo1b', 'fullpower'], b: ['saitama'], random: seededRandom(3) });
   assert.equal(f.sides.a.team.length, 4);

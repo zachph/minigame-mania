@@ -22,6 +22,7 @@ import {
   drawBench,
   drawBlaster,
   drawBones,
+  drawConverge,
   drawSpikes,
   drawBox,
   drawVoid,
@@ -198,7 +199,7 @@ class FaceoffGame {
       if (event.kind === 'down') this.unlockDefeated(event.uid);
       if (event.kind === 'damage') {
         this.flash[event.uid] = 1;
-        const colour = { zone: '#b46aff', table: '#d9a35a', dash: '#96d2ff', beam: '#6ac8ff', fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff' }[event.source] || '#f44';
+        const colour = { zone: '#b46aff', table: '#d9a35a', dash: '#96d2ff', beam: '#6ac8ff', fireball: '#ff8a1a', burn: '#f93', slam: '#4aa8ff', instakill: '#ff0', whis: '#9cc4e8', shot: '#ff2a2a', slash: '#ff3355', blaster: '#fff', bones: '#fff', blade: '#fff' }[event.source] || '#f44';
         const big = event.source === 'instakill';
         this.popups.push({ ...this.whereIs(event.uid), text: big ? 'ONE PUNCH' : `${Math.round(event.amount)}`, colour, size: big ? 28 : event.source === 'burn' || event.source === 'blaster' || event.source === 'bones' ? 14 : 20, life: big ? 1.4 : 0.8, maxLife: big ? 1.4 : 0.8 });
       } else if (event.kind === 'ability') {
@@ -304,6 +305,7 @@ class FaceoffGame {
       drawBeam(ctx, beam, beam.owner, frontOf(this.fight, beam.side === 'a' ? 'b' : 'a'), this.clock);
     }
     for (const shot of this.fight.shots) drawShot(ctx, shot);
+    for (const c of this.fight.converges) drawConverge(ctx, c);
     for (const blaster of this.fight.blasters) {
       drawBlaster(ctx, blaster, this.clock);
     }

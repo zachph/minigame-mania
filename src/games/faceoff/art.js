@@ -522,6 +522,34 @@ export function drawVoid(ctx, time, text = '') {
   ctx.restore();
 }
 
+/** The Roaring Knight's final attack: white blades, each pointing at the Knight. */
+export function drawConverge(ctx, c) {
+  const knight = c.owner;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h);
+  ctx.clip();
+  for (const b of c.blades) {
+    const angle = Math.atan2(knight.y - b.from.y, knight.x - b.from.x);
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(c.phase === 'scatter' ? angle + Math.PI : angle);
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(18, 0);
+    ctx.lineTo(-6, -4);
+    ctx.lineTo(-14, 0);
+    ctx.lineTo(-6, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 /** A fireball: a hot core in a glow, with flame trailing behind it. */
 export function drawFireball(ctx, shot) {
   const r = shot.size || 13;
